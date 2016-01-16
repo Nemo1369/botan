@@ -22,8 +22,6 @@ set(BOTAN_SRC
 		base/transform.cpp
 		block/block_cipher.cpp
 		block/aes/aes.cpp
-		block/aes_ni/aes_ni.cpp
-		block/aes_ssse3/aes_ssse3.cpp
 		block/blowfish/blfs_tab.cpp
 		block/blowfish/blowfish.cpp
 		block/camellia/camellia.cpp
@@ -35,7 +33,6 @@ set(BOTAN_SRC
 		block/des/desx.cpp
 		block/gost_28147/gost_28147.cpp
 		block/idea/idea.cpp
-		block/idea_sse2/idea_sse2.cpp
 		block/kasumi/kasumi.cpp
 		block/lion/lion.cpp
 		block/mars/mars.cpp
@@ -51,7 +48,6 @@ set(BOTAN_SRC
 		block/serpent/serpent.cpp
 		block/serpent_simd/serp_simd.cpp
 		block/tea/tea.cpp
-		block/threefish_avx2/threefish_avx2.cpp
 		block/threefish/threefish.cpp
 		block/twofish/twofish.cpp
 		block/twofish/two_tab.cpp
@@ -79,7 +75,6 @@ set(BOTAN_SRC
 		entropy/entropy_srcs.cpp
 		entropy/hres_timer/hres_timer.cpp
 		entropy/proc_walk/proc_walk.cpp
-		entropy/rdrand/rdrand.cpp
 		entropy/unix_procs/unix_procs.cpp
 		entropy/unix_procs/unix_proc_sources.cpp
 		ffi/ffi.cpp
@@ -116,7 +111,6 @@ set(BOTAN_SRC
 		hash/rmd128/rmd128.cpp
 		hash/rmd160/rmd160.cpp
 		hash/sha1/sha160.cpp
-		hash/sha1_sse2/sha1_sse2.cpp
 		hash/sha2_32/sha2_32.cpp
 		hash/sha2_64/sha2_64.cpp
 		hash/skein/skein_512.cpp
@@ -180,7 +174,6 @@ set(BOTAN_SRC
 		modes/aead/ccm/ccm.cpp
 		modes/aead/chacha20poly1305/chacha20poly1305.cpp
 		modes/aead/eax/eax.cpp
-		modes/aead/gcm/clmul/clmul.cpp
 		modes/aead/gcm/gcm.cpp
 		modes/aead/ocb/ocb.cpp
 		modes/aead/siv/siv.cpp
@@ -293,7 +286,6 @@ set(BOTAN_SRC
 		utils/cpuid.cpp
 		utils/data_src.cpp
 		utils/datastor/datastor.cpp
-#		utils/dyn_load/dyn_load.cpp
 		utils/filesystem.cpp
 		utils/http_util/http_util.cpp
 		utils/locking_allocator/locking_allocator.cpp
@@ -306,6 +298,26 @@ set(BOTAN_SRC
 		utils/zero_mem.cpp
 		)
 
+option(DYN_LOAD_MODULE "Build with dyn_load usage support" TRUE)
+option(AES_NI_MODULE "Build with NI for AES usage support" TRUE)
+option(CLMUL_MODULE "Build with clmul usage support" TRUE)
+option(RDRAND_ENTROPY_MODULE "Build with rdrand entropy source usage support" TRUE)
+option(THREEFISH_AVX2_MODULE "Build with AVX2 for Threefish usage support" TRUE)
+option(SHA_SSSE2_MODULE "Build with SSE2 for SHA usage support" TRUE)
+option(AES_SSSE2_MODULE "Build with SSE2 for AES usage support" TRUE)
+option(AES_SSSE3_MODULE "Build with SSSE3 for AES usage support" TRUE)
+
+if(APPLE AND IOS)
+	set(DYN_LOAD_MODULE FALSE)
+	set(AES_NI_MODULE FALSE)
+	set(CLMUL_MODULE FALSE)
+	set(RDRAND_ENTROPY_MODULE FALSE)
+	set(THREEFISH_AVX2_MODULE FALSE)
+	set(SHA_SSE2_MODULE FALSE)
+	set(AES_SSE2_MODULE FALSE)
+	set(AES_SSSE3_MODULE FALSE)
+endif()
+
 if(APPLE)
 	find_library(SECURITY_LIBRARY Security)
 
@@ -314,17 +326,54 @@ if(APPLE)
 	list(APPEND BOTAN_SRC entropy/darwin_secrandom/darwin_secrandom.cpp)
 endif()
 
+if(DYN_LOAD_MODULE)
+	list(APPEND BOTAN_SRC utils/dyn_load/dyn_load.cpp)
+endif()
+
+if(AES_NI_MODULE)
+
+	set(CLMUL_MODULE TRUE)
+		
+	list(APPEND BOTAN_SRC block/aes_ni/aes_ni.cpp)
+
+	# AES-NI
+	set_source_files_properties(block/aes_ni/aes_ni.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
+endif()
+
+if(THREEFISH_AVX2_MODULE)
+	list(APPEND BOTAN_SRC block/threefish_avx2/threefish_avx2.cpp)
+
+	# AVX2
+	set_source_files_properties(block/threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
+endif()
+
+if(RDRAND_ENTROPY_MODULE)
+	list(APPEND BOTAN_SRC entropy/rdrand/rdrand.cpp)
+endif()
+
+if(AES_SSE2_MODULE)
+	list(APPEND BOTAN_SRC block/idea_sse2/idea_sse2.cpp)
+endif()
+
+if(SHA_SSE2_MODULE)
+	list(APPEND BOTAN_SRC hash/sha1_sse2/sha1_sse2.cpp)
+endif()
+
+if(AES_SSSE3_MODULE)
+	list(APPEND BOTAN_SRC block/aes_ssse3/aes_ssse3.cpp)
+
+	# SSSE3
+	set_source_files_properties(block/aes_ssse3/aes_ssse3.cpp PROPERTIES COMPILE_FLAGS "-mssse3")
+endif()
+
+if(CLMUL_MODULE)
+	list(APPEND BOTAN_SRC modes/aead/gcm/clmul/clmul.cpp)
+	set_source_files_properties(modes/aead/gcm/clmul/clmul.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
+endif()
+
 # add a new target to show help for options that we add
 # use add_custom_command(TARGET botan-help ...) to extend the help text
 add_custom_target(botan-help)
-
-# AVX2
-set_source_files_properties(block/threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
-# SSSE3
-set_source_files_properties(block/aes_ssse3/aes_ssse3.cpp PROPERTIES COMPILE_FLAGS "-mssse3")
-# AES-NI
-set_source_files_properties(block/aes_ni/aes_ni.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
-set_source_files_properties(modes/aead/gcm/clmul/clmul.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
 
 if(WITH_LZMA)
 	find_package(LZMA)
@@ -391,4 +440,3 @@ foreach(include_install_file ${include_install_files})
 	install(FILES ${full_include_install_file} DESTINATION "include/botan-1.11/botan/")
 endforeach(include_install_file ${include_instal_files})
 install(TARGETS botan ARCHIVE DESTINATION "lib/botan")
-
