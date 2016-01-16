@@ -273,7 +273,6 @@ set(BOTAN_SRC
 		tls/tls_handshake_state.cpp
 		tls/tls_heartbeats.cpp
 		tls/tls_policy.cpp
-		tls/tls_record.cpp
 		tls/tls_server.cpp
 		tls/tls_session.cpp
 		tls/tls_session_key.cpp
@@ -299,6 +298,8 @@ set(BOTAN_SRC
 		)
 
 option(DYN_LOAD_MODULE "Build with dyn_load usage support" TRUE)
+option(TLS_RECORD_MODULE "Build with tls record usage support" TRUE)
+option(LOCKING_ALLOCATOR_MODULE "Build with locking allocator usage support" TRUE)
 option(AES_NI_MODULE "Build with NI for AES usage support" TRUE)
 option(CLMUL_MODULE "Build with clmul usage support" TRUE)
 option(RDRAND_ENTROPY_MODULE "Build with rdrand entropy source usage support" TRUE)
@@ -310,6 +311,8 @@ option(AES_SSSE3_MODULE "Build with SSSE3 for AES usage support" TRUE)
 if(APPLE AND IOS)
 	set(DYN_LOAD_MODULE FALSE)
 	set(AES_NI_MODULE FALSE)
+	set(TLS_RECORD_MODULE FALSE)
+	set(LOCKING_ALLOCATOR_MODULE FALSE)
 	set(CLMUL_MODULE FALSE)
 	set(RDRAND_ENTROPY_MODULE FALSE)
 	set(THREEFISH_AVX2_MODULE FALSE)
@@ -330,10 +333,14 @@ if(DYN_LOAD_MODULE)
 	list(APPEND BOTAN_SRC utils/dyn_load/dyn_load.cpp)
 endif()
 
+if(LOCKING_ALLOCATOR_MODULE)
+	list(APPEND BOTAN_SRC utils/locking_allocator/locking_allocator.cpp)
+endif()
+
 if(AES_NI_MODULE)
 
 	set(CLMUL_MODULE TRUE)
-		
+
 	list(APPEND BOTAN_SRC block/aes_ni/aes_ni.cpp)
 
 	# AES-NI
@@ -345,6 +352,10 @@ if(THREEFISH_AVX2_MODULE)
 
 	# AVX2
 	set_source_files_properties(block/threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
+endif()
+
+if(TLS_RECORD_MODULE)
+	list(APPEND BOTAN_SRC tls/tls_record.cpp)
 endif()
 
 if(RDRAND_ENTROPY_MODULE)
