@@ -74,19 +74,19 @@ class BOTAN_DLL EAC_Time : public ASN1_Object
       * Get the year value of this objects.
       * @return year value
       */
-      u32bit get_year() const { return m_year; }
+      u32bit get_year() const { return year; }
 
       /**
       * Get the month value of this objects.
       * @return month value
       */
-      u32bit get_month() const { return m_month; }
+      u32bit get_month() const { return month; }
 
       /**
       * Get the day value of this objects.
       * @return day value
       */
-      u32bit get_day() const { return m_day; }
+      u32bit get_day() const { return day; }
 
       EAC_Time(const std::chrono::system_clock::time_point& time,
                ASN1_Tag tag = ASN1_Tag(0));
@@ -101,8 +101,8 @@ class BOTAN_DLL EAC_Time : public ASN1_Object
    private:
       std::vector<byte> encoded_eac_time() const;
       bool passes_sanity_check() const;
-      u32bit m_year, m_month, m_day;
-      ASN1_Tag m_tag;
+      u32bit year, month, day;
+      ASN1_Tag tag;
    };
 
 /**
@@ -188,8 +188,8 @@ class BOTAN_DLL ASN1_EAC_String: public ASN1_Object
    protected:
       bool sanity_check() const;
    private:
-      std::string m_iso_8859_str;
-      ASN1_Tag m_tag;
+      std::string iso_8859_str;
+      ASN1_Tag tag;
    };
 
 /**

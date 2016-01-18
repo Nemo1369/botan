@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * Class used to accumulate the poll results of EntropySources
 */
-class BOTAN_DLL Entropy_Accumulator final
+class BOTAN_DLL Entropy_Accumulator
    {
    public:
       /**
@@ -32,6 +32,8 @@ class BOTAN_DLL Entropy_Accumulator final
       */
       Entropy_Accumulator(std::function<bool (const byte[], size_t, double)> accum) :
          m_accum_fn(accum) {}
+
+      virtual ~Entropy_Accumulator() {}
 
       /**
       * @return if our polling goal has been achieved
@@ -78,13 +80,13 @@ class BOTAN_DLL Entropy_Accumulator final
 class BOTAN_DLL Entropy_Source
    {
    public:
-     /*
+      /*
       * Return a new entropy source of a particular type, or null
       * Each entropy source may require substantial resources (eg, a file handle
       * or socket instance), so try to share them among multiple RNGs, or just
       * use the preconfigured global list accessed by global_entropy_sources()
       */
-      static std::unique_ptr<Entropy_Source> create(const std::string& name);
+      static std::unique_ptr<Entropy_Source> create(const std::string& type);
 
       /**
       * @return name identifying this entropy source
@@ -100,7 +102,7 @@ class BOTAN_DLL Entropy_Source
       virtual ~Entropy_Source() {}
    };
 
-class BOTAN_DLL Entropy_Sources final
+class BOTAN_DLL Entropy_Sources
    {
    public:
       static Entropy_Sources& global_sources();

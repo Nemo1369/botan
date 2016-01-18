@@ -23,21 +23,21 @@ const size_t HEX_CODEC_BUFFER_SIZE = 256;
 * Hex_Encoder Constructor
 */
 Hex_Encoder::Hex_Encoder(bool breaks, size_t length, Case c) :
-   m_casing(c), m_line_length(breaks ? length : 0)
+   casing(c), line_length(breaks ? length : 0)
    {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(2*m_in.size());
-   m_counter = m_position = 0;
+   in.resize(HEX_CODEC_BUFFER_SIZE);
+   out.resize(2*in.size());
+   counter = position = 0;
    }
 
 /*
 * Hex_Encoder Constructor
 */
-Hex_Encoder::Hex_Encoder(Case c) : m_casing(c), m_line_length(0)
+Hex_Encoder::Hex_Encoder(Case c) : casing(c), line_length(0)
    {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(2*m_in.size());
-   m_counter = m_position = 0;
+   in.resize(HEX_CODEC_BUFFER_SIZE);
+   out.resize(2*in.size());
+   counter = position = 0;
    }
 
 /*
@@ -45,26 +45,26 @@ Hex_Encoder::Hex_Encoder(Case c) : m_casing(c), m_line_length(0)
 */
 void Hex_Encoder::encode_and_send(const byte block[], size_t length)
    {
-   hex_encode(reinterpret_cast<char*>(m_out.data()),
+   hex_encode(reinterpret_cast<char*>(out.data()),
               block, length,
-              m_casing == Uppercase);
+              casing == Uppercase);
 
-   if(m_line_length == 0)
-      send(m_out, 2*length);
+   if(line_length == 0)
+      send(out, 2*length);
    else
       {
       size_t remaining = 2*length, offset = 0;
       while(remaining)
          {
-         size_t sent = std::min(m_line_length - m_counter, remaining);
-         send(&m_out[offset], sent);
-         m_counter += sent;
+         size_t sent = std::min(line_length - counter, remaining);
+         send(&out[offset], sent);
+         counter += sent;
          remaining -= sent;
          offset += sent;
-         if(m_counter == m_line_length)
+         if(counter == line_length)
             {
             send('\n');
-            m_counter = 0;
+            counter = 0;
             }
          }
       }
@@ -75,22 +75,22 @@ void Hex_Encoder::encode_and_send(const byte block[], size_t length)
 */
 void Hex_Encoder::write(const byte input[], size_t length)
    {
-   buffer_insert(m_in, m_position, input, length);
-   if(m_position + length >= m_in.size())
+   buffer_insert(in, position, input, length);
+   if(position + length >= in.size())
       {
-      encode_and_send(m_in.data(), m_in.size());
-      input += (m_in.size() - m_position);
-      length -= (m_in.size() - m_position);
-      while(length >= m_in.size())
+      encode_and_send(in.data(), in.size());
+      input += (in.size() - position);
+      length -= (in.size() - position);
+      while(length >= in.size())
          {
-         encode_and_send(input, m_in.size());
-         input += m_in.size();
-         length -= m_in.size();
+         encode_and_send(input, in.size());
+         input += in.size();
+         length -= in.size();
          }
-      copy_mem(m_in.data(), input, length);
-      m_position = 0;
+      copy_mem(in.data(), input, length);
+      position = 0;
       }
-   m_position += length;
+   position += length;
    }
 
 /*
@@ -98,20 +98,20 @@ void Hex_Encoder::write(const byte input[], size_t length)
 */
 void Hex_Encoder::end_msg()
    {
-   encode_and_send(m_in.data(), m_position);
-   if(m_counter && m_line_length)
+   encode_and_send(in.data(), position);
+   if(counter && line_length)
       send('\n');
-   m_counter = m_position = 0;
+   counter = position = 0;
    }
 
 /*
 * Hex_Decoder Constructor
 */
-Hex_Decoder::Hex_Decoder(Decoder_Checking c) : m_checking(c)
+Hex_Decoder::Hex_Decoder(Decoder_Checking c) : checking(c)
    {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(m_in.size() / 2);
-   m_position = 0;
+   in.resize(HEX_CODEC_BUFFER_SIZE);
+   out.resize(in.size() / 2);
+   position = 0;
    }
 
 /*
@@ -121,26 +121,26 @@ void Hex_Decoder::write(const byte input[], size_t length)
    {
    while(length)
       {
-      size_t to_copy = std::min<size_t>(length, m_in.size() - m_position);
-      copy_mem(&m_in[m_position], input, to_copy);
-      m_position += to_copy;
+      size_t to_copy = std::min<size_t>(length, in.size() - position);
+      copy_mem(&in[position], input, to_copy);
+      position += to_copy;
 
       size_t consumed = 0;
-      size_t written = hex_decode(m_out.data(),
-                                  reinterpret_cast<const char*>(m_in.data()),
-                                  m_position,
+      size_t written = hex_decode(out.data(),
+                                  reinterpret_cast<const char*>(in.data()),
+                                  position,
                                   consumed,
-                                  m_checking != FULL_CHECK);
+                                  checking != FULL_CHECK);
 
-      send(m_out, written);
+      send(out, written);
 
-      if(consumed != m_position)
+      if(consumed != position)
          {
-         copy_mem(m_in.data(), m_in.data() + consumed, m_position - consumed);
-         m_position = m_position - consumed;
+         copy_mem(in.data(), in.data() + consumed, position - consumed);
+         position = position - consumed;
          }
       else
-         m_position = 0;
+         position = 0;
 
       length -= to_copy;
       input += to_copy;
@@ -153,17 +153,17 @@ void Hex_Decoder::write(const byte input[], size_t length)
 void Hex_Decoder::end_msg()
    {
    size_t consumed = 0;
-   size_t written = hex_decode(m_out.data(),
-                               reinterpret_cast<const char*>(m_in.data()),
-                               m_position,
+   size_t written = hex_decode(out.data(),
+                               reinterpret_cast<const char*>(in.data()),
+                               position,
                                consumed,
-                               m_checking != FULL_CHECK);
+                               checking != FULL_CHECK);
 
-   send(m_out, written);
+   send(out, written);
 
-   const bool not_full_bytes = consumed != m_position;
+   const bool not_full_bytes = consumed != position;
 
-   m_position = 0;
+   position = 0;
 
    if(not_full_bytes)
       throw Invalid_Argument("Hex_Decoder: Input not full bytes");

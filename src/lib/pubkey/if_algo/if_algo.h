@@ -24,7 +24,7 @@ class BOTAN_DLL IF_Scheme_PublicKey : public virtual Public_Key
                           const secure_vector<byte>& key_bits);
 
       IF_Scheme_PublicKey(const BigInt& n, const BigInt& e) :
-         m_n(n), m_e(e) {}
+         n(n), e(e) {}
 
       bool check_key(RandomNumberGenerator& rng, bool) const override;
 
@@ -35,21 +35,21 @@ class BOTAN_DLL IF_Scheme_PublicKey : public virtual Public_Key
       /**
       * @return public modulus
       */
-      const BigInt& get_n() const { return m_n; }
+      const BigInt& get_n() const { return n; }
 
       /**
       * @return public exponent
       */
-      const BigInt& get_e() const { return m_e; }
+      const BigInt& get_e() const { return e; }
 
-      size_t max_input_bits() const override { return (m_n.bits() - 1); }
+      size_t max_input_bits() const override { return (n.bits() - 1); }
 
       size_t estimated_strength() const override;
 
    protected:
       IF_Scheme_PublicKey() {}
 
-      BigInt m_n, m_e;
+      BigInt n, e;
    };
 
 /**
@@ -76,30 +76,30 @@ class BOTAN_DLL IF_Scheme_PrivateKey : public virtual IF_Scheme_PublicKey,
       * Get the first prime p.
       * @return prime p
       */
-      const BigInt& get_p() const { return m_p; }
+      const BigInt& get_p() const { return p; }
 
       /**
       * Get the second prime q.
       * @return prime q
       */
-      const BigInt& get_q() const { return m_q; }
+      const BigInt& get_q() const { return q; }
 
       /**
       * Get d with exp * d = 1 mod (p - 1, q - 1).
       * @return d
       */
-      const BigInt& get_d() const { return m_d; }
+      const BigInt& get_d() const { return d; }
 
-      const BigInt& get_c() const { return m_c; }
-      const BigInt& get_d1() const { return m_d1; }
-      const BigInt& get_d2() const { return m_d2; }
+      const BigInt& get_c() const { return c; }
+      const BigInt& get_d1() const { return d1; }
+      const BigInt& get_d2() const { return d2; }
 
       secure_vector<byte> pkcs8_private_key() const override;
 
    protected:
       IF_Scheme_PrivateKey() {}
 
-      BigInt m_d, m_p, m_q, m_d1, m_d2, m_c;
+      BigInt d, p, q, d1, d2, c;
    };
 
 }

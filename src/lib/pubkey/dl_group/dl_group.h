@@ -161,8 +161,8 @@ class BOTAN_DLL DL_Group
 
       void init_check() const;
       void initialize(const BigInt&, const BigInt&, const BigInt&);
-      bool m_initialized;
-      BigInt m_p, m_q, m_g;
+      bool initialized;
+      BigInt p, q, g;
    };
 
 }

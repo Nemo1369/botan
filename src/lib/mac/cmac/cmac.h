@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * CMAC, also known as OMAC1
 */
-class BOTAN_DLL CMAC final : public MessageAuthenticationCode
+class BOTAN_DLL CMAC : public MessageAuthenticationCode
    {
    public:
       std::string name() const override;

@@ -1,6 +1,6 @@
 /*
 * AES using SSSE3
-* (C) 2010,2016 Jack Lloyd
+* (C) 2010 Jack Lloyd
 *
 * This is more or less a direct translation of public domain x86-64
 * assembly written by Mike Hamburg, described in "Accelerating AES
@@ -12,7 +12,6 @@
 
 #include <botan/aes_ssse3.h>
 #include <botan/cpuid.h>
-#include <botan/internal/ct_utils.h>
 #include <tmmintrin.h>
 
 namespace Botan {
@@ -344,18 +343,13 @@ void AES_128_SSSE3::encrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(EK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 10));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -366,18 +360,13 @@ void AES_128_SSSE3::decrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(DK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 10));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -390,11 +379,11 @@ void AES_128_SSSE3::key_schedule(const byte keyb[], size_t)
 
    __m128i key = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
 
-   m_EK.resize(11*4);
-   m_DK.resize(11*4);
+   EK.resize(11*4);
+   DK.resize(11*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   __m128i* EK_mm = reinterpret_cast<__m128i*>(EK.data());
+   __m128i* DK_mm = reinterpret_cast<__m128i*>(DK.data());
 
    _mm_storeu_si128(DK_mm + 10, _mm_shuffle_epi8(key, sr[2]));
 
@@ -420,8 +409,8 @@ void AES_128_SSSE3::key_schedule(const byte keyb[], size_t)
 
 void AES_128_SSSE3::clear()
    {
-   zap(m_EK);
-   zap(m_DK);
+   zap(EK);
+   zap(DK);
    }
 
 /*
@@ -432,18 +421,13 @@ void AES_192_SSSE3::encrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(EK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 12));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -454,18 +438,13 @@ void AES_192_SSSE3::decrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(DK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 12));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -476,11 +455,11 @@ void AES_192_SSSE3::key_schedule(const byte keyb[], size_t)
    __m128i rcon = _mm_set_epi32(0x702A9808, 0x4D7C7D81,
                                 0x1F8391B9, 0xAF9DEEB6);
 
-   m_EK.resize(13*4);
-   m_DK.resize(13*4);
+   EK.resize(13*4);
+   DK.resize(13*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   __m128i* EK_mm = reinterpret_cast<__m128i*>(EK.data());
+   __m128i* DK_mm = reinterpret_cast<__m128i*>(DK.data());
 
    __m128i key1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
    __m128i key2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>((keyb + 8)));
@@ -537,8 +516,8 @@ void AES_192_SSSE3::key_schedule(const byte keyb[], size_t)
 
 void AES_192_SSSE3::clear()
    {
-   zap(m_EK);
-   zap(m_DK);
+   zap(EK);
+   zap(DK);
    }
 
 /*
@@ -549,18 +528,13 @@ void AES_256_SSSE3::encrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(EK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 14));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -571,18 +545,13 @@ void AES_256_SSSE3::decrypt_n(const byte in[], byte out[], size_t blocks) const
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
+   const __m128i* keys = reinterpret_cast<const __m128i*>(DK.data());
 
    for(size_t i = 0; i != blocks; ++i)
       {
       __m128i B = _mm_loadu_si128(in_mm + i);
       _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 14));
       }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
    }
 
 /*
@@ -593,11 +562,11 @@ void AES_256_SSSE3::key_schedule(const byte keyb[], size_t)
    __m128i rcon = _mm_set_epi32(0x702A9808, 0x4D7C7D81,
                                 0x1F8391B9, 0xAF9DEEB6);
 
-   m_EK.resize(15*4);
-   m_DK.resize(15*4);
+   EK.resize(15*4);
+   DK.resize(15*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   __m128i* EK_mm = reinterpret_cast<__m128i*>(EK.data());
+   __m128i* DK_mm = reinterpret_cast<__m128i*>(DK.data());
 
    __m128i key1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
    __m128i key2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>((keyb + 16)));
@@ -633,8 +602,8 @@ void AES_256_SSSE3::key_schedule(const byte keyb[], size_t)
 
 void AES_256_SSSE3::clear()
    {
-   zap(m_EK);
-   zap(m_DK);
+   zap(EK);
+   zap(DK);
    }
 
 }

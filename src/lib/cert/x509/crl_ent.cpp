@@ -18,20 +18,20 @@ namespace Botan {
 * Create a CRL_Entry
 */
 CRL_Entry::CRL_Entry(bool t_on_unknown_crit) :
-   m_throw_on_unknown_critical(t_on_unknown_crit)
+   throw_on_unknown_critical(t_on_unknown_crit)
    {
-   m_reason = UNSPECIFIED;
+   reason = UNSPECIFIED;
    }
 
 /*
 * Create a CRL_Entry
 */
 CRL_Entry::CRL_Entry(const X509_Certificate& cert, CRL_Code why) :
-   m_throw_on_unknown_critical(false)
+   throw_on_unknown_critical(false)
    {
-   m_serial = cert.serial_number();
-   m_time = X509_Time(std::chrono::system_clock::now());
-   m_reason = why;
+   serial = cert.serial_number();
+   time = X509_Time(std::chrono::system_clock::now());
+   reason = why;
    }
 
 /*
@@ -63,11 +63,11 @@ void CRL_Entry::encode_into(DER_Encoder& der) const
    {
    Extensions extensions;
 
-   extensions.add(new Cert_Extension::CRL_ReasonCode(m_reason));
+   extensions.add(new Cert_Extension::CRL_ReasonCode(reason));
 
    der.start_cons(SEQUENCE)
-      .encode(BigInt::decode(m_serial))
-         .encode(m_time)
+      .encode(BigInt::decode(serial))
+         .encode(time)
          .start_cons(SEQUENCE)
             .encode(extensions)
           .end_cons()
@@ -80,24 +80,24 @@ void CRL_Entry::encode_into(DER_Encoder& der) const
 void CRL_Entry::decode_from(BER_Decoder& source)
    {
    BigInt serial_number_bn;
-   m_reason = UNSPECIFIED;
+   reason = UNSPECIFIED;
 
    BER_Decoder entry = source.start_cons(SEQUENCE);
 
-   entry.decode(serial_number_bn).decode(m_time);
+   entry.decode(serial_number_bn).decode(time);
 
    if(entry.more_items())
       {
-      Extensions extensions(m_throw_on_unknown_critical);
+      Extensions extensions(throw_on_unknown_critical);
       entry.decode(extensions);
       Data_Store info;
       extensions.contents_to(info, info);
-      m_reason = CRL_Code(info.get1_u32bit("X509v3.CRLReasonCode"));
+      reason = CRL_Code(info.get1_u32bit("X509v3.CRLReasonCode"));
       }
 
    entry.end_cons();
 
-   m_serial = BigInt::encode(serial_number_bn);
+   serial = BigInt::encode(serial_number_bn);
    }
 
 }

@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * PSSR (called EMSA4 in IEEE 1363 and in old versions of the library)
 */
-class BOTAN_DLL PSSR final : public EMSA
+class BOTAN_DLL PSSR : public EMSA
    {
    public:
 
@@ -45,8 +45,8 @@ class BOTAN_DLL PSSR final : public EMSA
                   const secure_vector<byte>& raw,
                   size_t key_bits) override;
 
-      size_t m_SALT_SIZE;
-      std::unique_ptr<HashFunction> m_hash;
+      size_t SALT_SIZE;
+      std::unique_ptr<HashFunction> hash;
    };
 
 }

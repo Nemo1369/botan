@@ -16,7 +16,7 @@ namespace Botan {
 * Converts arbitrary binary data to hex strings, optionally with
 * newlines inserted
 */
-class BOTAN_DLL Hex_Encoder final : public Filter
+class BOTAN_DLL Hex_Encoder : public Filter
    {
    public:
       /**
@@ -47,16 +47,16 @@ class BOTAN_DLL Hex_Encoder final : public Filter
    private:
       void encode_and_send(const byte[], size_t);
 
-      const Case m_casing;
-      const size_t m_line_length;
-      std::vector<byte> m_in, m_out;
-      size_t m_position, m_counter;
+      const Case casing;
+      const size_t line_length;
+      std::vector<byte> in, out;
+      size_t position, counter;
    };
 
 /**
 * Converts hex strings to bytes
 */
-class BOTAN_DLL Hex_Decoder final : public Filter
+class BOTAN_DLL Hex_Decoder : public Filter
    {
    public:
       std::string name() const override { return "Hex_Decoder"; }
@@ -71,9 +71,9 @@ class BOTAN_DLL Hex_Decoder final : public Filter
       */
       Hex_Decoder(Decoder_Checking checking = NONE);
    private:
-      const Decoder_Checking m_checking;
-      std::vector<byte> m_in, m_out;
-      size_t m_position;
+      const Decoder_Checking checking;
+      std::vector<byte> in, out;
+      size_t position;
    };
 
 }

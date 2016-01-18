@@ -38,7 +38,6 @@ class BOTAN_DLL Session
          m_compression_method(0),
          m_connection_side(static_cast<Connection_Side>(0)),
          m_srtp_profile(0),
-         m_extended_master_secret(false),
          m_fragment_size(0)
             {}
 
@@ -52,7 +51,6 @@ class BOTAN_DLL Session
               byte compression_method,
               Connection_Side side,
               size_t fragment_size,
-              bool supports_extended_master_secret,
               const std::vector<X509_Certificate>& peer_certs,
               const std::vector<byte>& session_ticket,
               const Server_Information& server_info,
@@ -162,8 +160,6 @@ class BOTAN_DLL Session
       */
       u16bit dtls_srtp_profile() const { return m_srtp_profile; }
 
-      bool supports_extended_master_secret() const { return m_extended_master_secret; }
-
       /**
       * Return the certificate chain of the peer (possibly empty)
       */
@@ -187,7 +183,7 @@ class BOTAN_DLL Session
       const Server_Information& server_info() const { return m_server_info; }
 
    private:
-      enum { TLS_SESSION_PARAM_STRUCT_VERSION = 20160103 };
+      enum { TLS_SESSION_PARAM_STRUCT_VERSION = 20150104 };
 
       std::chrono::system_clock::time_point m_start_time;
 
@@ -200,7 +196,6 @@ class BOTAN_DLL Session
       byte m_compression_method;
       Connection_Side m_connection_side;
       u16bit m_srtp_profile;
-      bool m_extended_master_secret;
 
       size_t m_fragment_size;
 

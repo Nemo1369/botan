@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * MD4
 */
-class BOTAN_DLL MD4 final : public MDx_HashFunction
+class BOTAN_DLL MD4 : public MDx_HashFunction
    {
    public:
       std::string name() const override { return "MD4"; }
@@ -24,22 +24,21 @@ class BOTAN_DLL MD4 final : public MDx_HashFunction
 
       void clear() override;
 
-      MD4() : MDx_HashFunction(64, false, true), m_M(16), m_digest(4)
+      MD4() : MDx_HashFunction(64, false, true), M(16), digest(4)
          { clear(); }
    protected:
       void compress_n(const byte input[], size_t blocks) override;
       void copy_out(byte[]) override;
-   private:
 
       /**
-      * The message buffer
+      * The message buffer, exposed for use by subclasses (x86 asm)
       */
-      secure_vector<u32bit> m_M;
+      secure_vector<u32bit> M;
 
       /**
-      * The digest value
+      * The digest value, exposed for use by subclasses (x86 asm)
       */
-      secure_vector<u32bit> m_digest;
+      secure_vector<u32bit> digest;
    };
 
 }

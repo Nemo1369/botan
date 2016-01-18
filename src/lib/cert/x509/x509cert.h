@@ -30,7 +30,7 @@ enum class Usage_Type
 /**
 * This class represents X.509 Certificate
 */
-class BOTAN_DLL X509_Certificate final : public X509_Object
+class BOTAN_DLL X509_Certificate : public X509_Object
    {
    public:
       /**
@@ -129,7 +129,7 @@ class BOTAN_DLL X509_Certificate final : public X509_Object
       * Check whether this certificate is self signed.
       * @return true if this certificate is self signed
       */
-      bool is_self_signed() const { return m_self_signed; }
+      bool is_self_signed() const { return self_signed; }
 
       /**
       * Check whether this certificate is a CA certificate.
@@ -238,8 +238,8 @@ class BOTAN_DLL X509_Certificate final : public X509_Object
 
       X509_Certificate() {}
 
-      Data_Store m_subject, m_issuer;
-      bool m_self_signed;
+      Data_Store subject, issuer;
+      bool self_signed;
    };
 
 /**

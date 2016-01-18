@@ -113,7 +113,7 @@ void idea_op(const byte in[], byte out[], size_t blocks, const u16bit K[52])
 */
 void IDEA::encrypt_n(const byte in[], byte out[], size_t blocks) const
    {
-   idea_op(in, out, blocks, m_EK.data());
+   idea_op(in, out, blocks, EK.data());
    }
 
 /*
@@ -121,7 +121,7 @@ void IDEA::encrypt_n(const byte in[], byte out[], size_t blocks) const
 */
 void IDEA::decrypt_n(const byte in[], byte out[], size_t blocks) const
    {
-   idea_op(in, out, blocks, m_DK.data());
+   idea_op(in, out, blocks, DK.data());
    }
 
 /*
@@ -129,54 +129,54 @@ void IDEA::decrypt_n(const byte in[], byte out[], size_t blocks) const
 */
 void IDEA::key_schedule(const byte key[], size_t)
    {
-   m_EK.resize(52);
-   m_DK.resize(52);
+   EK.resize(52);
+   DK.resize(52);
 
    CT::poison(key, 16);
-   CT::poison(m_EK.data(), 52);
-   CT::poison(m_DK.data(), 52);
+   CT::poison(EK.data(), 52);
+   CT::poison(DK.data(), 52);
 
    for(size_t i = 0; i != 8; ++i)
-      m_EK[i] = load_be<u16bit>(key, i);
+      EK[i] = load_be<u16bit>(key, i);
 
    for(size_t i = 1, j = 8, offset = 0; j != 52; i %= 8, ++i, ++j)
       {
-      m_EK[i+7+offset] = static_cast<u16bit>((m_EK[(i     % 8) + offset] << 9) |
-                                           (m_EK[((i+1) % 8) + offset] >> 7));
+      EK[i+7+offset] = static_cast<u16bit>((EK[(i     % 8) + offset] << 9) |
+                                           (EK[((i+1) % 8) + offset] >> 7));
       offset += (i == 8) ? 8 : 0;
       }
 
-   m_DK[51] = mul_inv(m_EK[3]);
-   m_DK[50] = -m_EK[2];
-   m_DK[49] = -m_EK[1];
-   m_DK[48] = mul_inv(m_EK[0]);
+   DK[51] = mul_inv(EK[3]);
+   DK[50] = -EK[2];
+   DK[49] = -EK[1];
+   DK[48] = mul_inv(EK[0]);
 
    for(size_t i = 1, j = 4, counter = 47; i != 8; ++i, j += 6)
       {
-      m_DK[counter--] = m_EK[j+1];
-      m_DK[counter--] = m_EK[j];
-      m_DK[counter--] = mul_inv(m_EK[j+5]);
-      m_DK[counter--] = -m_EK[j+3];
-      m_DK[counter--] = -m_EK[j+4];
-      m_DK[counter--] = mul_inv(m_EK[j+2]);
+      DK[counter--] = EK[j+1];
+      DK[counter--] = EK[j];
+      DK[counter--] = mul_inv(EK[j+5]);
+      DK[counter--] = -EK[j+3];
+      DK[counter--] = -EK[j+4];
+      DK[counter--] = mul_inv(EK[j+2]);
       }
 
-   m_DK[5] = m_EK[47];
-   m_DK[4] = m_EK[46];
-   m_DK[3] = mul_inv(m_EK[51]);
-   m_DK[2] = -m_EK[50];
-   m_DK[1] = -m_EK[49];
-   m_DK[0] = mul_inv(m_EK[48]);
+   DK[5] = EK[47];
+   DK[4] = EK[46];
+   DK[3] = mul_inv(EK[51]);
+   DK[2] = -EK[50];
+   DK[1] = -EK[49];
+   DK[0] = mul_inv(EK[48]);
 
    CT::unpoison(key, 16);
-   CT::unpoison(m_EK.data(), 52);
-   CT::unpoison(m_DK.data(), 52);
+   CT::unpoison(EK.data(), 52);
+   CT::unpoison(DK.data(), 52);
    }
 
 void IDEA::clear()
    {
-   zap(m_EK);
-   zap(m_DK);
+   zap(EK);
+   zap(DK);
    }
 
 }

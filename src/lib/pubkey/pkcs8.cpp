@@ -44,39 +44,19 @@ secure_vector<byte> PKCS8_extract(DataSource& source,
 secure_vector<byte> PKCS8_decode(
    DataSource& source,
    std::function<std::string ()> get_passphrase,
-   AlgorithmIdentifier& pk_alg_id,
-   bool is_encrypted)
+   AlgorithmIdentifier& pk_alg_id)
    {
    AlgorithmIdentifier pbe_alg_id;
    secure_vector<byte> key_data, key;
+   bool is_encrypted = true;
 
    try {
       if(ASN1::maybe_BER(source) && !PEM_Code::matches(source))
-         {
-         if ( is_encrypted )
-            {
-            key_data = PKCS8_extract(source, pbe_alg_id);
-            }
-         else
-            {
-            // todo read more efficiently
-            while ( !source.end_of_data() )
-               {
-               byte b;
-               size_t read = source.read_byte( b );
-               if ( read )
-                  {
-                  key_data.push_back( b );
-                  }
-               }
-            }
-         }
+         key_data = PKCS8_extract(source, pbe_alg_id);
       else
          {
          std::string label;
          key_data = PEM_Code::decode(source, label);
-
-         // todo remove autodetect for pem as well?
          if(label == "PRIVATE KEY")
             is_encrypted = false;
          else if(label == "ENCRYPTED PRIVATE KEY")
@@ -153,7 +133,7 @@ namespace {
 std::pair<std::string, std::string>
 choose_pbe_params(const std::string& pbe_algo, const std::string& key_algo)
    {
-   if(pbe_algo.empty())
+   if(pbe_algo == "")
       {
       // Defaults:
       if(key_algo == "Curve25519" || key_algo == "McEliece")
@@ -202,96 +182,60 @@ std::string PEM_encode(const Private_Key& key,
                        std::chrono::milliseconds msec,
                        const std::string& pbe_algo)
    {
-   if(pass.empty())
+   if(pass == "")
       return PEM_encode(key);
 
    return PEM_Code::encode(PKCS8::BER_encode(key, rng, pass, msec, pbe_algo),
                            "ENCRYPTED PRIVATE KEY");
    }
 
-namespace {
-
 /*
-* Extract a private key (encrypted/unencrypted) and return it
+* Extract a private key and return it
 */
 Private_Key* load_key(DataSource& source,
                       RandomNumberGenerator& rng,
-                      std::function<std::string ()> get_pass,
-                      bool is_encrypted)
+                      std::function<std::string ()> get_pass)
    {
    AlgorithmIdentifier alg_id;
-   secure_vector<byte> pkcs8_key = PKCS8_decode(source, get_pass, alg_id, is_encrypted);
+   secure_vector<byte> pkcs8_key = PKCS8_decode(source, get_pass, alg_id);
 
    const std::string alg_name = OIDS::lookup(alg_id.oid);
-   if(alg_name.empty() || alg_name == alg_id.oid.as_string())
+   if(alg_name == "" || alg_name == alg_id.oid.as_string())
       throw PKCS8_Exception("Unknown algorithm OID: " +
                             alg_id.oid.as_string());
 
    return make_private_key(alg_id, pkcs8_key, rng);
    }
 
-}
-
 /*
-* Extract an encrypted private key and return it
-*/
-Private_Key* load_key(DataSource& source,
-                      RandomNumberGenerator& rng,
-                      std::function<std::string ()> get_pass)
-   {
-   return load_key(source, rng, get_pass, true);
-   }
-
-/*
-* Extract an encrypted private key and return it
-*/
-Private_Key* load_key(DataSource& source,
-                      RandomNumberGenerator& rng,
-                      const std::string& pass)
-   {
-   return load_key(source, rng, [pass]() { return pass; }, true);
-   }
-
-/*
-* Extract an unencrypted private key and return it
-*/
-Private_Key* load_key(DataSource& source,
-                      RandomNumberGenerator& rng)
-   {
-   return load_key(source, rng, []() -> std::string {
-      throw PKCS8_Exception( "Internal error: Attempt to read password for unencrypted key" );}, false);
-   }
-
-/*
-* Extract an encrypted private key and return it
+* Extract a private key and return it
 */
 Private_Key* load_key(const std::string& fsname,
                       RandomNumberGenerator& rng,
                       std::function<std::string ()> get_pass)
    {
    DataSource_Stream source(fsname, true);
-   return load_key(source, rng, get_pass, true);
+   return PKCS8::load_key(source, rng, get_pass);
    }
 
 /*
-* Extract an encrypted private key and return it
+* Extract a private key and return it
+*/
+Private_Key* load_key(DataSource& source,
+                      RandomNumberGenerator& rng,
+                      const std::string& pass)
+   {
+   return PKCS8::load_key(source, rng, [pass]() { return pass; });
+   }
+
+/*
+* Extract a private key and return it
 */
 Private_Key* load_key(const std::string& fsname,
                       RandomNumberGenerator& rng,
                       const std::string& pass)
    {
    return PKCS8::load_key(fsname, rng, [pass]() { return pass; });
-   }
-
-/*
-* Extract an unencrypted private key and return it
-*/
-Private_Key* load_key(const std::string& fsname,
-                      RandomNumberGenerator& rng)
-   {
-   DataSource_Stream source(fsname, true);
-   return load_key(source, rng, []() -> std::string {
-      throw PKCS8_Exception( "Internal error: Attempt to read password for unencrypted key" );}, false);
    }
 
 /*

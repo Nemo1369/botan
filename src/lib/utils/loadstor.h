@@ -1,6 +1,6 @@
 /*
 * Load/Store Operators
-* (C) 1999-2007,2015 Jack Lloyd
+* (C) 1999-2007 Jack Lloyd
 *     2007 Yves Jerschow
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -144,13 +144,10 @@ inline T load_le(const byte in[], size_t off)
 template<>
 inline u16bit load_be<u16bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u16bit);
-
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u16bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2B(x);
+   return BOTAN_ENDIAN_N2B(*(reinterpret_cast<const u16bit*>(in) + off));
 #else
+   in += off * sizeof(u16bit);
    return make_u16bit(in[0], in[1]);
 #endif
    }
@@ -164,13 +161,10 @@ inline u16bit load_be<u16bit>(const byte in[], size_t off)
 template<>
 inline u16bit load_le<u16bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u16bit);
-
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u16bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2L(x);
+   return BOTAN_ENDIAN_N2L(*(reinterpret_cast<const u16bit*>(in) + off));
 #else
+   in += off * sizeof(u16bit);
    return make_u16bit(in[1], in[0]);
 #endif
    }
@@ -184,12 +178,10 @@ inline u16bit load_le<u16bit>(const byte in[], size_t off)
 template<>
 inline u32bit load_be<u32bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u32bit);
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u32bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2B(x);
+   return BOTAN_ENDIAN_N2B(*(reinterpret_cast<const u32bit*>(in) + off));
 #else
+   in += off * sizeof(u32bit);
    return make_u32bit(in[0], in[1], in[2], in[3]);
 #endif
    }
@@ -203,12 +195,10 @@ inline u32bit load_be<u32bit>(const byte in[], size_t off)
 template<>
 inline u32bit load_le<u32bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u32bit);
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u32bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2L(x);
+   return BOTAN_ENDIAN_N2L(*(reinterpret_cast<const u32bit*>(in) + off));
 #else
+   in += off * sizeof(u32bit);
    return make_u32bit(in[3], in[2], in[1], in[0]);
 #endif
    }
@@ -222,12 +212,10 @@ inline u32bit load_le<u32bit>(const byte in[], size_t off)
 template<>
 inline u64bit load_be<u64bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u64bit);
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u64bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2B(x);
+   return BOTAN_ENDIAN_N2B(*(reinterpret_cast<const u64bit*>(in) + off));
 #else
+   in += off * sizeof(u64bit);
    return make_u64bit(in[0], in[1], in[2], in[3],
                       in[4], in[5], in[6], in[7]);
 #endif
@@ -242,12 +230,10 @@ inline u64bit load_be<u64bit>(const byte in[], size_t off)
 template<>
 inline u64bit load_le<u64bit>(const byte in[], size_t off)
    {
-   in += off * sizeof(u64bit);
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u64bit x;
-   std::memcpy(&x, in, sizeof(x));
-   return BOTAN_ENDIAN_N2L(x);
+   return BOTAN_ENDIAN_N2L(*(reinterpret_cast<const u64bit*>(in) + off));
 #else
+   in += off * sizeof(u64bit);
    return make_u64bit(in[7], in[6], in[5], in[4],
                       in[3], in[2], in[1], in[0]);
 #endif
@@ -322,27 +308,24 @@ inline void load_le(T out[],
                     const byte in[],
                     size_t count)
    {
-   if(count > 0)
-      {
 #if defined(BOTAN_TARGET_CPU_HAS_KNOWN_ENDIANNESS)
-      std::memcpy(out, in, sizeof(T)*count);
+   std::memcpy(out, in, sizeof(T)*count);
 
 #if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-      const size_t blocks = count - (count % 4);
-      const size_t left = count - blocks;
+   const size_t blocks = count - (count % 4);
+   const size_t left = count - blocks;
 
-      for(size_t i = 0; i != blocks; i += 4)
-         bswap_4(out + i);
+   for(size_t i = 0; i != blocks; i += 4)
+      bswap_4(out + i);
 
-      for(size_t i = 0; i != left; ++i)
-         out[blocks+i] = reverse_bytes(out[blocks+i]);
+   for(size_t i = 0; i != left; ++i)
+      out[blocks+i] = reverse_bytes(out[blocks+i]);
 #endif
 
 #else
-      for(size_t i = 0; i != count; ++i)
-         out[i] = load_le<T>(in, i);
+   for(size_t i = 0; i != count; ++i)
+      out[i] = load_le<T>(in, i);
 #endif
-      }
    }
 
 /**
@@ -414,27 +397,24 @@ inline void load_be(T out[],
                     const byte in[],
                     size_t count)
    {
-   if(count > 0)
-      {
 #if defined(BOTAN_TARGET_CPU_HAS_KNOWN_ENDIANNESS)
-      std::memcpy(out, in, sizeof(T)*count);
+   std::memcpy(out, in, sizeof(T)*count);
 
 #if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-      const size_t blocks = count - (count % 4);
-      const size_t left = count - blocks;
+   const size_t blocks = count - (count % 4);
+   const size_t left = count - blocks;
 
-      for(size_t i = 0; i != blocks; i += 4)
-         bswap_4(out + i);
+   for(size_t i = 0; i != blocks; i += 4)
+      bswap_4(out + i);
 
-      for(size_t i = 0; i != left; ++i)
-         out[blocks+i] = reverse_bytes(out[blocks+i]);
+   for(size_t i = 0; i != left; ++i)
+      out[blocks+i] = reverse_bytes(out[blocks+i]);
 #endif
 
 #else
-      for(size_t i = 0; i != count; ++i)
-         out[i] = load_be<T>(in, i);
+   for(size_t i = 0; i != count; ++i)
+      out[i] = load_be<T>(in, i);
 #endif
-      }
    }
 
 /**
@@ -445,8 +425,7 @@ inline void load_be(T out[],
 inline void store_be(u16bit in, byte out[2])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u16bit o = BOTAN_ENDIAN_N2B(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u16bit*>(out) = BOTAN_ENDIAN_B2N(in);
 #else
    out[0] = get_byte(0, in);
    out[1] = get_byte(1, in);
@@ -461,8 +440,7 @@ inline void store_be(u16bit in, byte out[2])
 inline void store_le(u16bit in, byte out[2])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u16bit o = BOTAN_ENDIAN_N2L(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u16bit*>(out) = BOTAN_ENDIAN_L2N(in);
 #else
    out[0] = get_byte(1, in);
    out[1] = get_byte(0, in);
@@ -477,8 +455,7 @@ inline void store_le(u16bit in, byte out[2])
 inline void store_be(u32bit in, byte out[4])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u32bit o = BOTAN_ENDIAN_B2N(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u32bit*>(out) = BOTAN_ENDIAN_B2N(in);
 #else
    out[0] = get_byte(0, in);
    out[1] = get_byte(1, in);
@@ -495,8 +472,7 @@ inline void store_be(u32bit in, byte out[4])
 inline void store_le(u32bit in, byte out[4])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u32bit o = BOTAN_ENDIAN_L2N(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u32bit*>(out) = BOTAN_ENDIAN_L2N(in);
 #else
    out[0] = get_byte(3, in);
    out[1] = get_byte(2, in);
@@ -513,8 +489,7 @@ inline void store_le(u32bit in, byte out[4])
 inline void store_be(u64bit in, byte out[8])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u64bit o = BOTAN_ENDIAN_B2N(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u64bit*>(out) = BOTAN_ENDIAN_B2N(in);
 #else
    out[0] = get_byte(0, in);
    out[1] = get_byte(1, in);
@@ -535,8 +510,7 @@ inline void store_be(u64bit in, byte out[8])
 inline void store_le(u64bit in, byte out[8])
    {
 #if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
-   u64bit o = BOTAN_ENDIAN_L2N(in);
-   std::memcpy(out, &o, sizeof(o));
+   *reinterpret_cast<u64bit*>(out) = BOTAN_ENDIAN_L2N(in);
 #else
    out[0] = get_byte(7, in);
    out[1] = get_byte(6, in);

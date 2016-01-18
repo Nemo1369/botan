@@ -1,6 +1,6 @@
 /*
 * Memory Operations
-* (C) 1999-2009,2012,2015 Jack Lloyd
+* (C) 1999-2009,2012 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -28,10 +28,7 @@ BOTAN_DLL void zero_mem(void* ptr, size_t n);
 */
 template<typename T> inline void clear_mem(T* ptr, size_t n)
    {
-   if(n > 0)
-      {
-      std::memset(ptr, 0, sizeof(T)*n);
-      }
+   std::memset(ptr, 0, sizeof(T)*n);
    }
 
 /**
@@ -42,10 +39,7 @@ template<typename T> inline void clear_mem(T* ptr, size_t n)
 */
 template<typename T> inline void copy_mem(T* out, const T* in, size_t n)
    {
-   if(n > 0)
-      {
-      std::memmove(out, in, sizeof(T)*n);
-      }
+   std::memmove(out, in, sizeof(T)*n);
    }
 
 /**
@@ -57,10 +51,7 @@ template<typename T> inline void copy_mem(T* out, const T* in, size_t n)
 template<typename T>
 inline void set_mem(T* ptr, size_t n, byte val)
    {
-   if(n > 0)
-      {
-      std::memset(ptr, val, sizeof(T)*n);
-      }
+   std::memset(ptr, val, sizeof(T)*n);
    }
 
 /**
@@ -81,7 +72,7 @@ template<typename T> inline bool same_mem(const T* p1, const T* p2, size_t n)
    }
 
 /**
-* XOR_ arrays. Postcondition out[i] = in[i] ^ out[i] forall i = 0...length
+* XOR arrays. Postcondition out[i] = in[i] ^ out[i] forall i = 0...length
 * @param out the input/output buffer
 * @param in the read-only input buffer
 * @param length the length of the buffers
@@ -89,10 +80,18 @@ template<typename T> inline bool same_mem(const T* p1, const T* p2, size_t n)
 template<typename T>
 void xor_buf(T out[], const T in[], size_t length)
    {
-   for(size_t i = 0; i != length; ++i)
+   while(length >= 8)
       {
-      out[i] ^= in[i];
+      out[0] ^= in[0]; out[1] ^= in[1];
+      out[2] ^= in[2]; out[3] ^= in[3];
+      out[4] ^= in[4]; out[5] ^= in[5];
+      out[6] ^= in[6]; out[7] ^= in[7];
+
+      out += 8; in += 8; length -= 8;
       }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] ^= in[i];
    }
 
 /**
@@ -107,11 +106,59 @@ template<typename T> void xor_buf(T out[],
                                   const T in2[],
                                   size_t length)
    {
-   for(size_t i = 0; i != length; ++i)
+   while(length >= 8)
       {
-      out[i] = in[i] ^ in2[i];
+      out[0] = in[0] ^ in2[0];
+      out[1] = in[1] ^ in2[1];
+      out[2] = in[2] ^ in2[2];
+      out[3] = in[3] ^ in2[3];
+      out[4] = in[4] ^ in2[4];
+      out[5] = in[5] ^ in2[5];
+      out[6] = in[6] ^ in2[6];
+      out[7] = in[7] ^ in2[7];
+
+      in += 8; in2 += 8; out += 8; length -= 8;
       }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] = in[i] ^ in2[i];
    }
+
+#if BOTAN_TARGET_UNALIGNED_MEMORY_ACCESS_OK
+
+template<>
+inline void xor_buf<byte>(byte out[], const byte in[], size_t length)
+   {
+   while(length >= 8)
+      {
+      *reinterpret_cast<u64bit*>(out) ^= *reinterpret_cast<const u64bit*>(in);
+      out += 8; in += 8; length -= 8;
+      }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] ^= in[i];
+   }
+
+template<>
+inline void xor_buf<byte>(byte out[],
+                          const byte in[],
+                          const byte in2[],
+                          size_t length)
+   {
+   while(length >= 8)
+      {
+      *reinterpret_cast<u64bit*>(out) =
+         *reinterpret_cast<const u64bit*>(in) ^
+         *reinterpret_cast<const u64bit*>(in2);
+
+      in += 8; in2 += 8; out += 8; length -= 8;
+      }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] = in[i] ^ in2[i];
+   }
+
+#endif
 
 template<typename Alloc, typename Alloc2>
 void xor_buf(std::vector<byte, Alloc>& out,

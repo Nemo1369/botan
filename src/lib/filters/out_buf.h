@@ -36,8 +36,8 @@ class Output_Buffers
    private:
       class SecureQueue* get(Pipe::message_id) const;
 
-      std::deque<SecureQueue*> m_buffers;
-      Pipe::message_id m_offset;
+      std::deque<SecureQueue*> buffers;
+      Pipe::message_id offset;
    };
 
 }

@@ -53,7 +53,7 @@ u32bit to_u32bit(const std::string& str)
 */
 u32bit timespec_to_u32bit(const std::string& timespec)
    {
-   if(timespec.empty())
+   if(timespec == "")
       return 0;
 
    const char suffix = timespec[timespec.size()-1];
@@ -129,7 +129,7 @@ std::vector<std::string> parse_algorithm_name(const std::string& namex)
          substring += c;
       }
 
-   if(!substring.empty())
+   if(substring != "")
       throw Invalid_Algorithm_Name(namex);
 
    return elems;
@@ -144,14 +144,14 @@ std::vector<std::string> split_on_pred(const std::string& str,
                                        std::function<bool (char)> pred)
    {
    std::vector<std::string> elems;
-   if(str.empty()) return elems;
+   if(str == "") return elems;
 
    std::string substr;
    for(auto i = str.begin(); i != str.end(); ++i)
       {
       if(pred(*i))
          {
-         if(!substr.empty())
+         if(substr != "")
             elems.push_back(substr);
          substr.clear();
          }
@@ -159,7 +159,7 @@ std::vector<std::string> split_on_pred(const std::string& str,
          substr += *i;
       }
 
-   if(substr.empty())
+   if(substr == "")
       throw Invalid_Argument("Unable to split string: " + str);
    elems.push_back(substr);
 
@@ -197,7 +197,7 @@ std::vector<u32bit> parse_asn1_oid(const std::string& oid)
 
       if(c == '.')
          {
-         if(substring.empty())
+         if(substring == "")
             throw Invalid_OID(oid);
          oid_elems.push_back(to_u32bit(substring));
          substring.clear();
@@ -206,7 +206,7 @@ std::vector<u32bit> parse_asn1_oid(const std::string& oid)
          substring += c;
       }
 
-   if(substring.empty())
+   if(substring == "")
       throw Invalid_OID(oid);
    oid_elems.push_back(to_u32bit(substring));
 

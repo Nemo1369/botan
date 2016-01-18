@@ -21,7 +21,7 @@ namespace Botan {
 /**
 * PKCS #10 Certificate Request.
 */
-class BOTAN_DLL PKCS10_Request final : public X509_Object
+class BOTAN_DLL PKCS10_Request : public X509_Object
    {
    public:
       /**
@@ -102,7 +102,7 @@ class BOTAN_DLL PKCS10_Request final : public X509_Object
       void force_decode() override;
       void handle_attribute(const Attribute&);
 
-      Data_Store m_info;
+      Data_Store info;
    };
 
 }

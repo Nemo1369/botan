@@ -33,7 +33,7 @@ class BOTAN_DLL DataSink : public Filter
 class BOTAN_DLL DataSink_Stream : public DataSink
    {
    public:
-      std::string name() const override { return m_identifier; }
+      std::string name() const override { return identifier; }
 
       void write(const byte[], size_t) override;
 
@@ -56,10 +56,10 @@ class BOTAN_DLL DataSink_Stream : public DataSink
 
       ~DataSink_Stream();
    private:
-      const std::string m_identifier;
+      const std::string identifier;
 
-      std::ostream* m_sink_p;
-      std::ostream& m_sink;
+      std::ostream* sink_p;
+      std::ostream& sink;
    };
 
 }

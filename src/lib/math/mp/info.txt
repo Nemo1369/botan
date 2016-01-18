@@ -1,10 +1,11 @@
-define BIGINT_MP 20151225
+define BIGINT_MP 20131128
 
 <source>
 mp_asm.cpp
 mp_comba.cpp
 mp_karat.cpp
 mp_monty.cpp
+mp_mulop.cpp
 mp_misc.cpp
 mp_shift.cpp
 </source>

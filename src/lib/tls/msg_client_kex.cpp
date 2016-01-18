@@ -365,7 +365,7 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<byte>& contents,
             else
                m_pre_master = shared_secret;
             }
-         catch(std::exception &)
+         catch(std::exception &e)
             {
             /*
             * Something failed in the DH computation. To avoid possible

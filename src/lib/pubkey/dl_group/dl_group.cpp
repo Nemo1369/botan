@@ -20,7 +20,7 @@ namespace Botan {
 */
 DL_Group::DL_Group()
    {
-   m_initialized = false;
+   initialized = false;
    }
 
 /*
@@ -48,35 +48,35 @@ DL_Group::DL_Group(RandomNumberGenerator& rng,
 
    if(type == Strong)
       {
-      m_p = random_safe_prime(rng, pbits);
-      m_q = (m_p - 1) / 2;
-      m_g = 2;
+      p = random_safe_prime(rng, pbits);
+      q = (p - 1) / 2;
+      g = 2;
       }
    else if(type == Prime_Subgroup)
       {
       if(!qbits)
          qbits = dl_exponent_size(pbits);
 
-      m_q = random_prime(rng, qbits);
+      q = random_prime(rng, qbits);
       BigInt X;
-      while(m_p.bits() != pbits || !is_prime(m_p, rng))
+      while(p.bits() != pbits || !is_prime(p, rng))
          {
          X.randomize(rng, pbits);
-         m_p = X - (X % (2*m_q) - 1);
+         p = X - (X % (2*q) - 1);
          }
 
-      m_g = make_dsa_generator(m_p, m_q);
+      g = make_dsa_generator(p, q);
       }
    else if(type == DSA_Kosherizer)
       {
       qbits = qbits ? qbits : ((pbits <= 1024) ? 160 : 256);
 
-      generate_dsa_primes(rng, m_p, m_q, pbits, qbits);
+      generate_dsa_primes(rng, p, q, pbits, qbits);
 
-      m_g = make_dsa_generator(m_p, m_q);
+      g = make_dsa_generator(p, q);
       }
 
-   m_initialized = true;
+   initialized = true;
    }
 
 /*
@@ -86,13 +86,13 @@ DL_Group::DL_Group(RandomNumberGenerator& rng,
                    const std::vector<byte>& seed,
                    size_t pbits, size_t qbits)
    {
-   if(!generate_dsa_primes(rng, m_p, m_q, pbits, qbits, seed))
+   if(!generate_dsa_primes(rng, p, q, pbits, qbits, seed))
       throw Invalid_Argument("DL_Group: The seed given does not "
                              "generate a DSA group");
 
-   m_g = make_dsa_generator(m_p, m_q);
+   g = make_dsa_generator(p, q);
 
-   m_initialized = true;
+   initialized = true;
    }
 
 /*
@@ -123,11 +123,11 @@ void DL_Group::initialize(const BigInt& p1, const BigInt& q1, const BigInt& g1)
    if(q1 < 0 || q1 >= p1)
       throw Invalid_Argument("DL_Group: Subgroup invalid");
 
-   m_p = p1;
-   m_g = g1;
-   m_q = q1;
+   p = p1;
+   g = g1;
+   q = q1;
 
-   m_initialized = true;
+   initialized = true;
    }
 
 /*
@@ -135,7 +135,7 @@ void DL_Group::initialize(const BigInt& p1, const BigInt& q1, const BigInt& g1)
 */
 void DL_Group::init_check() const
    {
-   if(!m_initialized)
+   if(!initialized)
       throw Invalid_State("DLP group cannot be used uninitialized");
    }
 
@@ -147,16 +147,16 @@ bool DL_Group::verify_group(RandomNumberGenerator& rng,
    {
    init_check();
 
-   if(m_g < 2 || m_p < 3 || m_q < 0)
+   if(g < 2 || p < 3 || q < 0)
       return false;
-   if((m_q != 0) && ((m_p - 1) % m_q != 0))
+   if((q != 0) && ((p - 1) % q != 0))
       return false;
 
    const size_t prob = (strong) ? 56 : 10;
 
-   if(!is_prime(m_p, rng, prob))
+   if(!is_prime(p, rng, prob))
       return false;
-   if((m_q > 0) && !is_prime(m_q, rng, prob))
+   if((q > 0) && !is_prime(q, rng, prob))
       return false;
    return true;
    }
@@ -167,7 +167,7 @@ bool DL_Group::verify_group(RandomNumberGenerator& rng,
 const BigInt& DL_Group::get_p() const
    {
    init_check();
-   return m_p;
+   return p;
    }
 
 /*
@@ -176,7 +176,7 @@ const BigInt& DL_Group::get_p() const
 const BigInt& DL_Group::get_g() const
    {
    init_check();
-   return m_g;
+   return g;
    }
 
 /*
@@ -185,9 +185,9 @@ const BigInt& DL_Group::get_g() const
 const BigInt& DL_Group::get_q() const
    {
    init_check();
-   if(m_q == 0)
+   if(q == 0)
       throw Invalid_State("DLP group has no q prime specified");
-   return m_q;
+   return q;
    }
 
 /*
@@ -197,16 +197,16 @@ std::vector<byte> DL_Group::DER_encode(Format format) const
    {
    init_check();
 
-   if((m_q == 0) && (format != PKCS_3))
+   if((q == 0) && (format != PKCS_3))
       throw Encoding_Error("The ANSI DL parameter formats require a subgroup");
 
    if(format == ANSI_X9_57)
       {
       return DER_Encoder()
          .start_cons(SEQUENCE)
-            .encode(m_p)
-            .encode(m_q)
-            .encode(m_g)
+            .encode(p)
+            .encode(q)
+            .encode(g)
          .end_cons()
       .get_contents_unlocked();
       }
@@ -214,9 +214,9 @@ std::vector<byte> DL_Group::DER_encode(Format format) const
       {
       return DER_Encoder()
          .start_cons(SEQUENCE)
-            .encode(m_p)
-            .encode(m_g)
-            .encode(m_q)
+            .encode(p)
+            .encode(g)
+            .encode(q)
          .end_cons()
       .get_contents_unlocked();
       }
@@ -224,8 +224,8 @@ std::vector<byte> DL_Group::DER_encode(Format format) const
       {
       return DER_Encoder()
          .start_cons(SEQUENCE)
-            .encode(m_p)
-            .encode(m_g)
+            .encode(p)
+            .encode(g)
          .end_cons()
       .get_contents_unlocked();
       }

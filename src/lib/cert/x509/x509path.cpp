@@ -170,7 +170,7 @@ check_chain(const std::vector<X509_Certificate>& cert_path,
             else if(ocsp_status == Certificate_Status_Code::OCSP_RESPONSE_GOOD)
                continue;
             }
-         catch(std::exception&)
+         catch(std::exception& e)
             {
             //std::cout << "OCSP error: " << e.what() << "\n";
             }
@@ -249,7 +249,7 @@ Path_Validation_Result x509_path_validate(
 
    std::vector<std::set<Certificate_Status_Code>> res = check_chain(cert_path, restrictions, certstores);
 
-   if(!hostname.empty() && !cert_path[0].matches_dns_name(hostname))
+   if(hostname != "" && !cert_path[0].matches_dns_name(hostname))
       res[0].insert(Certificate_Status_Code::CERT_NAME_NOMATCH);
 
    if(!cert_path[0].allowed_usage(usage))

@@ -44,7 +44,6 @@ set(BOTAN_SRC
 		block/rc6/rc6.cpp
 		block/safer/safer_sk.cpp
 		block/seed/seed.cpp
-		block/seed/seed_tab.cpp
 		block/serpent/serpent.cpp
 		block/serpent_simd/serp_simd.cpp
 		block/tea/tea.cpp
@@ -53,6 +52,13 @@ set(BOTAN_SRC
 		block/twofish/two_tab.cpp
 		block/xtea_simd/xtea_simd.cpp
 		block/xtea/xtea.cpp
+		cert/cvc/asn1_eac_str.cpp
+		cert/cvc/asn1_eac_tm.cpp
+		cert/cvc/cvc_ado.cpp
+		cert/cvc/cvc_req.cpp
+		cert/cvc/cvc_self.cpp
+		cert/cvc/ecdsa_sig.cpp
+		cert/cvc/signed_obj.cpp
 		cert/x509/certstor.cpp
 		cert/x509/crl_ent.cpp
 		cert/x509/key_constraint.cpp

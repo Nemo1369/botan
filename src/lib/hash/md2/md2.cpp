@@ -38,26 +38,26 @@ void MD2::hash(const byte input[])
       0x31, 0x44, 0x50, 0xB4, 0x8F, 0xED, 0x1F, 0x1A, 0xDB, 0x99, 0x8D, 0x33,
       0x9F, 0x11, 0x83, 0x14 };
 
-   buffer_insert(m_X, 16, input, hash_block_size());
-   xor_buf(&m_X[32], m_X.data(), &m_X[16], hash_block_size());
+   buffer_insert(X, 16, input, hash_block_size());
+   xor_buf(&X[32], X.data(), &X[16], hash_block_size());
    byte T = 0;
 
    for(size_t i = 0; i != 18; ++i)
       {
       for(size_t k = 0; k != 48; k += 8)
          {
-         T = m_X[k  ] ^= SBOX[T]; T = m_X[k+1] ^= SBOX[T];
-         T = m_X[k+2] ^= SBOX[T]; T = m_X[k+3] ^= SBOX[T];
-         T = m_X[k+4] ^= SBOX[T]; T = m_X[k+5] ^= SBOX[T];
-         T = m_X[k+6] ^= SBOX[T]; T = m_X[k+7] ^= SBOX[T];
+         T = X[k  ] ^= SBOX[T]; T = X[k+1] ^= SBOX[T];
+         T = X[k+2] ^= SBOX[T]; T = X[k+3] ^= SBOX[T];
+         T = X[k+4] ^= SBOX[T]; T = X[k+5] ^= SBOX[T];
+         T = X[k+6] ^= SBOX[T]; T = X[k+7] ^= SBOX[T];
          }
 
       T += static_cast<byte>(i);
       }
 
-   T = m_checksum[15];
+   T = checksum[15];
    for(size_t i = 0; i != hash_block_size(); ++i)
-      T = m_checksum[i] ^= SBOX[input[i] ^ T];
+      T = checksum[i] ^= SBOX[input[i] ^ T];
    }
 
 /**
@@ -65,23 +65,23 @@ void MD2::hash(const byte input[])
 */
 void MD2::add_data(const byte input[], size_t length)
    {
-   buffer_insert(m_buffer, m_position, input, length);
+   buffer_insert(buffer, position, input, length);
 
-   if(m_position + length >= hash_block_size())
+   if(position + length >= hash_block_size())
       {
-      hash(m_buffer.data());
-      input += (hash_block_size() - m_position);
-      length -= (hash_block_size() - m_position);
+      hash(buffer.data());
+      input += (hash_block_size() - position);
+      length -= (hash_block_size() - position);
       while(length >= hash_block_size())
          {
          hash(input);
          input += hash_block_size();
          length -= hash_block_size();
          }
-      copy_mem(m_buffer.data(), input, length);
-      m_position = 0;
+      copy_mem(buffer.data(), input, length);
+      position = 0;
       }
-   m_position += length;
+   position += length;
    }
 
 /**
@@ -89,12 +89,12 @@ void MD2::add_data(const byte input[], size_t length)
 */
 void MD2::final_result(byte output[])
    {
-   for(size_t i = m_position; i != hash_block_size(); ++i)
-      m_buffer[i] = static_cast<byte>(hash_block_size() - m_position);
+   for(size_t i = position; i != hash_block_size(); ++i)
+      buffer[i] = static_cast<byte>(hash_block_size() - position);
 
-   hash(m_buffer.data());
-   hash(m_checksum.data());
-   copy_mem(output, m_X.data(), output_length());
+   hash(buffer.data());
+   hash(checksum.data());
+   copy_mem(output, X.data(), output_length());
    clear();
    }
 
@@ -103,10 +103,10 @@ void MD2::final_result(byte output[])
 */
 void MD2::clear()
    {
-   zeroise(m_X);
-   zeroise(m_checksum);
-   zeroise(m_buffer);
-   m_position = 0;
+   zeroise(X);
+   zeroise(checksum);
+   zeroise(buffer);
+   position = 0;
    }
 
 }

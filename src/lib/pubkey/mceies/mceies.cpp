@@ -8,7 +8,7 @@
 #include <botan/mceies.h>
 #include <botan/aead.h>
 #include <botan/mceliece.h>
-#include <botan/pubkey.h>
+#include <botan/mce_kem.h>
 
 namespace Botan {
 
@@ -36,10 +36,11 @@ mceies_encrypt(const McEliece_PublicKey& pubkey,
                RandomNumberGenerator& rng,
                const std::string& algo)
    {
-   PK_KEM_Encryptor kem_op(pubkey, "KDF1(SHA-512)");
+   McEliece_KEM_Encryptor kem_op(pubkey);
 
-   secure_vector<byte> mce_ciphertext, mce_key;
-   kem_op.encrypt(mce_ciphertext, mce_key, 64, rng);
+   const std::pair<secure_vector<byte>,secure_vector<byte>> mce_ciphertext__key = kem_op.encrypt(rng);
+   const secure_vector<byte>& mce_ciphertext = mce_ciphertext__key.first;
+   const secure_vector<byte>& mce_key = mce_ciphertext__key.second;
 
    const size_t mce_code_bytes = (pubkey.get_code_length() + 7) / 8;
 
@@ -74,7 +75,7 @@ mceies_decrypt(const McEliece_PrivateKey& privkey,
    {
    try
       {
-      PK_KEM_Decryptor kem_op(privkey, "KDF1(SHA-512)");
+      McEliece_KEM_Decryptor kem_op(privkey);
 
       const size_t mce_code_bytes = (privkey.get_code_length() + 7) / 8;
 
@@ -87,7 +88,7 @@ mceies_decrypt(const McEliece_PrivateKey& privkey,
       if(ct_len < mce_code_bytes + nonce_len + aead->tag_size())
          throw Exception("Input message too small to be valid");
 
-      const secure_vector<byte> mce_key = kem_op.decrypt(ct, mce_code_bytes, 64);
+      const secure_vector<byte> mce_key = kem_op.decrypt(ct, mce_code_bytes);
 
       aead->set_key(aead_key(mce_key, *aead));
       aead->set_associated_data(ad, ad_len);
