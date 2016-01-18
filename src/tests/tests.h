@@ -1,4 +1,3 @@
-
 /*
 * (C) 2014,2015 Jack Lloyd
 * (C) 2015 Simon Warta (Kullo GmbH)
@@ -62,7 +61,7 @@ class Test
       class Result
          {
          public:
-            Result(const std::string& who = "") : m_who(who) {}
+            Result(const std::string& who) : m_who(who) {}
 
             size_t tests_passed() const { return m_tests_passed; }
             size_t tests_failed() const { return m_fail_log.size(); }
@@ -70,7 +69,7 @@ class Test
             bool any_results() const { return tests_run() > 0; }
 
             const std::string& who() const { return m_who; }
-            std::string result_string() const;
+            std::string result_string(bool verbose) const;
 
             static Result Failure(const std::string& who,
                                   const std::string& what)
@@ -167,7 +166,11 @@ class Test
                }
 
             bool test_eq(const std::string& what, const char* produced, const char* expected);
-            bool test_eq(const std::string& what, const std::string& produced, const std::string& expected);
+
+            bool test_eq(const std::string& what,
+                         const std::string& produced,
+                         const std::string& expected);
+
             bool test_eq(const std::string& what, bool produced, bool expected);
 
             bool test_eq(const std::string& what, size_t produced, size_t expected);
@@ -183,7 +186,9 @@ class Test
 #endif
 
 #if defined(BOTAN_HAS_EC_CURVE_GFP)
-            bool test_eq(const std::string& what, const Botan::PointGFp& a, const Botan::PointGFp& b);
+            bool test_eq(const std::string& what,
+                         const Botan::PointGFp& a,
+                         const Botan::PointGFp& b);
 #endif
 
             bool test_eq(const char* producer, const std::string& what,
@@ -268,12 +273,11 @@ class Test
 
       static Test* get_test(const std::string& test_name);
 
-      static std::string data_dir(const std::string& what);
       static std::string data_file(const std::string& what);
-      static std::string full_path_for_output_file(const std::string& base);
 
       template<typename Alloc>
-      static std::vector<uint8_t, Alloc> mutate_vec(const std::vector<uint8_t, Alloc>& v, bool maybe_resize = false)
+      static std::vector<uint8_t, Alloc>
+      mutate_vec(const std::vector<uint8_t, Alloc>& v, bool maybe_resize = false)
          {
          auto& rng = Test::rng();
 
@@ -296,16 +300,22 @@ class Test
          return r;
          }
 
-      static void setup_tests(size_t soak, bool log_succcss, Botan::RandomNumberGenerator* rng);
+      static void setup_tests(size_t soak,
+                              bool log_succcss,
+                              const std::string& data_dir,
+                              Botan::RandomNumberGenerator* rng);
 
       static size_t soak_level();
       static bool log_success();
+
+      static const std::string& data_dir();
 
       static Botan::RandomNumberGenerator& rng();
       static std::string random_password();
       static uint64_t timestamp(); // nanoseconds arbitrary epoch
 
    private:
+      static std::string m_data_dir;
       static Botan::RandomNumberGenerator* m_test_rng;
       static size_t m_soak_level;
       static bool m_log_success;
@@ -314,7 +324,9 @@ class Test
 /*
 * Register the test with the runner
 */
-#define BOTAN_REGISTER_TEST(type, Test_Class) namespace { Test::Registration reg_ ## Test_Class ## _tests(type, new Test_Class); }
+#define BOTAN_REGISTER_TEST(type, Test_Class) \
+   namespace { Test::Registration reg_ ## Test_Class ## _tests(type, new Test_Class); } \
+   BOTAN_FORCE_SEMICOLON
 
 /*
 * A test based on reading an input file which contains key/value pairs
@@ -363,7 +375,9 @@ class Text_Based_Test : public Test
 #endif
 
       std::string get_req_str(const VarMap& vars, const std::string& key) const;
-      std::string get_opt_str(const VarMap& vars, const std::string& key, const std::string& def_value) const;
+      std::string get_opt_str(const VarMap& vars,
+                              const std::string& key,
+                              const std::string& def_value) const;
 
       size_t get_req_sz(const VarMap& vars, const std::string& key) const;
       size_t get_opt_sz(const VarMap& vars, const std::string& key, const size_t def_value) const;
@@ -375,7 +389,6 @@ class Text_Based_Test : public Test
       std::set<std::string> m_required_keys;
       std::set<std::string> m_optional_keys;
       std::string m_output_key;
-      bool m_clear_between_cb = false;
 
       bool m_first = true;
       std::unique_ptr<std::ifstream> m_cur;

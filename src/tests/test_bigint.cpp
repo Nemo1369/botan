@@ -63,7 +63,7 @@ class BigInt_Unit_Tests : public Test
                      a.to_u32bit();
                      result.test_failure("BigInt::to_u32bit roundtripped out of range value");
                   }
-                  catch(std::exception& e)
+                  catch(std::exception&)
                      {
                      result.test_success("BigInt::to_u32bit rejected out of range");
                      }
@@ -147,12 +147,12 @@ BOTAN_REGISTER_TEST("bigint_unit", BigInt_Unit_Tests);
 class BigInt_KAT_Tests : public Text_Based_Test
    {
    public:
-      BigInt_KAT_Tests() : Text_Based_Test(Test::data_file("bigint.vec"),
+      BigInt_KAT_Tests() : Text_Based_Test("bigint.vec",
                                            std::vector<std::string>{"Output"},
                                            {"In1","In2","Input","Shift","Modulus","Value","Base","Exponent","IsPrime"})
          {}
 
-      Test::Result run_one_test(const std::string& algo, const VarMap& vars)
+      Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
          {
          Test::Result result("BigInt " + algo);
 

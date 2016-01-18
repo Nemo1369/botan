@@ -18,6 +18,10 @@ botan-test
 \#*\#
 .\#*
 
+# Archive files
+*.tgz
+*.tar
+
 # Logs
 *.log
 
@@ -35,6 +39,10 @@ botan-test
 # CMake
 CMakeLists.txt.user
 
+# ctags/etags files
+/TAGS
+/tags
+
 # Amalgamation code
 botan_all.h
 botan_all_internal.h
@@ -48,6 +56,3 @@ coverage/
 # Profiler outputs
 cachegrind.*
 callgrind.*
-
-# Test output
-src/tests/outdata

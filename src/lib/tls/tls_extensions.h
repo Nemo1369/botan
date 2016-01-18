@@ -1,6 +1,6 @@
 /*
 * TLS Extensions
-* (C) 2011-2012 Jack Lloyd
+* (C) 2011,2012,2016 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -37,6 +37,8 @@ enum Handshake_Extension_Type {
    TLSEXT_HEARTBEAT_SUPPORT      = 15,
    TLSEXT_ALPN                   = 16,
 
+   TLSEXT_EXTENDED_MASTER_SECRET = 23,
+
    TLSEXT_SESSION_TICKET         = 35,
 
    TLSEXT_SAFE_RENEGOTIATION     = 65281,
@@ -69,7 +71,7 @@ class Extension
 /**
 * Server Name Indicator extension (RFC 3546)
 */
-class Server_Name_Indicator : public Extension
+class Server_Name_Indicator final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -78,24 +80,24 @@ class Server_Name_Indicator : public Extension
       Handshake_Extension_Type type() const override { return static_type(); }
 
       Server_Name_Indicator(const std::string& host_name) :
-         sni_host_name(host_name) {}
+         m_sni_host_name(host_name) {}
 
       Server_Name_Indicator(TLS_Data_Reader& reader,
                             u16bit extension_size);
 
-      std::string host_name() const { return sni_host_name; }
+      std::string host_name() const { return m_sni_host_name; }
 
       std::vector<byte> serialize() const override;
 
-      bool empty() const override { return sni_host_name == ""; }
+      bool empty() const override { return m_sni_host_name.empty(); }
    private:
-      std::string sni_host_name;
+      std::string m_sni_host_name;
    };
 
 /**
 * SRP identifier extension (RFC 5054)
 */
-class SRP_Identifier : public Extension
+class SRP_Identifier final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -104,24 +106,24 @@ class SRP_Identifier : public Extension
       Handshake_Extension_Type type() const override { return static_type(); }
 
       SRP_Identifier(const std::string& identifier) :
-         srp_identifier(identifier) {}
+         m_srp_identifier(identifier) {}
 
       SRP_Identifier(TLS_Data_Reader& reader,
                      u16bit extension_size);
 
-      std::string identifier() const { return srp_identifier; }
+      std::string identifier() const { return m_srp_identifier; }
 
       std::vector<byte> serialize() const override;
 
-      bool empty() const override { return srp_identifier == ""; }
+      bool empty() const override { return m_srp_identifier.empty(); }
    private:
-      std::string srp_identifier;
+      std::string m_srp_identifier;
    };
 
 /**
 * Renegotiation Indication Extension (RFC 5746)
 */
-class Renegotiation_Extension : public Extension
+class Renegotiation_Extension final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -132,25 +134,25 @@ class Renegotiation_Extension : public Extension
       Renegotiation_Extension() {}
 
       Renegotiation_Extension(const std::vector<byte>& bits) :
-         reneg_data(bits) {}
+         m_reneg_data(bits) {}
 
       Renegotiation_Extension(TLS_Data_Reader& reader,
                              u16bit extension_size);
 
       const std::vector<byte>& renegotiation_info() const
-         { return reneg_data; }
+         { return m_reneg_data; }
 
       std::vector<byte> serialize() const override;
 
       bool empty() const override { return false; } // always send this
    private:
-      std::vector<byte> reneg_data;
+      std::vector<byte> m_reneg_data;
    };
 
 /**
 * Maximum Fragment Length Negotiation Extension (RFC 4366 sec 3.2)
 */
-class Maximum_Fragment_Length : public Extension
+class Maximum_Fragment_Length final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -182,7 +184,7 @@ class Maximum_Fragment_Length : public Extension
 /**
 * ALPN (RFC 7301)
 */
-class Application_Layer_Protocol_Notification : public Extension
+class Application_Layer_Protocol_Notification final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type() { return TLSEXT_ALPN; }
@@ -218,7 +220,7 @@ class Application_Layer_Protocol_Notification : public Extension
 /**
 * Session Ticket Extension (RFC 5077)
 */
-class Session_Ticket : public Extension
+class Session_Ticket final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -257,7 +259,7 @@ class Session_Ticket : public Extension
 /**
 * Supported Elliptic Curves Extension (RFC 4492)
 */
-class Supported_Elliptic_Curves : public Extension
+class Supported_Elliptic_Curves final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -286,7 +288,7 @@ class Supported_Elliptic_Curves : public Extension
 /**
 * Signature Algorithms Extension for TLS 1.2 (RFC 5246)
 */
-class Signature_Algorithms : public Extension
+class Signature_Algorithms final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -325,7 +327,7 @@ class Signature_Algorithms : public Extension
 /**
 * Heartbeat Extension (RFC 6520)
 */
-class Heartbeat_Support_Indicator : public Extension
+class Heartbeat_Support_Indicator final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -351,7 +353,7 @@ class Heartbeat_Support_Indicator : public Extension
 /**
 * Used to indicate SRTP algorithms for DTLS (RFC 5764)
 */
-class SRTP_Protection_Profiles : public Extension
+class SRTP_Protection_Profiles final : public Extension
    {
    public:
       static Handshake_Extension_Type static_type()
@@ -375,6 +377,26 @@ class SRTP_Protection_Profiles : public Extension
    };
 
 /**
+* Extended Master Secret Extension (RFC 7627)
+*/
+class Extended_Master_Secret final : public Extension
+   {
+   public:
+      static Handshake_Extension_Type static_type()
+         { return TLSEXT_EXTENDED_MASTER_SECRET; }
+
+      Handshake_Extension_Type type() const override { return static_type(); }
+
+      std::vector<byte> serialize() const override;
+
+      bool empty() const override { return false; }
+
+      Extended_Master_Secret() {}
+
+      Extended_Master_Secret(TLS_Data_Reader& reader, u16bit extension_size);
+   };
+
+/**
 * Represents a block of extensions in a hello message
 */
 class Extensions
@@ -387,9 +409,9 @@ class Extensions
          {
          Handshake_Extension_Type type = T::static_type();
 
-         auto i = extensions.find(type);
+         auto i = m_extensions.find(type);
 
-         if(i != extensions.end())
+         if(i != m_extensions.end())
             return dynamic_cast<T*>(i->second.get());
          return nullptr;
          }
@@ -402,7 +424,7 @@ class Extensions
 
       void add(Extension* extn)
          {
-         extensions[extn->type()].reset(extn);
+         m_extensions[extn->type()].reset(extn);
          }
 
       std::vector<byte> serialize() const;
@@ -417,7 +439,7 @@ class Extensions
       Extensions(const Extensions&) {}
       Extensions& operator=(const Extensions&) { return (*this); }
 
-      std::map<Handshake_Extension_Type, std::unique_ptr<Extension>> extensions;
+      std::map<Handshake_Extension_Type, std::unique_ptr<Extension>> m_extensions;
    };
 
 }
