@@ -11,6 +11,12 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wformat=2 -Wlogical-op -Wmissing-include-dirs -Wnon-virtual-dtor -Woverloaded-virtual -Wswitch-default -Wuninitialized -std=gnu++11")
 endif()
 
+if(${BUILD_FOR_IOS_DEVICE} OR ${BUILD_FOR_IOS_SIMULATOR})
+	set(IOS_BUILD TRUE)
+endif()
+
+option(IOS "Build for iOS device" ${IOS_BUILD})
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/src/cmake")
 
 # libbotan
