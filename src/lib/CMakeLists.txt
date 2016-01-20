@@ -52,13 +52,6 @@ set(BOTAN_SRC
 		block/twofish/two_tab.cpp
 		block/xtea_simd/xtea_simd.cpp
 		block/xtea/xtea.cpp
-		cert/cvc/asn1_eac_str.cpp
-		cert/cvc/asn1_eac_tm.cpp
-		cert/cvc/cvc_ado.cpp
-		cert/cvc/cvc_req.cpp
-		cert/cvc/cvc_self.cpp
-		cert/cvc/ecdsa_sig.cpp
-		cert/cvc/signed_obj.cpp
 		cert/x509/certstor.cpp
 		cert/x509/crl_ent.cpp
 		cert/x509/key_constraint.cpp
@@ -303,7 +296,7 @@ set(BOTAN_SRC
 		utils/zero_mem.cpp
 		)
 
-option(DYN_LOAD_MODULE "Build with dyn_load usage support" TRUE)
+option(DYN_LOAD_MODULE "Build with dyn_load usage support" FALSE)
 option(TLS_RECORD_MODULE "Build with tls record usage support" TRUE)
 option(LOCKING_ALLOCATOR_MODULE "Build with locking allocator usage support" TRUE)
 option(AES_NI_MODULE "Build with NI for AES usage support" TRUE)
@@ -313,6 +306,7 @@ option(THREEFISH_AVX2_MODULE "Build with AVX2 for Threefish usage support" TRUE)
 option(SHA_SSSE2_MODULE "Build with SSE2 for SHA usage support" TRUE)
 option(AES_SSSE2_MODULE "Build with SSE2 for AES usage support" TRUE)
 option(AES_SSSE3_MODULE "Build with SSSE3 for AES usage support" TRUE)
+option(CVC_MODULE "Build with CVC usage support" FALSE)
 
 if(APPLE AND IOS)
 	set(DYN_LOAD_MODULE FALSE)
@@ -325,6 +319,7 @@ if(APPLE AND IOS)
 	set(SHA_SSE2_MODULE FALSE)
 	set(AES_SSE2_MODULE FALSE)
 	set(AES_SSSE3_MODULE FALSE)
+	set(CVC_MODULE FALSE)
 endif()
 
 if(APPLE)
@@ -333,6 +328,17 @@ if(APPLE)
 	list(APPEND extra_link_libraries ${SECURITY_LIBRARY})
 
 	list(APPEND BOTAN_SRC entropy/darwin_secrandom/darwin_secrandom.cpp)
+endif()
+
+if(CVC_MODULE)
+	list(APPEND BOTAN_SRC
+			cert/cvc/asn1_eac_str.cpp
+			cert/cvc/asn1_eac_tm.cpp
+			cert/cvc/cvc_ado.cpp
+			cert/cvc/cvc_req.cpp
+			cert/cvc/cvc_self.cpp
+			cert/cvc/ecdsa_sig.cpp
+			cert/cvc/signed_obj.cpp)
 endif()
 
 if(DYN_LOAD_MODULE)
