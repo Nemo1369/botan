@@ -16,9 +16,14 @@ if(${BUILD_FOR_IOS_DEVICE} OR ${BUILD_FOR_IOS_SIMULATOR})
 endif()
 
 option(BUILD_FOR_IOS "Build for iOS device" ${IOS_BUILD})
+option(BUILD_TESTS "Build unit tests" ${BUILD_UNIT_TESTS})
 
 if(BUILD_FOR_IOS)
 	set(IOS TRUE)
+endif()
+
+if(BUILD_UNIT_TESTS)
+	set(UNIT_TESTS TRUE)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/src/cmake")
@@ -29,7 +34,9 @@ add_subdirectory("src/lib")
 # cli
 add_subdirectory("src/cli")
 
-# tests
-add_subdirectory("src/tests")
+if(UNIT_TESTS)
+	# tests
+	add_subdirectory("src/tests")
 
-add_dependencies(botan-tests botan)
+	add_dependencies(botan-tests botan)
+endif()
