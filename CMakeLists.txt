@@ -11,7 +11,15 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wformat=2 -Wlogical-op -Wmissing-include-dirs -Wnon-virtual-dtor -Woverloaded-virtual -Wswitch-default -Wuninitialized -std=gnu++11")
 endif()
 
-if(${BUILD_FOR_IOS_DEVICE} OR ${BUILD_FOR_IOS_SIMULATOR})
+if(${BUILD_FOR_ARMV7_IOS_DEVICE})
+	set(IOS_BUILD TRUE)
+endif()
+
+if(${BUILD_FOR_ARM64_IOS_DEVICE})
+	set(IOS_BUILD TRUE)
+endif()
+
+if(${BUILD_FOR_IOS_SIMULATOR})
 	set(IOS_BUILD TRUE)
 endif()
 
