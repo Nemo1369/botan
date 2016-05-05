@@ -41,7 +41,7 @@ using Botan::BigInt;
 class Test_Error : public Botan::Exception
    {
    public:
-      Test_Error(const std::string& what) : Exception("Test error", what) {}
+      explicit Test_Error(const std::string& what) : Exception("Test error", what) {}
    };
 
 /*
@@ -61,7 +61,7 @@ class Test
       class Result
          {
          public:
-            Result(const std::string& who) : m_who(who) {}
+            explicit Result(const std::string& who) : m_who(who) {}
 
             size_t tests_passed() const { return m_tests_passed; }
             size_t tests_failed() const { return m_fail_log.size(); }
@@ -174,11 +174,19 @@ class Test
             bool test_eq(const std::string& what, bool produced, bool expected);
 
             bool test_eq(const std::string& what, size_t produced, size_t expected);
+
+            template<typename I1, typename I2>
+            bool test_int_eq(I1 x, I2 y, const char* what)
+               {
+               return test_eq(what, static_cast<size_t>(x), static_cast<size_t>(y));
+               }
+
             bool test_lt(const std::string& what, size_t produced, size_t expected);
             bool test_gte(const std::string& what, size_t produced, size_t expected);
 
             bool test_rc_ok(const std::string& func, int rc);
             bool test_rc_fail(const std::string& func, const std::string& why, int rc);
+            bool test_rc(const std::string& func, int expected, int rc);
 
 #if defined(BOTAN_HAS_BIGINT)
             bool test_eq(const std::string& what, const BigInt& produced, const BigInt& expected);

@@ -6,6 +6,7 @@
 */
 
 #include <botan/dlies.h>
+#include <botan/internal/ct_utils.h>
 
 namespace Botan {
 
@@ -21,7 +22,9 @@ DLIES_Encryptor::DLIES_Encryptor(const PK_Key_Agreement_Key& key,
    mac(mac_obj),
    mac_keylen(mac_kl)
    {
-   my_key = key.public_value();
+   BOTAN_ASSERT_NONNULL(kdf_obj);
+   BOTAN_ASSERT_NONNULL(mac_obj);
+   m_my_key = key.public_value();
    }
 
 /*
@@ -95,7 +98,8 @@ DLIES_Decryptor::DLIES_Decryptor(const PK_Key_Agreement_Key& key,
 /*
 * DLIES Decryption
 */
-secure_vector<byte> DLIES_Decryptor::dec(const byte msg[], size_t length) const
+secure_vector<byte> DLIES_Decryptor::do_decrypt(byte& valid_mask,
+                                                const byte msg[], size_t length) const
    {
    if(length < my_key.size() + mac->output_length())
       throw Decoding_Error("DLIES decryption: ciphertext is too short");
@@ -120,10 +124,10 @@ secure_vector<byte> DLIES_Decryptor::dec(const byte msg[], size_t length) const
    mac->set_key(K.data(), mac_keylen);
    mac->update(C);
    for(size_t j = 0; j != 8; ++j)
-      mac->update(0);
-   secure_vector<byte> T2 = mac->final();
-   if(T != T2)
-      throw Decoding_Error("DLIES: message authentication failed");
+      m_mac->update(0);
+   secure_vector<byte> T2 = m_mac->final();
+
+   valid_mask = CT::expand_mask<byte>(same_mem(T.data(), T2.data(), T.size()));
 
    xor_buf(C, K.data() + mac_keylen, C.size());
 

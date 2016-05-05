@@ -71,10 +71,10 @@ class RSA_Private_Operation
    protected:
       size_t get_max_input_bits() const { return (n.bits() - 1); }
 
-      RSA_Private_Operation(const RSA_PrivateKey& rsa) :
-         n(rsa.get_n()),
-         q(rsa.get_q()),
-         c(rsa.get_c()),
+      explicit RSA_Private_Operation(const RSA_PrivateKey& rsa) :
+         m_n(rsa.get_n()),
+         m_q(rsa.get_q()),
+         m_c(rsa.get_c()),
          m_powermod_e_n(rsa.get_e(), rsa.get_n()),
          m_powermod_d1_p(rsa.get_d1(), rsa.get_p()),
          m_powermod_d2_q(rsa.get_d2(), rsa.get_q()),
@@ -156,8 +156,8 @@ class RSA_Decryption_Operation : public PK_Ops::Decryption_with_EME,
          const BigInt m(msg, msg_len);
          const BigInt x = blinded_private_op(m);
          const BigInt c = m_powermod_e_n(x);
-         BOTAN_ASSERT(m == c, "RSA sign consistency check");
-         return BigInt::encode_locked(x);
+         BOTAN_ASSERT(m == c, "RSA decrypt consistency check");
+         return BigInt::encode_1363(x, m_n.bytes());
          }
    };
 
@@ -167,8 +167,8 @@ class RSA_Decryption_Operation : public PK_Ops::Decryption_with_EME,
 class RSA_Public_Operation
    {
    public:
-      RSA_Public_Operation(const RSA_PublicKey& rsa) :
-         n(rsa.get_n()), powermod_e_n(rsa.get_e(), rsa.get_n())
+      explicit RSA_Public_Operation(const RSA_PublicKey& rsa) :
+         m_n(rsa.get_n()), m_powermod_e_n(rsa.get_e(), rsa.get_n())
          {}
 
       size_t get_max_input_bits() const { return (n.bits() - 1); }

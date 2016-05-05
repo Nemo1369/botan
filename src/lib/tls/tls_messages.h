@@ -22,7 +22,10 @@
 namespace Botan {
 
 class Credentials_Manager;
+
+#if defined(BOTAN_HAS_SRP6)
 class SRP6_Server_Session;
+#endif
 
 namespace TLS {
 
@@ -43,7 +46,7 @@ class Hello_Verify_Request : public Handshake_Message
 
       std::vector<byte> cookie() const { return m_cookie; }
 
-      Hello_Verify_Request(const std::vector<byte>& buf);
+      explicit Hello_Verify_Request(const std::vector<byte>& buf);
 
       Hello_Verify_Request(const std::vector<byte>& client_hello_bits,
                            const std::string& client_identity,
@@ -95,12 +98,14 @@ class Client_Hello : public Handshake_Message
          return "";
          }
 
+#if defined(BOTAN_HAS_SRP6)
       std::string srp_identifier() const
          {
          if(SRP_Identifier* srp = m_extensions.get<SRP_Identifier>())
             return srp->identifier();
          return "";
          }
+#endif
 
       bool secure_renegotiation() const
          {
@@ -112,13 +117,6 @@ class Client_Hello : public Handshake_Message
          if(Renegotiation_Extension* reneg = m_extensions.get<Renegotiation_Extension>())
             return reneg->renegotiation_info();
          return std::vector<byte>();
-         }
-
-      size_t fragment_size() const
-         {
-         if(Maximum_Fragment_Length* frag = m_extensions.get<Maximum_Fragment_Length>())
-            return frag->fragment_size();
-         return 0;
          }
 
       bool supports_session_ticket() const
@@ -143,18 +141,6 @@ class Client_Hello : public Handshake_Message
          if(auto alpn = m_extensions.get<Application_Layer_Protocol_Notification>())
             return alpn->protocols();
          return std::vector<std::string>();
-         }
-
-      bool supports_heartbeats() const
-         {
-         return m_extensions.has<Heartbeat_Support_Indicator>();
-         }
-
-      bool peer_can_send_heartbeats() const
-         {
-         if(Heartbeat_Support_Indicator* hb = m_extensions.get<Heartbeat_Support_Indicator>())
-            return hb->peer_allowed_to_send();
-         return false;
          }
 
       std::vector<u16bit> srtp_profiles() const
@@ -187,7 +173,7 @@ class Client_Hello : public Handshake_Message
                    const Session& resumed_session,
                    const std::vector<std::string>& next_protocols);
 
-      Client_Hello(const std::vector<byte>& buf);
+      explicit Client_Hello(const std::vector<byte>& buf);
 
    private:
       std::vector<byte> serialize() const override;
@@ -232,28 +218,14 @@ class Server_Hello : public Handshake_Message
          return std::vector<byte>();
          }
 
-      size_t fragment_size() const
+      bool supports_extended_master_secret() const
          {
-         if(Maximum_Fragment_Length* frag = m_extensions.get<Maximum_Fragment_Length>())
-            return frag->fragment_size();
-         return 0;
+         return m_extensions.has<Extended_Master_Secret>();
          }
 
       bool supports_session_ticket() const
          {
          return m_extensions.has<Session_Ticket>();
-         }
-
-      bool supports_heartbeats() const
-         {
-         return m_extensions.has<Heartbeat_Support_Indicator>();
-         }
-
-      bool peer_can_send_heartbeats() const
-         {
-         if(auto hb = m_extensions.get<Heartbeat_Support_Indicator>())
-            return hb->peer_allowed_to_send();
-         return false;
          }
 
       u16bit srtp_profile() const
@@ -290,7 +262,7 @@ class Server_Hello : public Handshake_Message
                    u16bit ciphersuite,
                    byte compression,
                    bool offer_session_ticket,
-                   const std::string next_protocol);
+                   const std::string& next_protocol);
 
       Server_Hello(Handshake_IO& io,
                    Handshake_Hash& hash,
@@ -302,7 +274,7 @@ class Server_Hello : public Handshake_Message
                    bool offer_session_ticket,
                    const std::string& next_protocol);
 
-      Server_Hello(const std::vector<byte>& buf);
+      explicit Server_Hello(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
 
@@ -364,7 +336,7 @@ class Certificate : public Handshake_Message
                   Handshake_Hash& hash,
                   const std::vector<X509_Certificate>& certs);
 
-      Certificate(const std::vector<byte>& buf);
+      explicit Certificate(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
 
@@ -418,7 +390,8 @@ class Certificate_Verify : public Handshake_Message
       * @param state the handshake state
       */
       bool verify(const X509_Certificate& cert,
-                  const Handshake_State& state) const;
+                  const Handshake_State& state,
+                  const Policy& policy) const;
 
       Certificate_Verify(Handshake_IO& io,
                          Handshake_State& state,
@@ -454,7 +427,7 @@ class Finished : public Handshake_Message
                Handshake_State& state,
                Connection_Side side);
 
-      Finished(const std::vector<byte>& buf);
+      explicit Finished(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
 
@@ -469,8 +442,8 @@ class Hello_Request : public Handshake_Message
    public:
       Handshake_Type type() const override { return HELLO_REQUEST; }
 
-      Hello_Request(Handshake_IO& io);
-      Hello_Request(const std::vector<byte>& buf);
+      explicit Hello_Request(Handshake_IO& io);
+      explicit Hello_Request(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
    };
@@ -486,13 +459,20 @@ class Server_Key_Exchange : public Handshake_Message
       const std::vector<byte>& params() const { return m_params; }
 
       bool verify(const Public_Key& server_key,
-                  const Handshake_State& state) const;
+                  const Handshake_State& state,
+                  const Policy& policy) const;
 
       // Only valid for certain kex types
       const Private_Key& server_kex_key() const;
 
+#if defined(BOTAN_HAS_SRP6)
       // Only valid for SRP negotiation
-      SRP6_Server_Session& server_srp_params() const;
+      SRP6_Server_Session& server_srp_params() const
+         {
+         BOTAN_ASSERT_NONNULL(m_srp_params);
+         return *m_srp_params;
+         }
+#endif
 
       Server_Key_Exchange(Handshake_IO& io,
                           Handshake_State& state,
@@ -510,8 +490,10 @@ class Server_Key_Exchange : public Handshake_Message
    private:
       std::vector<byte> serialize() const override;
 
-      std::unique_ptr<Private_Key> m_kex_key;
+#if defined(BOTAN_HAS_SRP6)
       std::unique_ptr<SRP6_Server_Session> m_srp_params;
+#endif
+      std::unique_ptr<Private_Key> m_kex_key;
 
       std::vector<byte> m_params;
 
@@ -529,7 +511,7 @@ class Server_Hello_Done : public Handshake_Message
       Handshake_Type type() const override { return SERVER_HELLO_DONE; }
 
       Server_Hello_Done(Handshake_IO& io, Handshake_Hash& hash);
-      Server_Hello_Done(const std::vector<byte>& buf);
+      explicit Server_Hello_Done(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
    };
@@ -553,7 +535,7 @@ class New_Session_Ticket : public Handshake_Message
       New_Session_Ticket(Handshake_IO& io,
                          Handshake_Hash& hash);
 
-      New_Session_Ticket(const std::vector<byte>& buf);
+      explicit New_Session_Ticket(const std::vector<byte>& buf);
    private:
       std::vector<byte> serialize() const override;
 

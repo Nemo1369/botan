@@ -33,6 +33,14 @@
 #include <botan/prf_x942.h>
 #endif
 
+#if defined(BOTAN_HAS_SP800_108)
+#include <botan/sp800_108.h>
+#endif
+
+#if defined(BOTAN_HAS_SP800_56C)
+#include <botan/sp800_56c.h>
+#endif
+
 #define BOTAN_REGISTER_KDF_NOARGS(type, name)                    \
    BOTAN_REGISTER_NAMED_T(KDF, name, type, (make_new_T<type>))
 #define BOTAN_REGISTER_KDF_1HASH(type, name)                    \
@@ -48,7 +56,7 @@ KDF::~KDF() {}
 std::unique_ptr<KDF> KDF::create(const std::string& algo_spec,
                                                  const std::string& provider)
    {
-   return std::unique_ptr<KDF>(make_a<KDF>(algo_spec, provider));
+   return std::unique_ptr<KDF>(make_a<KDF>(Botan::KDF::Spec(algo_spec), provider));
    }
 
 std::vector<std::string> KDF::providers(const std::string& algo_spec)
@@ -93,4 +101,13 @@ BOTAN_REGISTER_NAMED_T(KDF, "TLS-12-PRF", TLS_12_PRF, TLS_12_PRF::make);
 BOTAN_REGISTER_KDF_NAMED_1STR(X942_PRF, "X9.42-PRF");
 #endif
 
+#if defined(BOTAN_HAS_SP800_108)
+BOTAN_REGISTER_NAMED_T(KDF, "SP800-108-Counter", SP800_108_Counter, SP800_108_Counter::make);
+BOTAN_REGISTER_NAMED_T(KDF, "SP800-108-Feedback", SP800_108_Feedback, SP800_108_Feedback::make);
+BOTAN_REGISTER_NAMED_T(KDF, "SP800-108-Pipeline", SP800_108_Pipeline, SP800_108_Pipeline::make);
+#endif
+
+#if defined(BOTAN_HAS_SP800_56C)
+BOTAN_REGISTER_NAMED_T(KDF, "SP800-56C", SP800_56C, SP800_56C::make);
+#endif
 }

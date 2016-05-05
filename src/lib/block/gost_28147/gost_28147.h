@@ -63,10 +63,10 @@ class BOTAN_DLL GOST_28147_89 : public Block_Cipher_Fixed_Params<8, 32>
       /**
       * @param params the sbox parameters to use
       */
-      GOST_28147_89(const GOST_28147_89_Params& params);
+      explicit GOST_28147_89(const GOST_28147_89_Params& params);
    private:
-      GOST_28147_89(const std::vector<u32bit>& other_SBOX) :
-         SBOX(other_SBOX), EK(8) {}
+      explicit GOST_28147_89(const std::vector<u32bit>& other_SBOX) :
+         m_SBOX(other_SBOX), m_EK(8) {}
 
       void key_schedule(const byte[], size_t) override;
 

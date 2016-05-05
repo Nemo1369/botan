@@ -8,10 +8,11 @@
 #ifndef BOTAN_CRL_ENTRY_H__
 #define BOTAN_CRL_ENTRY_H__
 
-#include <botan/x509cert.h>
 #include <botan/asn1_time.h>
 
 namespace Botan {
+
+class X509_Certificate;
 
 /**
 * X.509v2 CRL Reason Code.
@@ -63,7 +64,7 @@ class BOTAN_DLL CRL_Entry : public ASN1_Object
       /**
       * Construct an empty CRL entry.
       */
-      CRL_Entry(bool throw_on_unknown_critical_extension = false);
+      explicit CRL_Entry(bool throw_on_unknown_critical_extension = false);
 
       /**
       * Construct an CRL entry.

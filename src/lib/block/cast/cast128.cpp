@@ -329,8 +329,8 @@ void CAST_128::cast_ks(secure_vector<u32bit>& K,
    class ByteReader
       {
       public:
-         byte operator()(size_t i) { return (X[i/4] >> (8*(3 - (i%4)))); }
-         ByteReader(const u32bit* x) : X(x) {}
+         byte operator()(size_t i) { return (m_X[i/4] >> (8*(3 - (i%4)))); }
+         explicit ByteReader(const u32bit* x) : m_X(x) {}
       private:
          const u32bit* X;
       };

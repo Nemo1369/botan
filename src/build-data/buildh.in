@@ -98,12 +98,6 @@
 #define BOTAN_PRIVATE_KEY_STRONG_CHECKS_ON_GENERATE 1
 
 /*
-* Define BOTAN_HAS_VALGRIND to enable checking constant time annotations
-* TODO: expose as configure.py flag --with-valgrind
-*/
-//#define BOTAN_HAS_VALGRIND
-
-/*
 * RNGs will automatically poll the system for additional seed material
 * after producing this many bytes of output.
 */
@@ -172,6 +166,22 @@ By default such RNGs are used but not trusted, so that the standard
 softare-based entropy polling is still used.
 */
 #define BOTAN_ENTROPY_ESTIMATE_HARDWARE_RNG 0.0
+
+/*
+How often should the RdRand/RdSeed RNGs be polled
+
+Each poll generates 32 bit entropy
+*/
+#define BOTAN_ENTROPY_INTEL_RNG_POLLS 32
+
+// According to Intel RdRand is guaranteed to generate a random number within 10 retries on a working CPU
+#define BOTAN_ENTROPY_RDRAND_RETRIES 10
+
+/*
+* RdSeed is not guaranteed to generate a random number within a specific number of retries
+* Define the number of retries here
+*/
+#define BOTAN_ENTROPY_RDSEED_RETRIES 20
 
 // The output of a PRNG we are trusting to be strong
 #define BOTAN_ENTROPY_ESTIMATE_STRONG_RNG 7.0
@@ -271,7 +281,7 @@ softare-based entropy polling is still used.
   #define BOTAN_DEPRECATED(msg)
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
   // noexcept is not supported in VS 2013
   #include <yvals.h>
   #define BOTAN_NOEXCEPT _NOEXCEPT

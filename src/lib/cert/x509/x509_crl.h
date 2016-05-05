@@ -9,7 +9,9 @@
 #define BOTAN_X509_CRL_H__
 
 #include <botan/x509_obj.h>
+#include <botan/x509_dn.h>
 #include <botan/crl_ent.h>
+#include <botan/datastor.h>
 #include <vector>
 
 namespace Botan {
@@ -27,7 +29,7 @@ class BOTAN_DLL X509_CRL : public X509_Object
       */
       struct BOTAN_DLL X509_CRL_Error : public Exception
          {
-         X509_CRL_Error(const std::string& error) :
+         explicit X509_CRL_Error(const std::string& error) :
             Exception("X509_CRL: " + error) {}
          };
 

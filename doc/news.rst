@@ -1,8 +1,200 @@
 Release Notes
 ========================================
 
-Version 1.11.27, Not Yet Released
+Version 1.11.30, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* In 1.11.23 a bug was introduced such that CBC-encrypted TLS packets
+  containing no plaintext bytes at all were incorrectly rejected with
+  a MAC failure. Records like this are used by OpenSSL in TLS 1.0
+  connections in order to randomize the IV.
+
+* Add IETF versions of the ChaCha20Poly1305 TLS ciphersuites from
+  draft-ietf-tls-chacha20-poly1305-04. The previously implemented
+  (non-standard) ChaCha20Poly1305 ciphersuites from
+  draft-agl-tls-chacha20poly1305 remain but are deprecated.
+
+* The OCB TLS ciphersuites have been updated to use the new nonce
+  scheme from draft-zauner-tls-aes-ocb-04. This is incompatible with
+  previous versions of the draft, and the ciphersuite numbers used for
+  the (still experimental) OCB ciphersuites have changed.
+
+* Add ECGDSA signature algorithm (GH #479)
+
+* Add NIST SP800-108 and 56C KDFs
+
+* A bug in the IETF version of ChaCha20Poly1305 (with 96 bit nonces)
+  caused incorrect computation when the plaintext or AAD was exactly
+  a multiple of 16 bytes.
+
+Version 1.10.13, 2016-04-23
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Use constant time modular inverse algorithm to avoid possible
+  side channel attack against ECDSA (CVE-2016-2849)
+
+* Use constant time PKCS #1 unpadding to avoid possible side channel
+  attack against RSA decryption (CVE-2015-7827)
+
+* Avoid a compilation problem in OpenSSL engine when ECDSA was
+  disabled. Gentoo bug 542010
+
+Version 1.11.29, 2016-03-20
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* CVE-2016-2849 DSA and ECDSA used a modular inverse function which
+  had input dependent loops. It is possible a side channel attack on
+  this function could be used to recover sufficient information about
+  the nonce k to mount a lattice attack and recover the private key.
+  Found by Sean Devlin.
+
+* CVE-2016-2850 The TLS client did not check that the signature
+  algorithm or ECC curve a v1.2 server used was actually acceptable by
+  the policy. This would allow a server who ignored the preferences
+  indicated in the client to use a weak algorithm, and may allow MITM
+  attacks by an attacker who can break MD5 signatures or 160 bit ECC
+  in real time. The server similarly failed to check on the hash a
+  client used during client certificate authentication.
+
+* Reject empty TLS records at the record processing layer since such a
+  record is not valid regardless of the record type. Later checks
+  already correctly rejected empty records, but during processing such
+  a record, a pointer to the end of the vector was created, causing a
+  assertion failure under checked iterators. Found by Juraj Somorovsky.
+
+* Add PK_Decryptor::decrypt_or_random which allows an application to
+  atomically (in constant time) check that a decrypted ciphertext has
+  the expected length and/or apply content checks on the result. This
+  is used by the TLS server for decrypting PKCS #1 v1.5 RSA ciphertexts.
+  Previously the server used a implementation which was potentially
+  vulnerable to side channels.
+
+* Add support for processing X.509 name constraint extension during
+  path validation. GH #454
+
+* Add X509_Certificate::v3_extensions which allows retreiving the
+  raw binary of all certificate extensions, including those which
+  are not known to the library. This allows processing of custom
+  extensions. GH #437
+
+* Add support for module policies which are a preconfigured set of
+  acceptable or prohibited modules. A policy based on BSI TR-02102-1
+  is included. GH #439 #446
+
+* Support for the deprecated TLS heartbeat extension has been removed.
+
+* Support for the deprecated TLS minimum fragment length extension has
+  been removed.
+
+* SRP6 support is now optional in TLS
+
+* Support for negotiating MD5 and SHA-224 signatures in TLS v1.2 has
+  been removed. MD5 signatures are demonstratably insecure in TLS,
+  SHA-224 is rarely used.
+
+* Support for negotiating ECC curves secp160r1, secp160r2, secp160k1,
+  secp192k1, secp192r1 (P-192), secp224k1, secp224r1 (P-224), and
+  secp256k1 have been removed from the TLS implementation. All were
+  already disabled in the default policy.
+
+* HMAC_RNG now has an explicit check for fork using pid comparisons.
+  It also includes the pid and system and CPU clocks into the PRF
+  computation to help reduce the risk of pid wraparound. Even so,
+  applications using fork and userspace RNGs should explicitly reseed
+  all such RNGs whenever possible.
+
+* Deprecation warning: support for DSA certificates in TLS is
+  deprecated and will be removed in a future release.
+
+* Deprecation warning: in addition to the algorithms deprecated in
+  1.11.26, the following algorithms are now deprecated and will be
+  removed in a future release: Rabin-Williams signatures, TEA, XTEA.
+
+* Deprecation warning: the library has a number of compiled in MODP
+  and ECC DL parameters. All MODP parameter sets under 2048 bits and
+  all ECC parameters under 256 bits are deprecated and will be removed
+  in a future release. This includes the MODP groups "modp/ietf/1024",
+  "modp/srp/1024", "modp/ietf/1536", "modp/srp/1536" and the ECC
+  groups "secp160k1", "secp160r1", "secp160r2", "secp192k1",
+  "secp192r1", "secp224k1", "secp224r1", "brainpool160r1",
+  "brainpool192r1", "brainpool224r1", "x962_p192v2", "x962_p192v3",
+  "x962_p239v1", "x962_p239v2" and "x962_p239v3". Additionally all
+  compiled in DSA parameter sets ("dsa/jce/1024", "dsa/botan/2048",
+  and "dsa/botan/3072") are also deprecated.
+
+* RDSEED/RDRAND polling now retries if the operation fails. GH #373
+
+* Fix various minor bugs found by static analysis with PVS-Studio (GH#421),
+  Clang analyzer (GH #441), cppcheck (GH #444, #445), and Coverity.
+
+* Add --with-valgrind configure option to enable building against the
+  valgrind client API. This currently enables checking of const time
+  operations using memcheck.
+
+* Fix remaining Wshadow warnings. Enable Wshadow in build. GH #427
+
+* Use noexcept in VS 2015 GH #429
+
+* On Windows allow the user to explicitly request symlinks be used
+  as part of the build. Likely only useful for someone working on
+  the library itself. GH #430
+
+* Remove use of TickCount64 introduced in 1.11.27 which caused problem
+  with downstream distributors/users building XP compatiable binaries
+  which is still an option even in VS 2015
+
+* MCEIES requires KDF1 at runtime but did not require it be enabled
+  in the build. GH #369
+
+* Small optimizations to Keccak hash
+
+* Support for locking allocator on Windows using VirtualLock. GH #450
+
+Version 1.10.12, 2016-02-03
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* In 1.10.11, the check in PointGFp intended to check the affine y
+  argument actually checked the affine x again. Reported by Remi Gacogne
+
+  The CVE-2016-2195 overflow is not exploitable in 1.10.11 due to an
+  additional check in the multiplication function itself which was
+  also added in that release, so there are no security implications
+  from the missed check. However to avoid confusion the change was
+  pushed in a new release immediately.
+
+  The 1.10.11 release notes incorrectly identified CVE-2016-2195 as CVE-2016-2915
+
+Version 1.10.11, 2016-02-01
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Resolve heap overflow in ECC point decoding. CVE-2016-2195
+
+* Resolve infinite loop in modular square root algorithm.
+  CVE-2016-2194
+
+* Correct BigInt::to_u32bit to not fail on integers of exactly 32 bits.
+  GH #239
+
+Version 1.11.28, 2016-02-01
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* One of the checks added while addressing CVE-2016-2195 was incorrect
+  and could cause needless assertion failures.
+
+Version 1.11.27, 2016-02-01
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* SECURITY: Avoid heap overflow in ECC point decoding. This could
+  likely result in remote code execution. CVE-2016-2195
+
+* SECURITY: Avoid one word heap overflow in P-521 reduction function.
+  This could potentially lead to remote code execution or other
+  attack. CVE-2016-2196.
+
+* SECURITY: Avoid infinite or near-infinite loop during modular square
+  root algorithm with invalid inputs. CVE-2016-2194
+
+* Add Blake2b hash function. GH #413
 
 * Use m_ prefix on all member variables. GH #398 and #407
 

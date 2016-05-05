@@ -42,9 +42,10 @@ std::vector<std::string> lookup_oids(const std::vector<std::string>& in)
 * X509_Certificate Constructor
 */
 X509_Certificate::X509_Certificate(DataSource& in) :
-   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE")
+   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE"),
+   m_self_signed(false),
+   m_v3_extensions(false)
    {
-   self_signed = false;
    do_decode();
    }
 
@@ -52,9 +53,10 @@ X509_Certificate::X509_Certificate(DataSource& in) :
 * X509_Certificate Constructor
 */
 X509_Certificate::X509_Certificate(const std::string& in) :
-   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE")
+   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE"),
+   m_self_signed(false),
+   m_v3_extensions(false)
    {
-   self_signed = false;
    do_decode();
    }
 
@@ -62,11 +64,38 @@ X509_Certificate::X509_Certificate(const std::string& in) :
 * X509_Certificate Constructor
 */
 X509_Certificate::X509_Certificate(const std::vector<byte>& in) :
-   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE")
+   X509_Object(in, "CERTIFICATE/X509 CERTIFICATE"),
+   m_self_signed(false),
+   m_v3_extensions(false)
    {
-   self_signed = false;
    do_decode();
    }
+
+X509_Certificate::X509_Certificate(const X509_Certificate& other) :
+   X509_Object(other)
+   {
+   m_subject = other.m_subject;
+   m_issuer = other.m_issuer;
+   m_self_signed = other.m_self_signed;
+   m_v3_extensions = other.m_v3_extensions;
+   }
+
+X509_Certificate& X509_Certificate::operator=(const X509_Certificate& other)
+   {
+   if(&other == this)
+      {
+      return *this;
+      }
+   else
+      {
+      m_subject = other.m_subject;
+      m_issuer = other.m_issuer;
+      m_self_signed = other.m_self_signed;
+      m_v3_extensions = other.m_v3_extensions;
+      }
+   return *this;
+   }
+
 
 /*
 * Decode the TBSCertificate data
@@ -120,11 +149,8 @@ void X509_Certificate::force_decode()
    if(v3_exts_data.type_tag == 3 &&
       v3_exts_data.class_tag == ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
       {
-      Extensions extensions;
-
-      BER_Decoder(v3_exts_data.value).decode(extensions).verify_end();
-
-      extensions.contents_to(subject, issuer);
+      BER_Decoder(v3_exts_data.value).decode(m_v3_extensions).verify_end();
+      m_v3_extensions.contents_to(m_subject, m_issuer);
       }
    else if(v3_exts_data.type_tag != NO_OBJECT)
       throw BER_Bad_Tag("Unknown tag in X.509 cert",
@@ -279,6 +305,14 @@ u32bit X509_Certificate::path_limit() const
    }
 
 /*
+* Return if a certificate extension is marked critical
+*/
+bool X509_Certificate::is_critical(const std::string& ex_name) const
+   {
+   return !!m_subject.get1_u32bit(ex_name + ".is_critical",0);
+   }
+
+/*
 * Return the key usage constraints
 */
 Key_Constraints X509_Certificate::constraints() const
@@ -296,11 +330,36 @@ std::vector<std::string> X509_Certificate::ex_constraints() const
    }
 
 /*
+* Return the name constraints
+*/
+NameConstraints X509_Certificate::name_constraints() const
+   {
+   std::vector<GeneralSubtree> permit, exclude;
+
+   for(const std::string& v: m_subject.get("X509v3.NameConstraints.permitted"))
+      {
+      permit.push_back(GeneralSubtree(v));
+      }
+
+   for(const std::string& v: m_subject.get("X509v3.NameConstraints.excluded"))
+      {
+      exclude.push_back(GeneralSubtree(v));
+      }
+
+   return NameConstraints(std::move(permit),std::move(exclude));
+   }
+
+/*
 * Return the list of certificate policies
 */
 std::vector<std::string> X509_Certificate::policies() const
    {
    return lookup_oids(subject.get("X509v3.CertificatePolicies"));
+   }
+
+Extensions X509_Certificate::v3_extensions() const
+   {
+   return m_v3_extensions;
    }
 
 std::string X509_Certificate::ocsp_responder() const
@@ -508,7 +567,34 @@ std::string X509_Certificate::to_string() const
          out << "   " << ex_constraints[i] << "\n";
       }
 
-   if(ocsp_responder() != "")
+   NameConstraints name_constraints = this->name_constraints();
+   if(!name_constraints.permitted().empty() ||
+         !name_constraints.excluded().empty())
+      {
+      out << "Name Constraints:\n";
+
+      if(!name_constraints.permitted().empty())
+         {
+         out << "   Permit";
+         for(auto st: name_constraints.permitted())
+            {
+            out << " " << st.base();
+            }
+         out << "\n";
+         }
+
+      if(!name_constraints.excluded().empty())
+         {
+         out << "   Exclude";
+         for(auto st: name_constraints.excluded())
+            {
+            out << " " << st.base();
+            }
+         out << "\n";
+         }
+      }
+
+   if(!ocsp_responder().empty())
       out << "OCSP responder " << ocsp_responder() << "\n";
    if(crl_distribution_point() != "")
       out << "CRL " << crl_distribution_point() << "\n";

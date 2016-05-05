@@ -364,10 +364,6 @@ information about that session:
       Returns ``true`` if the connection was negotiated with the
       correct extensions to prevent the renegotiation attack.
 
-There are also functions for serialization and deserializing sessions:
-
-.. cpp:class:: TLS::Session
-
    .. cpp:function:: std::vector<byte> encrypt(const SymmetricKey& key, \
                                                RandomNumberGenerator& rng)
 
@@ -382,18 +378,17 @@ There are also functions for serialization and deserializing sessions:
                                             size_t length, \
                                             const SymmetricKey& key)
 
-      Decrypts a session that was encrypted previously with
-      ``encrypt`` and *key*, or throws an exception if decryption
-      fails.
+      Decrypts a session that was encrypted previously with ``encrypt`` and
+      ``key``, or throws an exception if decryption fails.
 
    .. cpp:function:: secure_vector<byte> DER_encode() const
 
        Returns a serialized version of the session.
 
-       .. warning:: The return value contains the master secret for
-                    the session, and an attacker who recovers it could
-                    recover plaintext of previous sessions or
-                    impersonate one side to the other.
+       .. warning:: The return value of ``DER_encode`` contains the
+                    master secret for the session, and an attacker who
+                    recovers it could recover plaintext of previous
+                    sessions or impersonate one side to the other.
 
 .. _tls_session_managers:
 
@@ -550,7 +545,7 @@ policy settings from a file.
 
      Default: "AEAD", "SHA-384", "SHA-256", "SHA-1"
 
-     Also allowed (although **not recommended**): "MD5"
+     A plain hash function indicates HMAC
 
  .. cpp:function:: std::vector<std::string> allowed_key_exchange_methods() const
 
@@ -563,13 +558,12 @@ policy settings from a file.
 
  .. cpp:function:: std::vector<std::string> allowed_signature_hashes() const
 
-     Returns the list of algorithms we are willing to use for
+     Returns the list of hash algorithms we are willing to use for
      public key signatures, in order of preference.
 
      Default: "SHA-512", "SHA-384", "SHA-256"
 
-     Also allowed: "SHA-224"
-     Also allowed (although **not recommended**): "MD5", "SHA-1"
+     Also allowed (although **not recommended**): "SHA-1"
 
      .. note::
 
@@ -590,9 +584,7 @@ policy settings from a file.
      Default: "brainpool512r1", "secp521r1", "brainpool384r1",
      "secp384r1", "brainpool256r1", "secp256r1"
 
-     Also allowed (disabled by default): "secp256k1", "secp224r1",
-     "secp224k1", "secp192r1", "secp192k1", "secp160r2", "secp160r1",
-     "secp160k1"
+     No other values are currently defined.
 
  .. cpp:function:: std::vector<byte> compression() const
 

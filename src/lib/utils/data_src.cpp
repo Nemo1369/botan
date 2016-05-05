@@ -95,7 +95,6 @@ DataSource_Memory::DataSource_Memory(const std::string& in) :
           reinterpret_cast<const byte*>(in.data()) + in.length()),
    offset(0)
    {
-   offset = 0;
    }
 
 /*

@@ -38,6 +38,7 @@ enum class Certificate_Status_Code {
    INVALID_USAGE,
    CERT_CHAIN_TOO_LONG,
    CA_CERT_NOT_FOR_CERT_ISSUER,
+   NAME_CONSTRAINT_ERROR,
 
    // Revocation errors
    CA_CERT_NOT_FOR_CRL_ISSUER,
@@ -45,6 +46,8 @@ enum class Certificate_Status_Code {
    OCSP_BAD_STATUS,
 
    CERT_NAME_NOMATCH,
+
+   UNKNOWN_CRITICAL_EXTENSION,
 
    // Hard failures
    CERT_IS_REVOKED = 5000,

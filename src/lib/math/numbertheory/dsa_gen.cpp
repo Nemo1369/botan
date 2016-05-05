@@ -61,7 +61,7 @@ bool generate_dsa_primes(RandomNumberGenerator& rng,
    class Seed
       {
       public:
-         Seed(const std::vector<byte>& s) : seed(s) {}
+         explicit Seed(const std::vector<byte>& s) : m_seed(s) {}
 
          operator std::vector<byte>& () { return seed; }
 

@@ -56,34 +56,37 @@ namespace Botan {
 /*
 * Decode a BER encoded ASN1_EAC_String
 */
-	void ASN1_EAC_String::decode_from(BER_Decoder &source) {
-		BER_Object obj = source.get_next_object();
+void ASN1_EAC_String::decode_from(BER_Decoder& source)
+   {
+   BER_Object obj = source.get_next_object();
 
-		if (obj.type_tag != this->tag) {
-			std::stringstream ss;
+   if(obj.type_tag != m_tag)
+      {
+      std::stringstream ss;
 
-			ss << "ASN1_EAC_String tag mismatch, tag was "
-			<< std::hex << obj.type_tag
-			<< " expected "
-			<< std::hex << this->tag;
+      ss << "ASN1_EAC_String tag mismatch, tag was "
+         << std::hex << obj.type_tag
+         << " expected "
+         << std::hex << m_tag;
 
-			throw Decoding_Error(ss.str());
-		}
+      throw Decoding_Error(ss.str());
+      }
 
-		Character_Set charset_is;
-		charset_is = LATIN1_CHARSET;
+   Character_Set charset_is;
+   charset_is = LATIN1_CHARSET;
 
-		try {
-			*this = ASN1_EAC_String(
-					Charset::transcode(ASN1::to_string(obj), charset_is, LOCAL_CHARSET),
-					obj.type_tag);
-		}
-		catch (Invalid_Argument &inv_arg) {
-			throw Decoding_Error(
-					std::string("ASN1_EAC_String decoding failed: ") +
-					inv_arg.what());
-		}
-	}
+   try
+      {
+      *this = ASN1_EAC_String(
+         Charset::transcode(ASN1::to_string(obj), LOCAL_CHARSET, charset_is),
+         obj.type_tag);
+      }
+   catch(Invalid_Argument& inv_arg)
+      {
+      throw Decoding_Error(std::string("ASN1_EAC_String decoding failed: ") +
+                           inv_arg.what());
+      }
+   }
 
 // checks for compliance to the alphabet defined in TR-03110 v1.10, 2007-08-20
 // p. 43

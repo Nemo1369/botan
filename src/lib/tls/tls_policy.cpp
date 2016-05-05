@@ -44,9 +44,7 @@ std::vector<std::string> Policy::allowed_signature_hashes() const
       "SHA-512",
       "SHA-384",
       "SHA-256",
-      //"SHA-224",
       //"SHA-1",
-      //"MD5",
       };
    }
 
@@ -57,14 +55,13 @@ std::vector<std::string> Policy::allowed_macs() const
       "SHA-384",
       "SHA-256",
       "SHA-1",
-      //"MD5",
       };
    }
 
 std::vector<std::string> Policy::allowed_key_exchange_methods() const
    {
    return {
-      "SRP_SHA",
+      //"SRP_SHA",
       //"ECDHE_PSK",
       //"DHE_PSK",
       //"PSK",
@@ -80,8 +77,13 @@ std::vector<std::string> Policy::allowed_signature_methods() const
       "ECDSA",
       "RSA",
       "DSA",
-      //""
+      //"" (anon)
       };
+   }
+
+bool Policy::allowed_signature_method(const std::string& sig_method) const
+   {
+   return value_exists(allowed_signature_methods(), sig_method);
    }
 
 std::vector<std::string> Policy::allowed_ecc_curves() const
@@ -93,15 +95,12 @@ std::vector<std::string> Policy::allowed_ecc_curves() const
       "secp384r1",
       "brainpool256r1",
       "secp256r1",
-      //"secp256k1",
-      //"secp224r1",
-      //"secp224k1",
-      //"secp192r1",
-      //"secp192k1",
-      //"secp160r2",
-      //"secp160r1",
-      //"secp160k1",
       };
+   }
+
+bool Policy::allowed_ecc_curve(const std::string& curve) const
+   {
+   return value_exists(allowed_ecc_curves(), curve);
    }
 
 /*
@@ -167,7 +166,6 @@ bool Policy::acceptable_ciphersuite(const Ciphersuite&) const
    return true;
    }
 
-bool Policy::negotiate_heartbeat_support() const { return false; }
 bool Policy::allow_server_initiated_renegotiation() const { return false; }
 bool Policy::allow_insecure_renegotiation() const { return false; }
 bool Policy::include_time_in_hello_random() const { return true; }
@@ -347,7 +345,6 @@ void Policy::print(std::ostream& o) const
    print_vec(o, "key_exchange_methods", allowed_key_exchange_methods());
    print_vec(o, "ecc_curves", allowed_ecc_curves());
 
-   print_bool(o, "negotiate_heartbeat_support", negotiate_heartbeat_support());
    print_bool(o, "allow_insecure_renegotiation", allow_insecure_renegotiation());
    print_bool(o, "include_time_in_hello_random", include_time_in_hello_random());
    print_bool(o, "allow_server_initiated_renegotiation", allow_server_initiated_renegotiation());

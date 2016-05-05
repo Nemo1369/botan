@@ -23,7 +23,7 @@ class TLS_Data_Reader;
 
 enum Handshake_Extension_Type {
    TLSEXT_SERVER_NAME_INDICATION = 0,
-   TLSEXT_MAX_FRAGMENT_LENGTH    = 1,
+   // 1 is maximum fragment length
    TLSEXT_CLIENT_CERT_URL        = 2,
    TLSEXT_TRUSTED_CA_KEYS        = 3,
    TLSEXT_TRUNCATED_HMAC         = 4,
@@ -77,8 +77,8 @@ class Server_Name_Indicator : public Extension
 
       Handshake_Extension_Type type() const override { return static_type(); }
 
-      Server_Name_Indicator(const std::string& host_name) :
-         sni_host_name(host_name) {}
+      explicit Server_Name_Indicator(const std::string& host_name) :
+         m_sni_host_name(host_name) {}
 
       Server_Name_Indicator(TLS_Data_Reader& reader,
                             u16bit extension_size);
@@ -92,6 +92,7 @@ class Server_Name_Indicator : public Extension
       std::string sni_host_name;
    };
 
+#if defined(BOTAN_HAS_SRP6)
 /**
 * SRP identifier extension (RFC 5054)
 */
@@ -103,8 +104,8 @@ class SRP_Identifier : public Extension
 
       Handshake_Extension_Type type() const override { return static_type(); }
 
-      SRP_Identifier(const std::string& identifier) :
-         srp_identifier(identifier) {}
+      explicit SRP_Identifier(const std::string& identifier) :
+         m_srp_identifier(identifier) {}
 
       SRP_Identifier(TLS_Data_Reader& reader,
                      u16bit extension_size);
@@ -117,6 +118,7 @@ class SRP_Identifier : public Extension
    private:
       std::string srp_identifier;
    };
+#endif
 
 /**
 * Renegotiation Indication Extension (RFC 5746)
@@ -131,8 +133,8 @@ class Renegotiation_Extension : public Extension
 
       Renegotiation_Extension() {}
 
-      Renegotiation_Extension(const std::vector<byte>& bits) :
-         reneg_data(bits) {}
+      explicit Renegotiation_Extension(const std::vector<byte>& bits) :
+         m_reneg_data(bits) {}
 
       Renegotiation_Extension(TLS_Data_Reader& reader,
                              u16bit extension_size);
@@ -145,38 +147,6 @@ class Renegotiation_Extension : public Extension
       bool empty() const override { return false; } // always send this
    private:
       std::vector<byte> reneg_data;
-   };
-
-/**
-* Maximum Fragment Length Negotiation Extension (RFC 4366 sec 3.2)
-*/
-class Maximum_Fragment_Length : public Extension
-   {
-   public:
-      static Handshake_Extension_Type static_type()
-         { return TLSEXT_MAX_FRAGMENT_LENGTH; }
-
-      Handshake_Extension_Type type() const override { return static_type(); }
-
-      bool empty() const override { return false; }
-
-      size_t fragment_size() const { return m_max_fragment; }
-
-      std::vector<byte> serialize() const override;
-
-      /**
-      * @param max_fragment specifies what maximum fragment size to
-      *        advertise. Currently must be one of 512, 1024, 2048, or
-      *        4096.
-      */
-      Maximum_Fragment_Length(size_t max_fragment) :
-         m_max_fragment(max_fragment) {}
-
-      Maximum_Fragment_Length(TLS_Data_Reader& reader,
-                              u16bit extension_size);
-
-   private:
-      size_t m_max_fragment;
    };
 
 /**
@@ -196,13 +166,13 @@ class Application_Layer_Protocol_Notification : public Extension
       /**
       * Single protocol, used by server
       */
-      Application_Layer_Protocol_Notification(const std::string& protocol) :
+      explicit Application_Layer_Protocol_Notification(const std::string& protocol) :
          m_protocols(1, protocol) {}
 
       /**
       * List of protocols, used by client
       */
-      Application_Layer_Protocol_Notification(const std::vector<std::string>& protocols) :
+      explicit Application_Layer_Protocol_Notification(const std::vector<std::string>& protocols) :
          m_protocols(protocols) {}
 
       Application_Layer_Protocol_Notification(TLS_Data_Reader& reader,
@@ -239,7 +209,7 @@ class Session_Ticket : public Extension
       /**
       * Extension with ticket, used by client
       */
-      Session_Ticket(const std::vector<byte>& session_ticket) :
+      explicit Session_Ticket(const std::vector<byte>& session_ticket) :
          m_ticket(session_ticket) {}
 
       /**
@@ -272,7 +242,7 @@ class Supported_Elliptic_Curves : public Extension
 
       std::vector<byte> serialize() const override;
 
-      Supported_Elliptic_Curves(const std::vector<std::string>& curves) :
+      explicit Supported_Elliptic_Curves(const std::vector<std::string>& curves) :
          m_curves(curves) {}
 
       Supported_Elliptic_Curves(TLS_Data_Reader& reader,
@@ -313,39 +283,13 @@ class Signature_Algorithms : public Extension
       Signature_Algorithms(const std::vector<std::string>& hashes,
                            const std::vector<std::string>& sig_algos);
 
-      Signature_Algorithms(const std::vector<std::pair<std::string, std::string> >& algos) :
+      explicit Signature_Algorithms(const std::vector<std::pair<std::string, std::string> >& algos) :
          m_supported_algos(algos) {}
 
       Signature_Algorithms(TLS_Data_Reader& reader,
                            u16bit extension_size);
    private:
       std::vector<std::pair<std::string, std::string> > m_supported_algos;
-   };
-
-/**
-* Heartbeat Extension (RFC 6520)
-*/
-class Heartbeat_Support_Indicator : public Extension
-   {
-   public:
-      static Handshake_Extension_Type static_type()
-         { return TLSEXT_HEARTBEAT_SUPPORT; }
-
-      Handshake_Extension_Type type() const override { return static_type(); }
-
-      bool peer_allowed_to_send() const { return m_peer_allowed_to_send; }
-
-      std::vector<byte> serialize() const override;
-
-      bool empty() const override { return false; }
-
-      Heartbeat_Support_Indicator(bool peer_allowed_to_send) :
-         m_peer_allowed_to_send(peer_allowed_to_send) {}
-
-      Heartbeat_Support_Indicator(TLS_Data_Reader& reader, u16bit extension_size);
-
-   private:
-      bool m_peer_allowed_to_send;
    };
 
 /**
@@ -365,9 +309,9 @@ class SRTP_Protection_Profiles : public Extension
 
       bool empty() const override { return m_pp.empty(); }
 
-      SRTP_Protection_Profiles(const std::vector<u16bit>& pp) : m_pp(pp) {}
+      explicit SRTP_Protection_Profiles(const std::vector<u16bit>& pp) : m_pp(pp) {}
 
-      SRTP_Protection_Profiles(u16bit pp) : m_pp(1, pp) {}
+      explicit SRTP_Protection_Profiles(u16bit pp) : m_pp(1, pp) {}
 
       SRTP_Protection_Profiles(TLS_Data_Reader& reader, u16bit extension_size);
    private:
@@ -411,7 +355,7 @@ class Extensions
 
       Extensions() {}
 
-      Extensions(TLS_Data_Reader& reader) { deserialize(reader); }
+      explicit Extensions(TLS_Data_Reader& reader) { deserialize(reader); }
 
    private:
       Extensions(const Extensions&) {}

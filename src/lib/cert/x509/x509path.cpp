@@ -16,8 +16,6 @@
 #include <vector>
 #include <set>
 
-#include <iostream>
-
 namespace Botan {
 
 namespace {
@@ -115,7 +113,6 @@ check_chain(const std::vector<X509_Certificate>& cert_path,
 
       // Check issuer constraints
 
-      // Don't require CA bit set on self-signed end entity cert
       if(!issuer.is_CA_cert() && !self_signed_ee_cert)
          status.insert(Certificate_Status_Code::CA_CERT_NOT_FOR_CERT_ISSUER);
 
@@ -142,6 +139,13 @@ check_chain(const std::vector<X509_Certificate>& cert_path,
          {
          if(!trusted_hashes.count(subject.hash_used_for_signature()))
             status.insert(Certificate_Status_Code::UNTRUSTED_HASH);
+         }
+
+      // Check cert extensions
+      Extensions extensions = subject.v3_extensions();
+      for(auto& extension : extensions.extensions())
+         {
+         extension.first->validate(subject, issuer, cert_path, cert_status, i);
          }
       }
 
@@ -416,6 +420,10 @@ const char* Path_Validation_Result::status_string(Certificate_Status_Code code)
          return "OCSP bad status";
       case Certificate_Status_Code::CERT_NAME_NOMATCH:
          return "Certificate does not match provided name";
+      case Certificate_Status_Code::NAME_CONSTRAINT_ERROR:
+         return "Certificate does not pass name constraint";
+      case Certificate_Status_Code::UNKNOWN_CRITICAL_EXTENSION:
+         return "Unknown critical extension encountered";
 
       case Certificate_Status_Code::CERT_IS_REVOKED:
          return "Certificate is revoked";

@@ -37,7 +37,7 @@ void check_invalid_signatures(Test::Result& result,
 
    std::vector<uint8_t> bad_sig = signature;
 
-   for(size_t i = 0; i <= Test::soak_level(); ++i)
+   for(size_t i = 0; i < Test::soak_level(); ++i)
       {
       while(bad_sig == signature)
          bad_sig = Test::mutate_vec(bad_sig, true);
@@ -59,7 +59,7 @@ void check_invalid_ciphertexts(Test::Result& result,
 
    size_t ciphertext_accepted = 0, ciphertext_rejected = 0;
 
-   for(size_t i = 0; i <= Test::soak_level(); ++i)
+   for(size_t i = 0; i < Test::soak_level(); ++i)
       {
       while(bad_ctext == ciphertext)
          bad_ctext = Test::mutate_vec(bad_ctext, true);
@@ -113,7 +113,7 @@ PK_Signature_Generation_Test::run_one_test(const std::string&, const VarMap& var
       std::unique_ptr<Botan::RandomNumberGenerator> rng;
       if(vars.count("Nonce"))
          {
-         rng.reset(new Fixed_Output_RNG(get_req_bin(vars, "Nonce")));
+         rng.reset(test_rng(get_req_bin(vars, "Nonce")));
          }
 
       const std::vector<uint8_t> generated_signature =
@@ -222,7 +222,8 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& va
 
       if(enc_provider == "base")
          {
-         result.test_eq("generated ciphertext matches KAT", generated_ciphertext, ciphertext);
+         result.test_eq(enc_provider, "generated ciphertext matches KAT",
+                        generated_ciphertext, ciphertext);
          }
 
       for(auto&& dec_provider : possible_pk_providers())
@@ -239,10 +240,14 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& va
             continue;
             }
 
-         result.test_eq("decryption of KAT", decryptor->decrypt(ciphertext), plaintext);
+         result.test_eq(dec_provider, "decryption of KAT", decryptor->decrypt(ciphertext), plaintext);
          check_invalid_ciphertexts(result, *decryptor, plaintext, ciphertext);
-         result.test_eq("decryption of generated ciphertext",
-                        decryptor->decrypt(generated_ciphertext), plaintext);
+
+         if(generated_ciphertext != ciphertext)
+            {
+            result.test_eq(dec_provider, "decryption of generated ciphertext",
+                           decryptor->decrypt(generated_ciphertext), plaintext);
+            }
          }
       }
 

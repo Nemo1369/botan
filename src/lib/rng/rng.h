@@ -144,6 +144,8 @@ class BOTAN_DLL RandomNumberGenerator
       virtual ~RandomNumberGenerator() {}
    };
 
+typedef RandomNumberGenerator RNG;
+
 /**
 * Null/stub RNG - fails if you try to use it for anything
 */
@@ -211,7 +213,7 @@ class BOTAN_DLL Serialized_RNG : public RandomNumberGenerator
          }
 
       Serialized_RNG() : m_rng(RandomNumberGenerator::make_rng()) {}
-      Serialized_RNG(RandomNumberGenerator* rng) : m_rng(rng) {}
+      explicit Serialized_RNG(RandomNumberGenerator* rng) : m_rng(rng) {}
    private:
       mutable std::mutex m_mutex;
       std::unique_ptr<RandomNumberGenerator> m_rng;

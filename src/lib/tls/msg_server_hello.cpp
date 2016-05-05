@@ -28,7 +28,7 @@ Server_Hello::Server_Hello(Handshake_IO& io,
                            u16bit ciphersuite,
                            byte compression,
                            bool offer_session_ticket,
-                           const std::string next_protocol) :
+                           const std::string& next_protocol) :
    m_version(new_session_version),
    m_session_id(new_session_id),
    m_random(make_hello_random(rng, policy)),
@@ -41,13 +41,7 @@ Server_Hello::Server_Hello(Handshake_IO& io,
    if(client_hello.supports_session_ticket() && offer_session_ticket)
       m_extensions.add(new Session_Ticket());
 
-   if(size_t max_fragment_size = client_hello.fragment_size())
-      m_extensions.add(new Maximum_Fragment_Length(max_fragment_size));
-
-   if(policy.negotiate_heartbeat_support() && client_hello.supports_heartbeats())
-      m_extensions.add(new Heartbeat_Support_Indicator(true));
-
-   if(next_protocol != "" && client_hello.supports_alpn())
+   if(!next_protocol.empty() && client_hello.supports_alpn())
       m_extensions.add(new Application_Layer_Protocol_Notification(next_protocol));
 
    if(m_version.is_datagram_protocol())
@@ -96,13 +90,7 @@ Server_Hello::Server_Hello(Handshake_IO& io,
    if(client_hello.supports_session_ticket() && offer_session_ticket)
       m_extensions.add(new Session_Ticket());
 
-   if(size_t max_fragment_size = resumed_session.fragment_size())
-      m_extensions.add(new Maximum_Fragment_Length(max_fragment_size));
-
-   if(policy.negotiate_heartbeat_support() && client_hello.supports_heartbeats())
-      m_extensions.add(new Heartbeat_Support_Indicator(true));
-
-   if(next_protocol != "" && client_hello.supports_alpn())
+   if(!next_protocol.empty() && client_hello.supports_alpn())
       m_extensions.add(new Application_Layer_Protocol_Notification(next_protocol));
 
    hash.update(io.send(*this));

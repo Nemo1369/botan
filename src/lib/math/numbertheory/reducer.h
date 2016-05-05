@@ -49,8 +49,8 @@ class BOTAN_DLL Modular_Reducer
 
       bool initialized() const { return (mod_words != 0); }
 
-      Modular_Reducer() { mod_words = 0; }
-      Modular_Reducer(const BigInt& mod);
+      Modular_Reducer() { m_mod_words = 0; }
+      explicit Modular_Reducer(const BigInt& mod);
    private:
       BigInt modulus, modulus_2, mu;
       size_t mod_words;
