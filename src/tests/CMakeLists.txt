@@ -1,64 +1,69 @@
 set(INCLUDE_DIR "../../build/include")
 include_directories(${INCLUDE_DIR})
 
-set(extra_link_libraries)
+set(CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
-	#    list(APPEND extra_link_libraries dl pthread)
+    #    list(APPEND extra_link_libraries dl pthread)
 endif()
 
 # botan-tests
-add_executable(botan-tests
-	main.cpp
-	test_aead.cpp
-	test_bigint.cpp
-	test_block.cpp
-	test_c25519.cpp
-	test_compression.cpp
-	test_cryptobox.cpp
-	test_cvc.cpp
-	test_dh.cpp
-	test_dlies.cpp
-	test_dsa.cpp
-	test_ecc_pointmul.cpp
-	test_ecdsa.cpp
-	test_elg.cpp
-	test_entropy.cpp
-	test_ffi.cpp
-	test_fuzzer.cpp
-	test_gf2m.cpp
-	test_gost_3410.cpp
-	test_hash.cpp
-	test_kdf.cpp
-	test_keywrap.cpp
-	test_mac.cpp
-	test_mceliece.cpp
-	test_modes.cpp
-	test_nr.cpp
-	test_ocb.cpp
-	test_passhash.cpp
-	test_pbkdf.cpp
-	test_pubkey.cpp
-	test_rfc6979.cpp
-	test_rng.cpp
-	test_rsa.cpp
-	test_rw.cpp
-	tests.cpp
-	test_srp6.cpp
-	test_stream.cpp
-	test_tss.cpp
-	test_utils.cpp
-	test_x509_path.cpp
-	unit_ecc.cpp
-	unit_ecdh.cpp
-	unit_ecdsa.cpp
-	unit_tls.cpp
-	unit_x509.cpp
-	)
+add_executable(botan_tests
+        main.cpp
+        test_aead.cpp
+        test_bigint.cpp
+        test_block.cpp
+        test_c25519.cpp
+        test_compression.cpp
+        test_cryptobox.cpp
+        test_cvc.cpp
+        test_dh.cpp
+        test_dlies.cpp
+        test_dsa.cpp
+        test_ecc_pointmul.cpp
+        test_ecdh.cpp
+        test_ecdsa.cpp
+        test_ecgdsa.cpp
+        test_elg.cpp
+        test_entropy.cpp
+        test_ffi.cpp
+        test_filters.cpp
+        test_fuzzer.cpp
+        test_gf2m.cpp
+        test_gost_3410.cpp
+        test_hash.cpp
+        test_kdf.cpp
+        test_keywrap.cpp
+        test_mac.cpp
+        test_mceliece.cpp
+        test_modes.cpp
+        test_mp.cpp
+        test_name_constraint.cpp
+        test_nr.cpp
+        test_ocb.cpp
+        test_passhash.cpp
+        test_pbkdf.cpp
+        test_pubkey.cpp
+        test_rfc6979.cpp
+        test_rng.cpp
+        test_rsa.cpp
+        test_rw.cpp
+        tests.cpp
+        test_srp6.cpp
+        test_stream.cpp
+        test_tss.cpp
+        test_utils.cpp
+        test_x509_path.cpp
+        unit_ecc.cpp
+        unit_ecdh.cpp
+        unit_ecdsa.cpp
+        unit_tls.cpp
+        unit_x509.cpp
+        )
 
 if(APPLE)
-	find_library(SECURITY_LIBRARY Security)
+    find_library(SECURITY_LIBRARY Security)
 
-	list(APPEND extra_link_libraries ${SECURITY_LIBRARY})
+    list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY})
 endif()
 
 
@@ -80,5 +85,5 @@ endif()
 #    target_link_libraries(${PROJECT_NAME}-tests ${ZLIB_LIBRARIES})
 #endif( ZLIB_FOUND )
 
-target_link_libraries(botan-tests botan ${extra_link_libraries})
+target_link_libraries(botan_tests botan ${CURRENT_TARGET_LIBRARIES})
 

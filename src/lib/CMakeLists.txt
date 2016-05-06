@@ -80,6 +80,7 @@ set(BOTAN_SRC
         filters/algo_filt.cpp
         filters/basefilt.cpp
         filters/buf_filt.cpp
+        filters/cipher_filter.cpp
         filters/codec_filt/b64_filt.cpp
         filters/codec_filt/hex_filt.cpp
         filters/comp_filter.cpp
@@ -326,16 +327,45 @@ endif()
 if(APPLE)
     find_library(SECURITY_LIBRARY Security)
 
-    list(APPEND extra_link_libraries ${SECURITY_LIBRARY})
+    list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY})
 
     list(APPEND BOTAN_SRC entropy/darwin_secrandom/darwin_secrandom.cpp)
 endif()
 
 if(SQL_SESSIONS_MODULE)
-    list(APPEND BOTAN_SRC
-            utils/sqlite3/sqlite3.cpp
-            tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
-            tls/sessions_sql/tls_session_manager_sql.cpp)
+    if(NOT IOS)
+        find_package(SQLite3)
+        if(SQLITE3_FOUND)
+            include_directories(${SQLITE3_INCLUDES})
+            list(APPEND CURRENT_TARGET_LIBRARIES ${SQLITE3_LIBRARIES})
+        else()
+
+            if(NOT TARGET sqlite3)
+                add_subdirectory(frameworks/sqlite3)
+            endif()
+
+            include_directories(frameworks/sqlite3)
+            list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
+        endif()
+
+        list(APPEND BOTAN_SRC
+                utils/sqlite3/sqlite3.cpp
+                tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
+                tls/sessions_sql/tls_session_manager_sql.cpp)
+    else()
+        if(NOT TARGET sqlite3)
+            add_subdirectory(frameworks/sqlite3)
+        endif()
+
+        include_directories(frameworks/sqlite3)
+
+        list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
+
+        list(APPEND BOTAN_SRC
+                utils/sqlite3/sqlite3.cpp
+                tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
+                tls/sessions_sql/tls_session_manager_sql.cpp)
+    endif()
 endif()
 
 if(RDSEED_MODULE)
@@ -446,12 +476,12 @@ endif(WITH_ZLIB)
 add_custom_command(TARGET botan-help
         COMMAND echo "  To build with zlib support use: cmake -DWITH_ZLIB=1")
 
-set(extra_link_libraries)
+set(CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
     if(UNIX AND NOT APPLE)
-        list(APPEND extra_link_libraries rt dl pthread)
+        list(APPEND CURRENT_TARGET_LIBRARIES rt dl pthread)
     elseif(APPLE)
-        list(APPEND extra_link_libraries dl pthread)
+        list(APPEND CURRENT_TARGET_LIBRARIES dl pthread)
     endif()
 endif()
 
@@ -467,7 +497,7 @@ add_custom_command(TARGET botan-help
 message(STATUS "Building with LIB_TYPE=${LIB_TYPE}")
 add_library(botan ${LIB_TYPE} ${BOTAN_SRC})
 
-target_link_libraries(botan ${BOTAN_LIBRARIES} ${extra_link_libraries})
+target_link_libraries(botan ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
 
 file(GLOB include_install_files "${INCLUDE_DIR}/botan/*.h")
 foreach(include_install_file ${include_install_files})

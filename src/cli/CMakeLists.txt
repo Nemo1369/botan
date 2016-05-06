@@ -13,8 +13,34 @@ if(APPLE)
     list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY} ${FOUNDATION_LIBRARY})
 endif()
 
+if(SQL_SESSIONS_MODULE)
+    if(NOT IOS)
+        find_package(SQLite3)
+        if(SQLITE3_FOUND)
+            include_directories(${SQLITE3_INCLUDES})
+            list(APPEND CURRENT_TARGET_LIBRARIES ${SQLITE3_LIBRARIES})
+        else()
+
+            if(NOT TARGET sqlite3)
+                add_subdirectory(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
+            endif()
+
+            include_directories(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
+            list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
+        endif()
+    else()
+        if(NOT TARGET sqlite3)
+            add_subdirectory(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
+        endif()
+
+        include_directories(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
+
+        list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
+    endif()
+endif()
+
 # botan-cli
-add_executable(botan-cli
+add_executable(botan_cli
         asn1.cpp
         cc_enc.cpp
         compress.cpp
@@ -47,4 +73,4 @@ add_executable(botan-cli
 #    target_link_libraries(${PROJECT_NAME}-tests ${ZLIB_LIBRARIES})
 #endif( ZLIB_FOUND )
 
-target_link_libraries(botan-cli botan ${CURRENT_TARGET_LIBRARIES})
+target_link_libraries(botan_cli botan ${CURRENT_TARGET_LIBRARIES})
