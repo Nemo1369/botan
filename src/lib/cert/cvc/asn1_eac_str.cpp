@@ -8,50 +8,57 @@
 
 #include <botan/eac_asn_obj.h>
 #include <botan/der_enc.h>
+#include <botan/ber_dec.h>
+#include <botan/charset.h>
+#include <botan/parsing.h>
 #include <sstream>
+#include <ios>
 
 namespace Botan {
 
 /*
 * Create an ASN1_EAC_String
 */
-	ASN1_EAC_String::ASN1_EAC_String(const std::string &str, ASN1_Tag t)
-			: tag(t) {
-		iso_8859_str = Charset::transcode(str, LOCAL_CHARSET, LATIN1_CHARSET);
+ASN1_EAC_String::ASN1_EAC_String(const std::string& str, ASN1_Tag t) : m_tag(t)
+   {
+   m_iso_8859_str = Charset::transcode(str, LOCAL_CHARSET, LATIN1_CHARSET);
 
-		if (!sanity_check()) {
-			throw Invalid_Argument("ASN1_EAC_String contains illegal characters");
-		}
-	}
+   if(!sanity_check())
+      throw Invalid_Argument("ASN1_EAC_String contains illegal characters");
+   }
 
 /*
 * Return this string in ISO 8859-1 encoding
 */
-	std::string ASN1_EAC_String::iso_8859() const {
-		return iso_8859_str;
-	}
+std::string ASN1_EAC_String::iso_8859() const
+   {
+   return m_iso_8859_str;
+   }
 
 /*
 * Return this string in local encoding
 */
-	std::string ASN1_EAC_String::value() const {
-		return Charset::transcode(iso_8859_str, LATIN1_CHARSET, LOCAL_CHARSET);
-	}
+std::string ASN1_EAC_String::value() const
+   {
+   return Charset::transcode(m_iso_8859_str, LATIN1_CHARSET, LOCAL_CHARSET);
+   }
 
 /*
 * Return the type of this string object
 */
-	ASN1_Tag ASN1_EAC_String::tagging() const {
-		return tag;
-	}
+ASN1_Tag ASN1_EAC_String::tagging() const
+   {
+   return m_tag;
+   }
 
 /*
 * DER encode an ASN1_EAC_String
 */
-	void ASN1_EAC_String::encode_into(DER_Encoder &encoder) const {
-		std::string value = iso_8859();
-		encoder.add_object(tagging(), APPLICATION, value);
-	}
+void ASN1_EAC_String::encode_into(DER_Encoder& encoder) const
+   {
+   std::string value = iso_8859();
+   encoder.add_object(tagging(), APPLICATION, value);
+   }
 
 /*
 * Decode a BER encoded ASN1_EAC_String
@@ -90,29 +97,31 @@ void ASN1_EAC_String::decode_from(BER_Decoder& source)
 
 // checks for compliance to the alphabet defined in TR-03110 v1.10, 2007-08-20
 // p. 43
-	bool ASN1_EAC_String::sanity_check() const {
-		const byte *rep = reinterpret_cast<const byte *>(iso_8859_str.data());
-		const size_t rep_len = iso_8859_str.size();
+bool ASN1_EAC_String::sanity_check() const
+   {
+   const byte* rep = reinterpret_cast<const byte*>(m_iso_8859_str.data());
+   const size_t rep_len = m_iso_8859_str.size();
 
-		for (size_t i = 0; i != rep_len; ++i) {
-			if ((rep[i] < 0x20) || ((rep[i] >= 0x7F) && (rep[i] < 0xA0))) {
-				return false;
-			}
-		}
+   for(size_t i = 0; i != rep_len; ++i)
+      {
+      if((rep[i] < 0x20) || ((rep[i] >= 0x7F) && (rep[i] < 0xA0)))
+         return false;
+      }
 
-		return true;
-	}
+   return true;
+   }
 
-	bool operator==(const ASN1_EAC_String &lhs, const ASN1_EAC_String &rhs) {
-		return (lhs.iso_8859() == rhs.iso_8859());
-	}
+bool operator==(const ASN1_EAC_String& lhs, const ASN1_EAC_String& rhs)
+   {
+   return (lhs.iso_8859() == rhs.iso_8859());
+   }
 
-	ASN1_Car::ASN1_Car(std::string const &str)
-			: ASN1_EAC_String(str, ASN1_Tag(2)) {
-	}
+ASN1_Car::ASN1_Car(std::string const& str)
+   : ASN1_EAC_String(str, ASN1_Tag(2))
+   {}
 
-	ASN1_Chr::ASN1_Chr(std::string const &str)
-			: ASN1_EAC_String(str, ASN1_Tag(32)) {
-	}
+ASN1_Chr::ASN1_Chr(std::string const& str)
+   : ASN1_EAC_String(str, ASN1_Tag(32))
+   {}
 
 }

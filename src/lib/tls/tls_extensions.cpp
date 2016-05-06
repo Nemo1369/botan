@@ -1,6 +1,6 @@
 /*
 * TLS Extensions
-* (C) 2011,2012,2015 Jack Lloyd
+* (C) 2011,2012,2015,2016 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -38,7 +38,7 @@ Extension* make_extension(TLS_Data_Reader& reader,
       case TLSEXT_SIGNATURE_ALGORITHMS:
          return new Signature_Algorithms(reader, size);
 
-        case TLSEXT_USE_SRTP:
+      case TLSEXT_USE_SRTP:
           return new SRTP_Protection_Profiles(reader, size);
 
       case TLSEXT_ALPN:
@@ -87,7 +87,7 @@ std::vector<byte> Extensions::serialize() const
    {
    std::vector<byte> buf(2); // 2 bytes for length field
 
-   for(auto& extn : extensions)
+   for(auto& extn : m_extensions)
       {
       if(extn.second->empty())
          continue;
@@ -120,7 +120,7 @@ std::vector<byte> Extensions::serialize() const
 std::set<Handshake_Extension_Type> Extensions::extension_types() const
    {
    std::set<Handshake_Extension_Type> offers;
-   for(auto i = extensions.begin(); i != extensions.end(); ++i)
+   for(auto i = m_extensions.begin(); i != m_extensions.end(); ++i)
       offers.insert(i->first);
    return offers;
    }
@@ -146,8 +146,8 @@ Server_Name_Indicator::Server_Name_Indicator(TLS_Data_Reader& reader,
 
       if(name_type == 0) // DNS
          {
-         sni_host_name = reader.get_string(2, 1, 65535);
-         name_bytes -= (2 + sni_host_name.size());
+         m_sni_host_name = reader.get_string(2, 1, 65535);
+         name_bytes -= (2 + m_sni_host_name.size());
          }
       else // some other unknown name type
          {
@@ -161,7 +161,7 @@ std::vector<byte> Server_Name_Indicator::serialize() const
    {
    std::vector<byte> buf;
 
-   size_t name_len = sni_host_name.size();
+   size_t name_len = m_sni_host_name.size();
 
    buf.push_back(get_byte<u16bit>(0, name_len+3));
    buf.push_back(get_byte<u16bit>(1, name_len+3));
@@ -171,8 +171,8 @@ std::vector<byte> Server_Name_Indicator::serialize() const
    buf.push_back(get_byte<u16bit>(1, name_len));
 
    buf += std::make_pair(
-      reinterpret_cast<const byte*>(sni_host_name.data()),
-      sni_host_name.size());
+      reinterpret_cast<const byte*>(m_sni_host_name.data()),
+      m_sni_host_name.size());
 
    return buf;
    }
@@ -191,9 +191,9 @@ std::vector<byte> SRP_Identifier::serialize() const
    std::vector<byte> buf;
 
    const byte* srp_bytes =
-      reinterpret_cast<const byte*>(srp_identifier.data());
+      reinterpret_cast<const byte*>(m_srp_identifier.data());
 
-   append_tls_length_value(buf, srp_bytes, srp_identifier.size(), 1);
+   append_tls_length_value(buf, srp_bytes, m_srp_identifier.size(), 1);
 
    return buf;
    }
@@ -210,7 +210,7 @@ Renegotiation_Extension::Renegotiation_Extension(TLS_Data_Reader& reader,
 std::vector<byte> Renegotiation_Extension::serialize() const
    {
    std::vector<byte> buf;
-   append_tls_length_value(buf, reneg_data, 1);
+   append_tls_length_value(buf, m_reneg_data, 1);
    return buf;
    }
 
@@ -344,7 +344,7 @@ Supported_Elliptic_Curves::Supported_Elliptic_Curves(TLS_Data_Reader& reader,
       const u16bit id = reader.get_u16bit();
       const std::string name = curve_id_to_name(id);
 
-      if(name != "")
+      if(!name.empty())
          m_curves.push_back(name);
       }
    }
@@ -465,7 +465,7 @@ Signature_Algorithms::Signature_Algorithms(TLS_Data_Reader& reader,
       len -= 2;
 
       // If not something we know, ignore it completely
-      if(hash_code == "" || sig_code == "")
+      if(hash_code.empty() || sig_code.empty())
          continue;
 
       m_supported_algos.push_back(std::make_pair(hash_code, sig_code));
@@ -505,6 +505,18 @@ std::vector<byte> SRTP_Protection_Profiles::serialize() const
    buf.push_back(0); // srtp_mki, always empty here
 
    return buf;
+   }
+
+Extended_Master_Secret::Extended_Master_Secret(TLS_Data_Reader&,
+                                               u16bit extension_size)
+   {
+   if(extension_size != 0)
+      throw Decoding_Error("Invalid extended_master_secret extension");
+   }
+
+std::vector<byte> Extended_Master_Secret::serialize() const
+   {
+   return std::vector<byte>();
    }
 
 }

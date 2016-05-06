@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * MD2
 */
-class BOTAN_DLL MD2 : public HashFunction
+class BOTAN_DLL MD2 final : public HashFunction
    {
    public:
       std::string name() const override { return "MD2"; }
@@ -32,8 +32,8 @@ class BOTAN_DLL MD2 : public HashFunction
       void hash(const byte[]);
       void final_result(byte[]) override;
 
-      secure_vector<byte> X, checksum, buffer;
-      size_t position;
+      secure_vector<byte> m_X, m_checksum, m_buffer;
+      size_t m_position;
    };
 
 }

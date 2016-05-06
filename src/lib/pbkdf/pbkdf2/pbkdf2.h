@@ -25,17 +25,17 @@ BOTAN_DLL size_t pbkdf2(MessageAuthenticationCode& prf,
 /**
 * PKCS #5 PBKDF2
 */
-class BOTAN_DLL PKCS5_PBKDF2 : public PBKDF
+class BOTAN_DLL PKCS5_PBKDF2 final : public PBKDF
    {
    public:
       std::string name() const override
          {
-         return "PBKDF2(" + mac->name() + ")";
+         return "PBKDF2(" + m_mac->name() + ")";
          }
 
       PBKDF* clone() const override
          {
-         return new PKCS5_PBKDF2(mac->clone());
+         return new PKCS5_PBKDF2(m_mac->clone());
          }
 
       size_t pbkdf(byte output_buf[], size_t output_len,
@@ -52,7 +52,7 @@ class BOTAN_DLL PKCS5_PBKDF2 : public PBKDF
 
       static PKCS5_PBKDF2* make(const Spec& spec);
    private:
-      std::unique_ptr<MessageAuthenticationCode> mac;
+      std::unique_ptr<MessageAuthenticationCode> m_mac;
    };
 
 }

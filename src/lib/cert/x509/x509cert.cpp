@@ -108,7 +108,7 @@ void X509_Certificate::force_decode()
    X509_DN dn_issuer, dn_subject;
    X509_Time start, end;
 
-   BER_Decoder tbs_cert(tbs_bits);
+   BER_Decoder tbs_cert(m_tbs_bits);
 
    tbs_cert.decode_optional(version, ASN1_Tag(0),
                             ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
@@ -124,16 +124,16 @@ void X509_Certificate::force_decode()
 
    if(version > 2)
       throw Decoding_Error("Unknown X.509 cert version " + std::to_string(version));
-   if(sig_algo != sig_algo_inner)
+   if(m_sig_algo != sig_algo_inner)
       throw Decoding_Error("Algorithm identifier mismatch");
 
-   self_signed = (dn_subject == dn_issuer);
+   m_self_signed = (dn_subject == dn_issuer);
 
-   subject.add(dn_subject.contents());
-   issuer.add(dn_issuer.contents());
+   m_subject.add(dn_subject.contents());
+   m_issuer.add(dn_issuer.contents());
 
-   subject.add("X509.Certificate.dn_bits", ASN1::put_in_sequence(dn_subject.get_bits()));
-   issuer.add("X509.Certificate.dn_bits", ASN1::put_in_sequence(dn_issuer.get_bits()));
+   m_subject.add("X509.Certificate.dn_bits", ASN1::put_in_sequence(dn_subject.get_bits()));
+   m_issuer.add("X509.Certificate.dn_bits", ASN1::put_in_sequence(dn_issuer.get_bits()));
 
    BER_Object public_key = tbs_cert.get_next_object();
    if(public_key.type_tag != SEQUENCE || public_key.class_tag != CONSTRUCTED)
@@ -159,30 +159,30 @@ void X509_Certificate::force_decode()
    if(tbs_cert.more_items())
       throw Decoding_Error("TBSCertificate has more items that expected");
 
-   subject.add("X509.Certificate.version", version);
-   subject.add("X509.Certificate.serial", BigInt::encode(serial_bn));
-   subject.add("X509.Certificate.start", start.to_string());
-   subject.add("X509.Certificate.end", end.to_string());
+   m_subject.add("X509.Certificate.version", version);
+   m_subject.add("X509.Certificate.serial", BigInt::encode(serial_bn));
+   m_subject.add("X509.Certificate.start", start.to_string());
+   m_subject.add("X509.Certificate.end", end.to_string());
 
-   issuer.add("X509.Certificate.v2.key_id", v2_issuer_key_id);
-   subject.add("X509.Certificate.v2.key_id", v2_subject_key_id);
+   m_issuer.add("X509.Certificate.v2.key_id", v2_issuer_key_id);
+   m_subject.add("X509.Certificate.v2.key_id", v2_subject_key_id);
 
-   subject.add("X509.Certificate.public_key",
+   m_subject.add("X509.Certificate.public_key",
                hex_encode(public_key.value));
 
-   if(self_signed && version == 0)
+   if(m_self_signed && version == 0)
       {
-      subject.add("X509v3.BasicConstraints.is_ca", 1);
-      subject.add("X509v3.BasicConstraints.path_constraint", Cert_Extension::NO_CERT_PATH_LIMIT);
+      m_subject.add("X509v3.BasicConstraints.is_ca", 1);
+      m_subject.add("X509v3.BasicConstraints.path_constraint", Cert_Extension::NO_CERT_PATH_LIMIT);
       }
 
    if(is_CA_cert() &&
-      !subject.has_value("X509v3.BasicConstraints.path_constraint"))
+      !m_subject.has_value("X509v3.BasicConstraints.path_constraint"))
       {
       const size_t limit = (x509_version() < 3) ?
         Cert_Extension::NO_CERT_PATH_LIMIT : 0;
 
-      subject.add("X509v3.BasicConstraints.path_constraint", limit);
+      m_subject.add("X509v3.BasicConstraints.path_constraint", limit);
       }
    }
 
@@ -191,7 +191,7 @@ void X509_Certificate::force_decode()
 */
 u32bit X509_Certificate::x509_version() const
    {
-   return (subject.get1_u32bit("X509.Certificate.version") + 1);
+   return (m_subject.get1_u32bit("X509.Certificate.version") + 1);
    }
 
 /*
@@ -199,7 +199,7 @@ u32bit X509_Certificate::x509_version() const
 */
 std::string X509_Certificate::start_time() const
    {
-   return subject.get1("X509.Certificate.start");
+   return m_subject.get1("X509.Certificate.start");
    }
 
 /*
@@ -207,7 +207,7 @@ std::string X509_Certificate::start_time() const
 */
 std::string X509_Certificate::end_time() const
    {
-   return subject.get1("X509.Certificate.end");
+   return m_subject.get1("X509.Certificate.end");
    }
 
 /*
@@ -216,7 +216,7 @@ std::string X509_Certificate::end_time() const
 std::vector<std::string>
 X509_Certificate::subject_info(const std::string& what) const
    {
-   return subject.get(X509_DN::deref_info_field(what));
+   return m_subject.get(X509_DN::deref_info_field(what));
    }
 
 /*
@@ -225,7 +225,7 @@ X509_Certificate::subject_info(const std::string& what) const
 std::vector<std::string>
 X509_Certificate::issuer_info(const std::string& what) const
    {
-   return issuer.get(X509_DN::deref_info_field(what));
+   return m_issuer.get(X509_DN::deref_info_field(what));
    }
 
 /*
@@ -239,7 +239,7 @@ Public_Key* X509_Certificate::subject_public_key() const
 
 std::vector<byte> X509_Certificate::subject_public_key_bits() const
    {
-   return hex_decode(subject.get1("X509.Certificate.public_key"));
+   return hex_decode(m_subject.get1("X509.Certificate.public_key"));
    }
 
 /*
@@ -247,7 +247,7 @@ std::vector<byte> X509_Certificate::subject_public_key_bits() const
 */
 bool X509_Certificate::is_CA_cert() const
    {
-   if(!subject.get1_u32bit("X509v3.BasicConstraints.is_ca"))
+   if(!m_subject.get1_u32bit("X509v3.BasicConstraints.is_ca"))
       return false;
 
    return allowed_usage(Key_Constraints(KEY_CERT_SIGN));
@@ -301,7 +301,7 @@ bool X509_Certificate::allowed_usage(Usage_Type usage) const
 */
 u32bit X509_Certificate::path_limit() const
    {
-   return subject.get1_u32bit("X509v3.BasicConstraints.path_constraint", 0);
+   return m_subject.get1_u32bit("X509v3.BasicConstraints.path_constraint", 0);
    }
 
 /*
@@ -317,7 +317,7 @@ bool X509_Certificate::is_critical(const std::string& ex_name) const
 */
 Key_Constraints X509_Certificate::constraints() const
    {
-   return Key_Constraints(subject.get1_u32bit("X509v3.KeyUsage",
+   return Key_Constraints(m_subject.get1_u32bit("X509v3.KeyUsage",
                                               NO_CONSTRAINTS));
    }
 
@@ -326,7 +326,7 @@ Key_Constraints X509_Certificate::constraints() const
 */
 std::vector<std::string> X509_Certificate::ex_constraints() const
    {
-   return lookup_oids(subject.get("X509v3.ExtendedKeyUsage"));
+   return lookup_oids(m_subject.get("X509v3.ExtendedKeyUsage"));
    }
 
 /*
@@ -354,7 +354,7 @@ NameConstraints X509_Certificate::name_constraints() const
 */
 std::vector<std::string> X509_Certificate::policies() const
    {
-   return lookup_oids(subject.get("X509v3.CertificatePolicies"));
+   return lookup_oids(m_subject.get("X509v3.CertificatePolicies"));
    }
 
 Extensions X509_Certificate::v3_extensions() const
@@ -364,12 +364,12 @@ Extensions X509_Certificate::v3_extensions() const
 
 std::string X509_Certificate::ocsp_responder() const
    {
-   return subject.get1("OCSP.responder", "");
+   return m_subject.get1("OCSP.responder", "");
    }
 
 std::string X509_Certificate::crl_distribution_point() const
    {
-   return subject.get1("CRL.DistributionPoint", "");
+   return m_subject.get1("CRL.DistributionPoint", "");
    }
 
 /*
@@ -377,7 +377,7 @@ std::string X509_Certificate::crl_distribution_point() const
 */
 std::vector<byte> X509_Certificate::authority_key_id() const
    {
-   return issuer.get1_memvec("X509v3.AuthorityKeyIdentifier");
+   return m_issuer.get1_memvec("X509v3.AuthorityKeyIdentifier");
    }
 
 /*
@@ -385,7 +385,7 @@ std::vector<byte> X509_Certificate::authority_key_id() const
 */
 std::vector<byte> X509_Certificate::subject_key_id() const
    {
-   return subject.get1_memvec("X509v3.SubjectKeyIdentifier");
+   return m_subject.get1_memvec("X509v3.SubjectKeyIdentifier");
    }
 
 /*
@@ -393,27 +393,27 @@ std::vector<byte> X509_Certificate::subject_key_id() const
 */
 std::vector<byte> X509_Certificate::serial_number() const
    {
-   return subject.get1_memvec("X509.Certificate.serial");
+   return m_subject.get1_memvec("X509.Certificate.serial");
    }
 
 X509_DN X509_Certificate::issuer_dn() const
    {
-   return create_dn(issuer);
+   return create_dn(m_issuer);
    }
 
 std::vector<byte> X509_Certificate::raw_issuer_dn() const
    {
-   return issuer.get1_memvec("X509.Certificate.dn_bits");
+   return m_issuer.get1_memvec("X509.Certificate.dn_bits");
    }
 
 X509_DN X509_Certificate::subject_dn() const
    {
-   return create_dn(subject);
+   return create_dn(m_subject);
    }
 
 std::vector<byte> X509_Certificate::raw_subject_dn() const
    {
-   return subject.get1_memvec("X509.Certificate.dn_bits");
+   return m_subject.get1_memvec("X509.Certificate.dn_bits");
    }
 
 std::string X509_Certificate::fingerprint(const std::string& hash_name) const
@@ -438,7 +438,7 @@ std::string X509_Certificate::fingerprint(const std::string& hash_name) const
 
 bool X509_Certificate::matches_dns_name(const std::string& name) const
    {
-   if(name == "")
+   if(name.empty())
       return false;
 
    std::vector<std::string> issued_names = subject_info("DNS");
@@ -461,25 +461,25 @@ bool X509_Certificate::matches_dns_name(const std::string& name) const
 */
 bool X509_Certificate::operator==(const X509_Certificate& other) const
    {
-   return (sig == other.sig &&
-           sig_algo == other.sig_algo &&
-           self_signed == other.self_signed &&
-           issuer == other.issuer &&
-           subject == other.subject);
+   return (m_sig == other.m_sig &&
+           m_sig_algo == other.m_sig_algo &&
+           m_self_signed == other.m_self_signed &&
+           m_issuer == other.m_issuer &&
+           m_subject == other.m_subject);
    }
 
 bool X509_Certificate::operator<(const X509_Certificate& other) const
    {
    /* If signature values are not equal, sort by lexicographic ordering of that */
-   if(sig != other.sig)
+   if(m_sig != other.m_sig)
       {
-      if(sig < other.sig)
+      if(m_sig < other.m_sig)
          return true;
       return false;
       }
 
    // Then compare the signed contents
-   return tbs_bits < other.tbs_bits;
+   return m_tbs_bits < other.m_tbs_bits;
    }
 
 /*
@@ -596,7 +596,7 @@ std::string X509_Certificate::to_string() const
 
    if(!ocsp_responder().empty())
       out << "OCSP responder " << ocsp_responder() << "\n";
-   if(crl_distribution_point() != "")
+   if(!crl_distribution_point().empty())
       out << "CRL " << crl_distribution_point() << "\n";
 
    out << "Signature algorithm: " <<

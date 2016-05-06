@@ -106,7 +106,7 @@ class Stream_Compression : public Compression_Algorithm
 
       void finish(secure_vector<byte>& buf, size_t offset) final override;
 
-      void clear() override;
+      void clear() final override;
 
    private:
       void start(size_t level) final override;
@@ -126,7 +126,7 @@ class Stream_Decompression : public Decompression_Algorithm
 
       void finish(secure_vector<byte>& buf, size_t offset) final override;
 
-      void clear() override;
+      void clear() final override;
 
    private:
       void start() final override;

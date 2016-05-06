@@ -1,54 +1,33 @@
 set(INCLUDE_DIR "../../build/include")
 include_directories(${INCLUDE_DIR})
 
-set(extra_link_libraries)
+list(APPEND CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
-	#    list(APPEND extra_link_libraries dl pthread)
+    #    list(APPEND CURRENT_TARGET_LIBRARIES dl pthread)
 endif()
 
 if(APPLE)
-	find_library(SECURITY_LIBRARY Security)
+    find_library(FOUNDATION_LIBRARY Foundation)
+    find_library(SECURITY_LIBRARY Security)
 
-	list(APPEND extra_link_libraries ${SECURITY_LIBRARY})
+    list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY} ${FOUNDATION_LIBRARY})
 endif()
-
 
 # botan-cli
 add_executable(botan-cli
-	asn1.cpp
-	base64.cpp
-	bcrypt.cpp
-	ca.cpp
-	cert_verify.cpp
-	compress.cpp
-	dl_group.cpp
-	dsa_sign.cpp
-	dsa_ver.cpp
-	factor.cpp
-	fpe.cpp
-	fuzzer.cpp
-	getopt.cpp
-	hash.cpp
-	is_prime.cpp
-	keygen.cpp
-	main.cpp
-	mce.cpp
-	ocsp.cpp
-	pkcs10.cpp
-	pkcs8.cpp
-	prime.cpp
-	rng.cpp
-	self_sig.cpp
-	speed.cpp
-	tls_client.cpp
-	tls_proxy.cpp
-	tls_server.cpp
-	x509print.cpp
-	implementation/speed_public_key.cpp
-	implementation/speed_prime.cpp
-	implementation/speed_transform.cpp
-	implementation/timer.cpp
-	)
+        asn1.cpp
+        cc_enc.cpp
+        compress.cpp
+        main.cpp
+        math.cpp
+        pubkey.cpp
+        speed.cpp
+        tls_client.cpp
+        tls_proxy.cpp
+        tls_server.cpp
+        utils.cpp
+        x509.cpp
+        )
 
 #find_package( LZMA REQUIRED )
 #if ( LZMA_FOUND )
@@ -68,6 +47,4 @@ add_executable(botan-cli
 #    target_link_libraries(${PROJECT_NAME}-tests ${ZLIB_LIBRARIES})
 #endif( ZLIB_FOUND )
 
-target_link_libraries(botan-cli botan ${extra_link_libraries})
-
-
+target_link_libraries(botan-cli botan ${CURRENT_TARGET_LIBRARIES})
