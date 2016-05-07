@@ -1,6 +1,8 @@
 project(Botan)
 cmake_minimum_required(VERSION 2.8)
 
+cmake_policy(SET CMP0042 NEW)
+
 # Configure for use with CMake
 #
 #   ./configure.py --with-bzip2 --with-zlib --with-lzma

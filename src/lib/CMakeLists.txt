@@ -504,4 +504,6 @@ foreach(include_install_file ${include_install_files})
     get_filename_component(full_include_install_file ${include_install_file} REALPATH)
     install(FILES ${full_include_install_file} DESTINATION "include/botan-1.11/botan/")
 endforeach(include_install_file ${include_instal_files})
-install(TARGETS botan ARCHIVE DESTINATION "lib/botan")
+install(TARGETS botan
+        ARCHIVE DESTINATION "lib/botan"
+        LIBRARY DESTINATION "lib/botan")
