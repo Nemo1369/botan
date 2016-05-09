@@ -334,7 +334,10 @@ endif()
 
 if(SQL_SESSIONS_MODULE)
     if(NOT IOS)
-        find_package(SQLite3)
+        if(NOT SQLITE3_FOUND)
+            find_package(SQLite3)
+        endif()
+
         if(SQLITE3_FOUND)
             include_directories(${SQLITE3_INCLUDES})
             list(APPEND CURRENT_TARGET_LIBRARIES ${SQLITE3_LIBRARIES})
@@ -476,7 +479,6 @@ endif(WITH_ZLIB)
 add_custom_command(TARGET botan-help
         COMMAND echo "  To build with zlib support use: cmake -DWITH_ZLIB=1")
 
-set(CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
     if(UNIX AND NOT APPLE)
         list(APPEND CURRENT_TARGET_LIBRARIES rt dl pthread)
