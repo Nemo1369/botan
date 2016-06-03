@@ -309,7 +309,7 @@ option(CVC_MODULE "Build with CVC usage support" FALSE)
 option(RDSEED_MODULE "Build with Intel RDSeed usage support" TRUE)
 option(SQL_SESSIONS_MODULE "Build with SQL sessions storage support" TRUE)
 
-if(APPLE AND IOS)
+if(APPLE AND BUILD_FOR_IOS)
     set(DYN_LOAD_MODULE FALSE)
     set(AES_NI_MODULE FALSE)
     set(TLS_RECORD_MODULE FALSE)
@@ -333,7 +333,7 @@ if(APPLE)
 endif()
 
 if(SQL_SESSIONS_MODULE)
-    if(NOT IOS)
+    if(NOT BUILD_FOR_IOS)
         if(NOT SQLITE3_FOUND)
             find_package(SQLite3)
         endif()
@@ -440,8 +440,8 @@ if(CLMUL_MODULE)
 endif()
 
 # add a new target to show help for options that we add
-# use add_custom_command(TARGET botan-help ...) to extend the help text
-add_custom_target(botan-help)
+# use add_custom_command(TARGET botan_help ...) to extend the help text
+add_custom_target(botan_help)
 
 if(WITH_LZMA)
     find_package(LZMA)
@@ -452,7 +452,7 @@ if(WITH_LZMA)
                 compression/lzma/lzma.cpp)
     endif(LZMA_FOUND)
 endif(WITH_LZMA)
-add_custom_command(TARGET botan-help
+add_custom_command(TARGET botan_help
         COMMAND echo "  To build with lzma support use: cmake -DWITH_LZMA=1")
 
 if(WITH_BZIP2)
@@ -464,7 +464,7 @@ if(WITH_BZIP2)
                 compression/bzip2/bzip2.cpp)
     endif(BZIP2_FOUND)
 endif(WITH_BZIP2)
-add_custom_command(TARGET botan-help
+add_custom_command(TARGET botan_help
         COMMAND echo "  To build with bzip2 support use: cmake -DWITH_BZIP2=1")
 
 if(WITH_ZLIB)
@@ -476,7 +476,7 @@ if(WITH_ZLIB)
                 compression/zlib/zlib.cpp)
     endif(ZLIB_FOUND)
 endif(WITH_ZLIB)
-add_custom_command(TARGET botan-help
+add_custom_command(TARGET botan_help
         COMMAND echo "  To build with zlib support use: cmake -DWITH_ZLIB=1")
 
 if(NOT WIN32)
@@ -493,11 +493,18 @@ if(NOT LIB_TYPE)
     set(LIB_TYPE STATIC)
 endif()
 
-add_custom_command(TARGET botan-help
+add_custom_command(TARGET botan_help
         COMMAND echo "  To build a static or shared Botan library use: cmake -DLIB_TYPE=STATIC or -DLIB_TYPE=SHARED")
 
-message(STATUS "Building with LIB_TYPE=${LIB_TYPE}")
+message(STATUS "Building with ${LIB_TYPE} library type ")
 add_library(botan ${LIB_TYPE} ${BOTAN_SRC})
+
+if(APPLE AND BUILD_FOR_IOS)
+    message("========================================")
+    message("Don't forget to change sign identity: Frameworks/Botan/lib/CMakeLists.txt:504")
+    message("========================================")
+    set_target_properties(botan PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)")
+endif()
 
 target_link_libraries(botan ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
 

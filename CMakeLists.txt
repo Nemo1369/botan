@@ -15,24 +15,12 @@ endif()
 
 set(CMAKE_MODULE_PATH src/cmake)
 
-if(${BUILD_FOR_ARMV7_IOS_DEVICE})
-    set(IOS_BUILD TRUE)
+if(BUILD_FOR_ARMV7_IOS_DEVICE OR BUILD_FOR_ARM64_IOS_DEVICE)
+    set(ARM_BUILD TRUE)
 endif()
 
-if(${BUILD_FOR_ARM64_IOS_DEVICE})
-    set(IOS_BUILD TRUE)
-endif()
-
-if(${BUILD_FOR_IOS_SIMULATOR})
-    set(IOS_BUILD TRUE)
-endif()
-
-option(BUILD_FOR_IOS "Build for iOS device" ${IOS_BUILD})
+option(BUILD_FOR_IOS "Build for iOS device" ${ARM_BUILD})
 option(BUILD_TESTS "Build unit tests" ${BUILD_UNIT_TESTS})
-
-if(BUILD_FOR_IOS)
-    set(IOS TRUE)
-endif()
 
 if(BUILD_UNIT_TESTS)
     set(UNIT_TESTS TRUE)
