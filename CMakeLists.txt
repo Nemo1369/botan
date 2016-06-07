@@ -21,6 +21,7 @@ endif()
 
 option(BUILD_FOR_IOS "Build for iOS device" ${ARM_BUILD})
 option(BUILD_TESTS "Build unit tests" ${BUILD_UNIT_TESTS})
+option(APPLE_SIGN_IDENTITY "Sign identity name" "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)")
 
 if(BUILD_UNIT_TESTS)
     set(UNIT_TESTS TRUE)

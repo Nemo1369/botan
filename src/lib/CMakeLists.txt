@@ -500,10 +500,7 @@ message(STATUS "Building with ${LIB_TYPE} library type ")
 add_library(botan ${LIB_TYPE} ${BOTAN_SRC})
 
 if(APPLE AND BUILD_FOR_IOS)
-    message("========================================")
-    message("Don't forget to change sign identity: Frameworks/Botan/lib/CMakeLists.txt:504")
-    message("========================================")
-    set_target_properties(botan PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)")
+    set_target_properties(botan PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
 endif()
 
 target_link_libraries(botan ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
