@@ -1,6 +1,4 @@
-# Where ./configure.py puts them
-set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/build/include")
-include_directories(${INCLUDE_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/build/include")
 
 # libbotan
 set(BOTAN_SRC
@@ -273,6 +271,7 @@ set(BOTAN_SRC
         tls/tls_handshake_state.cpp
         tls/tls_policy.cpp
         tls/tls_server.cpp
+        tls/tls_record.cpp
         tls/tls_session.cpp
         tls/tls_session_key.cpp
         tls/tls_session_manager_memory.cpp
@@ -312,7 +311,6 @@ option(SQL_SESSIONS_MODULE "Build with SQL sessions storage support" TRUE)
 if(APPLE AND BUILD_FOR_IOS)
     set(DYN_LOAD_MODULE FALSE)
     set(AES_NI_MODULE FALSE)
-    set(TLS_RECORD_MODULE FALSE)
     set(LOCKING_ALLOCATOR_MODULE FALSE)
     set(CLMUL_MODULE FALSE)
     set(RDRAND_ENTROPY_MODULE FALSE)
@@ -333,42 +331,11 @@ if(APPLE)
 endif()
 
 if(SQL_SESSIONS_MODULE)
-    if(NOT BUILD_FOR_IOS)
-        if(NOT SQLITE3_FOUND)
-            find_package(SQLite3)
-        endif()
-
-        if(SQLITE3_FOUND)
-            include_directories(${SQLITE3_INCLUDES})
-            list(APPEND CURRENT_TARGET_LIBRARIES ${SQLITE3_LIBRARIES})
-        else()
-
-            if(NOT TARGET sqlite3)
-                add_subdirectory(frameworks/sqlite3)
-            endif()
-
-            include_directories(frameworks/sqlite3)
-            list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
-        endif()
-
-        list(APPEND BOTAN_SRC
-                utils/sqlite3/sqlite3.cpp
-                tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
-                tls/sessions_sql/tls_session_manager_sql.cpp)
-    else()
-        if(NOT TARGET sqlite3)
-            add_subdirectory(frameworks/sqlite3)
-        endif()
-
-        include_directories(frameworks/sqlite3)
-
-        list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
-
-        list(APPEND BOTAN_SRC
-                utils/sqlite3/sqlite3.cpp
-                tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
-                tls/sessions_sql/tls_session_manager_sql.cpp)
-    endif()
+    list(APPEND BOTAN_SRC
+            utils/sqlite3/sqlite3.c
+            utils/sqlite3/sqlite3_interface.cpp
+            tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
+            tls/sessions_sql/tls_session_manager_sql.cpp)
 endif()
 
 if(RDSEED_MODULE)
@@ -409,10 +376,6 @@ if(THREEFISH_AVX2_MODULE)
 
     # AVX2
     set_source_files_properties(block/threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
-endif()
-
-if(TLS_RECORD_MODULE)
-    list(APPEND BOTAN_SRC tls/tls_record.cpp)
 endif()
 
 if(RDRAND_ENTROPY_MODULE)

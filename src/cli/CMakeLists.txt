@@ -1,5 +1,4 @@
-set(INCLUDE_DIR "../../build/include")
-include_directories(${INCLUDE_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/build/include")
 
 list(APPEND CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
@@ -14,29 +13,11 @@ if(APPLE)
 endif()
 
 if(SQL_SESSIONS_MODULE)
-    if(NOT IOS)
-        find_package(SQLite3)
-        if(SQLITE3_FOUND)
-            include_directories(${SQLITE3_INCLUDES})
-            list(APPEND CURRENT_TARGET_LIBRARIES ${SQLITE3_LIBRARIES})
-        else()
-
-            if(NOT TARGET sqlite3)
-                add_subdirectory(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
-            endif()
-
-            include_directories(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
-            list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
-        endif()
-    else()
-        if(NOT TARGET sqlite3)
-            add_subdirectory(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
-        endif()
-
-        include_directories(${PROJECT_SOURCE_DIR}/lib/frameworks/sqlite3)
-
-        list(APPEND CURRENT_TARGET_LIBRARIES sqlite3)
-    endif()
+    list(APPEND BOTAN_SRC
+            utils/sqlite3/sqlite3.c
+            utils/sqlite3/sqlite3_interface.cpp
+            tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
+            tls/sessions_sql/tls_session_manager_sql.cpp)
 endif()
 
 # botan-cli

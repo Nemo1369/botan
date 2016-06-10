@@ -1,5 +1,4 @@
-set(INCLUDE_DIR "../../build/include")
-include_directories(${INCLUDE_DIR})
+include_directories("${CMAKE_SOURCE_DIR}/build/include")
 
 set(CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
@@ -86,4 +85,3 @@ endif()
 #endif( ZLIB_FOUND )
 
 target_link_libraries(botan_tests botan ${CURRENT_TARGET_LIBRARIES})
-

@@ -6,5 +6,5 @@ all -> sqlite3
 </libs>
 
 <header:public>
-sqlite3.h
+sqlite3_interface.h
 </header:public>
