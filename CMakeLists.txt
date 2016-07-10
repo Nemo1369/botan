@@ -20,19 +20,15 @@ if(BUILD_FOR_ARMV7_IOS_DEVICE OR BUILD_FOR_ARM64_IOS_DEVICE)
 endif()
 
 option(BUILD_FOR_IOS "Build for iOS device" ${ARM_BUILD})
-option(BUILD_TESTS "Build unit tests" ${BUILD_UNIT_TESTS})
+option(BUILD_UNIT_TESTS "Build unit tests" FALSE)
 set(APPLE_SIGN_IDENTITY "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)" CACHE STRING "Sign identity name")
-
-if(BUILD_UNIT_TESTS)
-    set(UNIT_TESTS TRUE)
-endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/src/cmake")
 
 # libbotan
 add_subdirectory("src/lib")
 
-if(UNIT_TESTS)
+if(BUILD_UNIT_TESTS)
     # tests
     add_subdirectory("src/tests")
 

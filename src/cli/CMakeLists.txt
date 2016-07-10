@@ -14,8 +14,8 @@ endif()
 
 if(SQL_SESSIONS_MODULE)
     list(APPEND BOTAN_SRC
-            utils/sqlite3/sqlite3.c
-            utils/sqlite3/sqlite3_interface.cpp
+            utils/sqlite3_interface/sqlite3_interface.c
+            utils/sqlite3_interface/sqlite3_interface.cpp
             tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
             tls/sessions_sql/tls_session_manager_sql.cpp)
 endif()

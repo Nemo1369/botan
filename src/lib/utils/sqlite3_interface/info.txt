@@ -2,7 +2,7 @@
 load_on vendor
 
 <libs>
-all -> sqlite3
+all -> sqlite3_interface
 </libs>
 
 <header:public>

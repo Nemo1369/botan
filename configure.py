@@ -102,7 +102,7 @@ class BuildConfigurationInformation(object):
 
     # This is used on Darwin for dylib versioning
     version_packed = version_major * 1000 + version_minor
-    
+
     """
     Constructor
     """
@@ -381,7 +381,7 @@ def process_command_line(args):
                           help='minimize build')
 
     # Should be derived from info.txt but this runs too early
-    third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm']
+    third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3_interface', 'zlib', 'tpm']
 
     for mod in third_party:
         mods_group.add_option('--with-%s' % (mod),

@@ -2,5 +2,5 @@ define TLS_SQLITE3_SESSION_MANAGER 20131128
 
 <requires>
 sessions_sql
-sqlite3
+sqlite3_interface
 </requires>
