@@ -8,6 +8,7 @@
 #include <botan/internal/tls_handshake_state.h>
 #include <botan/internal/tls_messages.h>
 #include <botan/internal/tls_record.h>
+#include <botan/tls_callbacks.h>
 
 namespace Botan {
 
@@ -174,14 +175,19 @@ std::string handshake_mask_to_string(u32bit mask)
 /*
 * Initialize the SSL/TLS Handshake State
 */
-Handshake_State::Handshake_State(Handshake_IO* io, handshake_msg_cb cb) :
-   m_msg_callback(cb),
+Handshake_State::Handshake_State(Handshake_IO* io, Callbacks& cb) :
+   m_callbacks(cb),
    m_handshake_io(io),
    m_version(m_handshake_io->initial_record_version())
    {
    }
 
 Handshake_State::~Handshake_State() {}
+
+void Handshake_State::note_message(const Handshake_Message& msg)
+   {
+   m_callbacks.tls_inspect_handshake_msg(msg);
+   }
 
 void Handshake_State::hello_verify_request(const Hello_Verify_Request& hello_verify)
    {
@@ -287,7 +293,7 @@ void Handshake_State::confirm_transition_to(Handshake_Type handshake_msg)
 
    m_hand_received_mask |= mask;
 
-   const bool ok = (m_hand_expecting_mask & mask); // overlap?
+   const bool ok = (m_hand_expecting_mask & mask) != 0; // overlap?
 
    if(!ok)
       throw Unexpected_Message("Unexpected state transition in handshake, got type " +
@@ -311,14 +317,14 @@ bool Handshake_State::received_handshake_msg(Handshake_Type handshake_msg) const
    {
    const u32bit mask = bitmask_for_handshake_type(handshake_msg);
 
-   return (m_hand_received_mask & mask);
+   return (m_hand_received_mask & mask) != 0;
    }
 
 std::pair<Handshake_Type, std::vector<byte>>
 Handshake_State::get_next_handshake_msg()
    {
    const bool expecting_ccs =
-      (bitmask_for_handshake_type(HANDSHAKE_CCS) & m_hand_expecting_mask);
+      (bitmask_for_handshake_type(HANDSHAKE_CCS) & m_hand_expecting_mask) != 0;
 
    return m_handshake_io->get_next_record(expecting_ccs);
    }

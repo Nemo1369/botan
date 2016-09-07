@@ -14,7 +14,6 @@ add_executable(botan_tests
         test_c25519.cpp
         test_compression.cpp
         test_cryptobox.cpp
-        test_cvc.cpp
         test_dh.cpp
         test_dlies.cpp
         test_dsa.cpp
@@ -22,6 +21,8 @@ add_executable(botan_tests
         test_ecdh.cpp
         test_ecdsa.cpp
         test_ecgdsa.cpp
+        test_ecies.cpp
+        test_eckcdsa.cpp
         test_elg.cpp
         test_entropy.cpp
         test_ffi.cpp
@@ -37,15 +38,17 @@ add_executable(botan_tests
         test_modes.cpp
         test_mp.cpp
         test_name_constraint.cpp
-        test_nr.cpp
+        test_newhope.cpp
         test_ocb.cpp
+        test_octetstring.cpp
+        test_oid.cpp
+        test_pad.cpp
         test_passhash.cpp
         test_pbkdf.cpp
         test_pubkey.cpp
         test_rfc6979.cpp
         test_rng.cpp
         test_rsa.cpp
-        test_rw.cpp
         tests.cpp
         test_srp6.cpp
         test_stream.cpp

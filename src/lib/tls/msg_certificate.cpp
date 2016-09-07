@@ -31,7 +31,7 @@ Certificate::Certificate(Handshake_IO& io,
 /**
 * Deserialize a Certificate message
 */
-Certificate::Certificate(const std::vector<byte>& buf)
+Certificate::Certificate(const std::vector<byte>& buf, const Policy& /*policy_currently_unused*/)
    {
    if(buf.size() < 3)
       throw Decoding_Error("Certificate: Message malformed");
@@ -73,14 +73,14 @@ std::vector<byte> Certificate::serialize() const
       const size_t cert_size = raw_cert.size();
       for(size_t j = 0; j != 3; ++j)
          {
-         buf.push_back(get_byte<u32bit>(j+1, cert_size));
+         buf.push_back(get_byte(j+1, static_cast<u32bit>(cert_size)));
          }
       buf += raw_cert;
       }
 
    const size_t buf_size = buf.size() - 3;
    for(size_t i = 0; i != 3; ++i)
-      buf[i] = get_byte<u32bit>(i+1, buf_size);
+      buf[i] = get_byte(i+1, static_cast<u32bit>(buf_size));
 
    return buf;
    }

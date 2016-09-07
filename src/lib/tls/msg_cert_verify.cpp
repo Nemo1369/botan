@@ -65,7 +65,7 @@ std::vector<byte> Certificate_Verify::serialize() const
       buf.push_back(Signature_Algorithms::sig_algo_code(m_sig_algo));
       }
 
-   const u16bit sig_len = m_signature.size();
+   const u16bit sig_len = static_cast<u16bit>(m_signature.size());
    buf.push_back(get_byte(0, sig_len));
    buf.push_back(get_byte(1, sig_len));
    buf += m_signature;
@@ -81,6 +81,8 @@ bool Certificate_Verify::verify(const X509_Certificate& cert,
                                 const Policy& policy) const
    {
    std::unique_ptr<Public_Key> key(cert.subject_public_key());
+
+   policy.check_peer_key_acceptable(*key);
 
    std::pair<std::string, Signature_Format> format =
       state.parse_sig_format(*key.get(), m_hash_algo, m_sig_algo,

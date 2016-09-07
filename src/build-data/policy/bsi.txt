@@ -19,6 +19,11 @@ keccak
 cmac
 hmac
 
+# kdf
+kdf1_iso18033
+sp800_108
+sp800_56c
+
 # pk_pad
 eme_oaep
 emsa_pssr
@@ -31,11 +36,12 @@ rsa
 dsa
 ecdsa
 ecgdsa
+ecies
+eckcdsa
 ecdh
 
 # rng
 auto_rng
-hmac_rng
 hmac_drbg
 </required>
 
@@ -52,19 +58,18 @@ beos_stats
 cryptoapi_rng
 darwin_secrandom
 dev_random
-egd
-hres_timer
 proc_walk
 rdrand
 rdseed
-system_rng
 win32_stats
+
+# rng
+rdrand_rng
+system_rng
 
 # utils
 locking_allocator
-simd_altivec
-simd_scalar
-simd_sse2
+simd
 </if_available>
 
 <prohibited>
@@ -78,23 +83,16 @@ idea
 idea_sse2
 kasumi
 lion
-mars
 misty1
 noekeon
 noekeon_simd
-rc2
-rc5
-rc6
-safer
 seed
 serpent
 serpent_simd
-tea
 threefish
 threefish_avx2
 twofish
 xtea
-xtea_simd
 
 # modes
 ccm
@@ -111,14 +109,18 @@ ofb
 rc4
 salsa20
 
+# kdf
+kdf1
+kdf2
+prf_x942
+
 # pubkey
 curve25519
 elgamal
 gost_3410
 mce
 mceies
-nr
-rw
+rfc6979
 
 # pk_pad
 #eme_pkcs1 // needed for tls
@@ -126,17 +128,13 @@ eme_raw
 #emsa_pkcs1 // needed for tls
 emsa_raw
 emsa_x931
-emsa1_bsi
 
 # hash
 blake2
 comb4p
 gost_3411
-has160
-md2
 md4
 #md5 // needed for tls
-rmd128
 rmd160
 #sha1 // needed for tls
 #sha1_sse2 // needed for tls
@@ -152,6 +150,9 @@ x919_mac
 
 # rng
 x931_rng
+
+# entropy sources
+egd
 unix_procs
 
 </prohibited>

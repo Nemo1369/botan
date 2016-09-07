@@ -1,6 +1,7 @@
 /*
 * TLS Extensions
 * (C) 2011,2012,2015,2016 Jack Lloyd
+*     2016 Juraj Somorovsky
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -46,6 +47,9 @@ Extension* make_extension(TLS_Data_Reader& reader,
 
       case TLSEXT_EXTENDED_MASTER_SECRET:
          return new Extended_Master_Secret(reader, size);
+
+      case TLSEXT_ENCRYPT_THEN_MAC:
+         return new Encrypt_then_MAC(reader, size);
 
       case TLSEXT_SESSION_TICKET:
          return new Session_Ticket(reader, size);
@@ -99,13 +103,13 @@ std::vector<byte> Extensions::serialize() const
       buf.push_back(get_byte(0, extn_code));
       buf.push_back(get_byte(1, extn_code));
 
-      buf.push_back(get_byte<u16bit>(0, extn_val.size()));
-      buf.push_back(get_byte<u16bit>(1, extn_val.size()));
+      buf.push_back(get_byte(0, static_cast<u16bit>(extn_val.size())));
+      buf.push_back(get_byte(1, static_cast<u16bit>(extn_val.size())));
 
       buf += extn_val;
       }
 
-   const u16bit extn_size = buf.size() - 2;
+   const u16bit extn_size = static_cast<u16bit>(buf.size() - 2);
 
    buf[0] = get_byte(0, extn_size);
    buf[1] = get_byte(1, extn_size);
@@ -147,7 +151,7 @@ Server_Name_Indicator::Server_Name_Indicator(TLS_Data_Reader& reader,
       if(name_type == 0) // DNS
          {
          m_sni_host_name = reader.get_string(2, 1, 65535);
-         name_bytes -= (2 + m_sni_host_name.size());
+         name_bytes -= static_cast<u16bit>(2 + m_sni_host_name.size());
          }
       else // some other unknown name type
          {
@@ -163,12 +167,12 @@ std::vector<byte> Server_Name_Indicator::serialize() const
 
    size_t name_len = m_sni_host_name.size();
 
-   buf.push_back(get_byte<u16bit>(0, name_len+3));
-   buf.push_back(get_byte<u16bit>(1, name_len+3));
+   buf.push_back(get_byte(0, static_cast<u16bit>(name_len+3)));
+   buf.push_back(get_byte(1, static_cast<u16bit>(name_len+3)));
    buf.push_back(0); // DNS
 
-   buf.push_back(get_byte<u16bit>(0, name_len));
-   buf.push_back(get_byte<u16bit>(1, name_len));
+   buf.push_back(get_byte(0, static_cast<u16bit>(name_len)));
+   buf.push_back(get_byte(1, static_cast<u16bit>(name_len)));
 
    buf += std::make_pair(
       reinterpret_cast<const byte*>(m_sni_host_name.data()),
@@ -264,8 +268,8 @@ std::vector<byte> Application_Layer_Protocol_Notification::serialize() const
                                  1);
       }
 
-   buf[0] = get_byte<u16bit>(0, buf.size()-2);
-   buf[1] = get_byte<u16bit>(1, buf.size()-2);
+   buf[0] = get_byte(0, static_cast<u16bit>(buf.size()-2));
+   buf[1] = get_byte(1, static_cast<u16bit>(buf.size()-2));
 
    return buf;
    }
@@ -320,8 +324,8 @@ std::vector<byte> Supported_Elliptic_Curves::serialize() const
       buf.push_back(get_byte(1, id));
       }
 
-   buf[0] = get_byte<u16bit>(0, buf.size()-2);
-   buf[1] = get_byte<u16bit>(1, buf.size()-2);
+   buf[0] = get_byte(0, static_cast<u16bit>(buf.size()-2));
+   buf[1] = get_byte(1, static_cast<u16bit>(buf.size()-2));
 
    return buf;
    }
@@ -435,8 +439,8 @@ std::vector<byte> Signature_Algorithms::serialize() const
          {}
       }
 
-   buf[0] = get_byte<u16bit>(0, buf.size()-2);
-   buf[1] = get_byte<u16bit>(1, buf.size()-2);
+   buf[0] = get_byte(0, static_cast<u16bit>(buf.size()-2));
+   buf[1] = get_byte(1, static_cast<u16bit>(buf.size()-2));
 
    return buf;
    }
@@ -492,7 +496,7 @@ std::vector<byte> SRTP_Protection_Profiles::serialize() const
    {
    std::vector<byte> buf;
 
-   const u16bit pp_len = m_pp.size() * 2;
+   const u16bit pp_len = static_cast<u16bit>(m_pp.size() * 2);
    buf.push_back(get_byte(0, pp_len));
    buf.push_back(get_byte(1, pp_len));
 
@@ -515,6 +519,18 @@ Extended_Master_Secret::Extended_Master_Secret(TLS_Data_Reader&,
    }
 
 std::vector<byte> Extended_Master_Secret::serialize() const
+   {
+   return std::vector<byte>();
+   }
+
+Encrypt_then_MAC::Encrypt_then_MAC(TLS_Data_Reader&,
+                                               u16bit extension_size)
+   {
+   if(extension_size != 0)
+      throw Decoding_Error("Invalid encrypt_then_mac extension");
+   }
+
+std::vector<byte> Encrypt_then_MAC::serialize() const
    {
    return std::vector<byte>();
    }

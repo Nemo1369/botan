@@ -5,6 +5,8 @@ libbotan*.so.*
 *.dylib
 *.exp
 *.lib
+*.pdb
+*.ilk
 *.dll
 *.exe
 *.manifest
@@ -12,6 +14,8 @@ build
 build.log
 botan
 botan-test
+
+.idea
 
 # Text file backups (e.g. gedit, joe)
 *~

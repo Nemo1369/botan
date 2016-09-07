@@ -24,6 +24,7 @@ Session::Session(const std::vector<byte>& session_identifier,
                  byte compression_method,
                  Connection_Side side,
                  bool extended_master_secret,
+                 bool encrypt_then_mac,
                  const std::vector<X509_Certificate>& certs,
                  const std::vector<byte>& ticket,
                  const Server_Information& server_info,
@@ -39,6 +40,7 @@ Session::Session(const std::vector<byte>& session_identifier,
    m_connection_side(side),
    m_srtp_profile(srtp_profile),
    m_extended_master_secret(extended_master_secret),
+   m_encrypt_then_mac(encrypt_then_mac),
    m_peer_certs(certs),
    m_server_info(server_info),
    m_srp_identifier(srp_identifier)
@@ -83,6 +85,7 @@ Session::Session(const byte ber[], size_t ber_len)
         .decode_integer_type(side_code)
         .decode_integer_type(fragment_size)
         .decode(m_extended_master_secret)
+        .decode(m_encrypt_then_mac)
         .decode(m_master_secret, OCTET_STRING)
         .decode(peer_cert_bits, OCTET_STRING)
         .decode(server_hostname)
@@ -106,11 +109,11 @@ Session::Session(const byte ber[], size_t ber_len)
    m_version = Protocol_Version(major_version, minor_version);
    m_start_time = std::chrono::system_clock::from_time_t(start_time);
    m_connection_side = static_cast<Connection_Side>(side_code);
-   m_srtp_profile = srtp_profile;
+   m_srtp_profile = static_cast<u16bit>(srtp_profile);
 
    m_server_info = Server_Information(server_hostname.value(),
                                       server_service.value(),
-                                      server_port);
+                                      static_cast<u16bit>(server_port));
 
    m_srp_identifier = srp_identifier_str.value();
 
@@ -142,6 +145,7 @@ secure_vector<byte> Session::DER_encode() const
          .encode(static_cast<size_t>(m_connection_side))
          .encode(static_cast<size_t>(/*old fragment size*/0))
          .encode(m_extended_master_secret)
+         .encode(m_encrypt_then_mac)
          .encode(m_master_secret, OCTET_STRING)
          .encode(peer_cert_bits, OCTET_STRING)
          .encode(ASN1_String(m_server_info.hostname(), UTF8_STRING))
@@ -218,4 +222,3 @@ Session Session::decrypt(const byte in[], size_t in_len, const SymmetricKey& key
 }
 
 }
-
