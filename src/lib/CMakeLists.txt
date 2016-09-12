@@ -263,7 +263,6 @@ list(APPEND CURRENT_TARGET_SOURCES
         rng/hmac_rng/hmac_rng.cpp
         rng/rng.cpp
         rng/auto_rng/auto_rng.cpp
-        rng/rdrand_rng/rdrand_rng.cpp
         rng/stateful_rng/stateful_rng.cpp
         rng/system_rng/system_rng.cpp
         rng/x931_rng/x931_rng.cpp
@@ -339,6 +338,12 @@ if(APPLE)
     list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY})
 
     list(APPEND CURRENT_TARGET_SOURCES entropy/darwin_secrandom/darwin_secrandom.cpp)
+endif()
+
+if(RDRAND_ENTROPY_MODULE)
+    list(APPEND CURRENT_TARGET_SOURCES
+            rng/rdrand_rng/rdrand_rng.cpp
+            )
 endif()
 
 if(SQL_SESSIONS_MODULE)
