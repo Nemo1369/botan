@@ -30,15 +30,14 @@ TLS::Callbacks::tls_make_http_request(const std::string& url,
                                       const std::string& content_type,
                                       const std::vector<byte>& body)
    {
-   return std::async(
-      std::launch::async,
-      [=]()
-         {
-         HTTP::Response resp = HTTP::http_sync(url, verb, content_type, body, 1);
-         resp.throw_unless_ok();
-         return resp.body();
-         }
-      );
+   auto get_http_body = [=]() -> std::vector<byte>
+      {
+      HTTP::Response resp = HTTP::http_sync(url, verb, content_type, body, 1);
+      resp.throw_unless_ok();
+      return resp.body();
+      };
+
+   return std::async(std::launch::async, get_http_body);
    }
 
 namespace {
