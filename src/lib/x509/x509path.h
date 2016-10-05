@@ -11,6 +11,9 @@
 #include <botan/cert_status.h>
 #include <botan/x509cert.h>
 #include <botan/certstor.h>
+#include <botan/ocsp.h>
+#include <future>
+#include <functional>
 #include <set>
 #include <chrono>
 
@@ -161,6 +164,16 @@ class BOTAN_DLL Path_Validation_Result
       std::vector<std::shared_ptr<const X509_Certificate>> m_cert_path;
    };
 
+typedef std::function<std::future<OCSP::Response>
+                      (const X509_Certificate&,
+                       const X509_Certificate&,
+                       const Certificate_Store&)>
+   OCSP_request_fn;
+
+BOTAN_DLL std::future<OCSP::Response>
+online_ocsp_check(const X509_Certificate& subject,
+                  const X509_Certificate& issuer,
+                  const Certificate_Store& trusted_roots);
 
 /**
 * PKIX Path Validation
@@ -171,6 +184,8 @@ class BOTAN_DLL Path_Validation_Result
 * @param usage if not set to UNSPECIFIED, compared against the key usage in end_certs[0]
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
+* @param ocsp_check is a callback requesting an OCSP check be issued,
+*        default online_ocsp_check opens socket in a new thread.
 */
 Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
@@ -178,7 +193,8 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
+   OCSP_request_fn ocsp_check = online_ocsp_check);
 
 /**
 * PKIX Path Validation
@@ -190,13 +206,14 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
+   OCSP_request_fn ocsp = online_ocsp_check);
 
 /**
 * PKIX Path Validation
@@ -208,13 +225,14 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
+   OCSP_request_fn ocsp = online_ocsp_check);
 
 /**
 * PKIX Path Validation
@@ -226,13 +244,14 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result BOTAN_DLL x509_path_validate(
+Path_Validation_Result x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
+   OCSP_request_fn ocsp = online_ocsp_check);
 
 }
 

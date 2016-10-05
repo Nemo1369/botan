@@ -249,6 +249,27 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
          return fd;
          }
 
+      void tls_verify_cert_chain(
+         const std::vector<Botan::X509_Certificate>& cert_chain,
+         const std::vector<Botan::Certificate_Store*>& trusted_roots,
+         Botan::Usage_Type usage,
+         const std::string& hostname)
+         {
+         try
+            {
+            Botan::TLS::Callbacks::tls_verify_cert_chain(cert_chain,
+                                                         trusted_roots,
+                                                         usage,
+                                                         hostname);
+            }
+         catch(std::exception& e)
+            {
+            std::cout << e.what() << std::endl;
+            // TODO: only continue if --insecure flag is used
+            //throw;
+            }
+         }
+
       bool tls_session_established(const Botan::TLS::Session& session) override
          {
          output() << "Handshake complete, " << session.version().to_string()

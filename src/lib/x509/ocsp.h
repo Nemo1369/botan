@@ -70,11 +70,14 @@ class BOTAN_DLL Response
 
       /**
       * Creates an OCSP response.
-      * @param trusted_roots trusted roots for the OCSP response
       * @param response_bits response bits received
       */
-      Response(const Certificate_Store& trusted_roots,
-               const std::vector<byte>& response_bits);
+      Response(const std::vector<byte>& response_bits);
+
+      // Throws if validation failed
+      void check_signature(const Certificate_Store& trust_roots);
+
+      const X509_Time& produced_at() const { return m_produced_at; }
 
       /**
        * Searches the OCSP response for issuer and subject certificate.
@@ -92,6 +95,13 @@ class BOTAN_DLL Response
                                          const X509_Certificate& subject) const;
 
    private:
+      X509_Time m_produced_at;
+      X509_DN m_signer_name;
+      std::vector<byte> m_tbs_bits;
+      AlgorithmIdentifier m_sig_algo;
+      std::vector<byte> m_signature;
+      std::vector<X509_Certificate> m_certs;
+
       std::vector<SingleResponse> m_responses;
    };
 

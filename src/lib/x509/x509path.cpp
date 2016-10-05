@@ -78,7 +78,8 @@ std::vector<std::set<Certificate_Status_Code>>
 check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
             const Path_Validation_Restrictions& restrictions,
             const std::vector<Certificate_Store*>& certstores,
-            std::chrono::system_clock::time_point ref_time)
+            std::chrono::system_clock::time_point ref_time,
+            OCSP_request_fn ocsp_request)
    {
    const std::set<std::string>& trusted_hashes = restrictions.trusted_hashes();
 
@@ -104,9 +105,9 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
          {
          // certstore[0] is treated as trusted for OCSP (FIXME)
          if(certstores.size() > 1)
-            ocsp_responses.push_back(
-               std::async(std::launch::async,
-                          OCSP::online_check, *issuer, *subject, certstores[0]));
+            {
+            ocsp_responses.push_back(ocsp_request(*issuer, *subject, *certstores[0]));
+            }
          }
 
       // Check all certs for valid time range
@@ -167,17 +168,29 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
             {
             OCSP::Response ocsp = ocsp_responses[i].get();
 
-            auto ocsp_status = ocsp.status_for(*ca, *subject);
+            bool ocsp_valid = false;
 
-            status.insert(ocsp_status);
+            try {
+               ocsp.check_signature(*certstores[0]);
+               ocsp_valid = true;
+            }
+            catch(Exception&)
+               {
+               status.insert(Certificate_Status_Code::OCSP_SIGNATURE_ERROR);
+               }
 
-            //std::cout << "OCSP status: " << Path_Validation_Result::status_string(ocsp_status) << "\n";
+            if(ocsp_valid)
+               {
+               auto ocsp_status = ocsp.status_for(*ca, *subject);
+               status.insert(ocsp_status);
+               //std::cout << "OCSP status: " << Path_Validation_Result::status_string(ocsp_status) << "\n";
 
-            // Either way we have a definitive answer, no need to check CRLs
-            if(ocsp_status == Certificate_Status_Code::CERT_IS_REVOKED)
-               return cert_status;
-            else if(ocsp_status == Certificate_Status_Code::OCSP_RESPONSE_GOOD)
-               continue;
+               // Either way we have a definitive answer, no need to check CRLs
+               if(ocsp_status == Certificate_Status_Code::CERT_IS_REVOKED)
+                  return cert_status;
+               else if(ocsp_status == Certificate_Status_Code::OCSP_RESPONSE_GOOD)
+                  continue;
+               }
             }
          catch(std::exception&)
             {
@@ -220,13 +233,24 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
 
 }
 
+std::future<OCSP::Response>
+online_ocsp_check(const X509_Certificate& issuer,
+                  const X509_Certificate& subject,
+                  const Certificate_Store& trusted_roots)
+   {
+   return std::async(std::launch::async,
+                     OCSP::online_check,
+                     issuer, subject, &trusted_roots);
+   }
+
 Path_Validation_Result x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
    const Path_Validation_Restrictions& restrictions,
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname,
    Usage_Type usage,
-   std::chrono::system_clock::time_point validation_time)
+   std::chrono::system_clock::time_point validation_time,
+   OCSP_request_fn ocsp_request)
    {
    if(end_certs.empty())
       throw Invalid_Argument("x509_path_validate called with no subjects");
@@ -262,7 +286,7 @@ Path_Validation_Result x509_path_validate(
       }
 
    std::vector<std::set<Certificate_Status_Code>> res =
-      check_chain(cert_path, restrictions, certstores, validation_time);
+      check_chain(cert_path, restrictions, certstores, validation_time, ocsp_request);
 
    if(!hostname.empty() && !cert_path[0]->matches_dns_name(hostname))
       res[0].insert(Certificate_Status_Code::CERT_NAME_NOMATCH);
@@ -283,7 +307,7 @@ Path_Validation_Result x509_path_validate(
    {
    std::vector<X509_Certificate> certs;
    certs.push_back(end_cert);
-   return x509_path_validate(certs, restrictions, certstores, hostname, usage, when);
+   return x509_path_validate(certs, restrictions, certstores, hostname, usage, when, ocsp);
    }
 
 Path_Validation_Result x509_path_validate(
@@ -292,12 +316,13 @@ Path_Validation_Result x509_path_validate(
    const Certificate_Store& store,
    const std::string& hostname,
    Usage_Type usage,
-   std::chrono::system_clock::time_point when)
+   std::chrono::system_clock::time_point when,
+   OCSP_request_fn ocsp)
    {
    std::vector<Certificate_Store*> certstores;
    certstores.push_back(const_cast<Certificate_Store*>(&store));
 
-   return x509_path_validate(end_certs, restrictions, certstores, hostname, usage, when);
+   return x509_path_validate(end_certs, restrictions, certstores, hostname, usage, when, ocsp);
    }
 
 Path_Validation_Result x509_path_validate(
@@ -306,7 +331,8 @@ Path_Validation_Result x509_path_validate(
    const Certificate_Store& store,
    const std::string& hostname,
    Usage_Type usage,
-   std::chrono::system_clock::time_point when)
+   std::chrono::system_clock::time_point when,
+   OCSP_request_fn ocsp)
    {
    std::vector<X509_Certificate> certs;
    certs.push_back(end_cert);
@@ -314,7 +340,7 @@ Path_Validation_Result x509_path_validate(
    std::vector<Certificate_Store*> certstores;
    certstores.push_back(const_cast<Certificate_Store*>(&store));
 
-   return x509_path_validate(certs, restrictions, certstores, hostname, usage, when);
+   return x509_path_validate(certs, restrictions, certstores, hostname, usage, when, ocsp);
    }
 
 Path_Validation_Restrictions::Path_Validation_Restrictions(bool require_rev,
@@ -438,6 +464,8 @@ const char* Path_Validation_Result::status_string(Certificate_Status_Code code)
          return "Certificate does not pass name constraint";
       case Certificate_Status_Code::UNKNOWN_CRITICAL_EXTENSION:
          return "Unknown critical extension encountered";
+      case Certificate_Status_Code::OCSP_SIGNATURE_ERROR:
+         return "OCSP signature error";
 
       case Certificate_Status_Code::CERT_IS_REVOKED:
          return "Certificate is revoked";

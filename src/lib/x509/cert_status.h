@@ -52,6 +52,8 @@ enum class Certificate_Status_Code {
 
    UNKNOWN_CRITICAL_EXTENSION,
 
+   OCSP_SIGNATURE_ERROR,
+
    // Hard failures
    CERT_IS_REVOKED = 5000,
    CRL_BAD_SIGNATURE,

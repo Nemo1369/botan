@@ -44,10 +44,10 @@ void decode_optional_list(BER_Decoder& ber,
       }
    }
 
-void check_signature(const std::vector<byte>& tbs_response,
-                     const AlgorithmIdentifier& sig_algo,
-                     const std::vector<byte>& signature,
-                     const X509_Certificate& cert)
+void do_check_signature(const std::vector<byte>& tbs_response,
+                        const AlgorithmIdentifier& sig_algo,
+                        const std::vector<byte>& signature,
+                        const X509_Certificate& cert)
    {
    std::unique_ptr<Public_Key> pub_key(cert.subject_public_key());
 
@@ -65,36 +65,6 @@ void check_signature(const std::vector<byte>& tbs_response,
 
    if(!verifier.verify_message(ASN1::put_in_sequence(tbs_response), signature))
       throw Exception("Signature on OCSP response does not verify");
-   }
-
-void check_signature(const std::vector<byte>& tbs_response,
-                     const AlgorithmIdentifier& sig_algo,
-                     const std::vector<byte>& signature,
-                     const Certificate_Store& trusted_roots,
-                     const std::vector<X509_Certificate>& certs)
-   {
-   if(certs.size() < 1)
-      throw Invalid_Argument("Short cert chain for check_signature");
-
-   if(trusted_roots.certificate_known(certs[0]))
-      return check_signature(tbs_response, sig_algo, signature, certs[0]);
-
-   // Otherwise attempt to chain the signing cert to a trust root
-
-   if(!certs[0].allowed_extended_usage("PKIX.OCSPSigning"))
-      throw Exception("OCSP response cert does not allow OCSP signing");
-
-   auto result = x509_path_validate(certs, Path_Validation_Restrictions(), trusted_roots);
-
-   if(!result.successful_validation())
-      throw Exception("Certificate validation failure: " + result.result_string());
-
-   if(!trusted_roots.certificate_known(result.trust_root())) // not needed anymore?
-      throw Exception("Certificate chain roots in unknown/untrusted CA");
-
-   const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path = result.cert_path();
-
-   check_signature(tbs_response, sig_algo, signature, *cert_path[0]);
    }
 
 }
@@ -122,8 +92,7 @@ std::string Request::base64_encode() const
    return Botan::base64_encode(BER_encode());
    }
 
-Response::Response(const Certificate_Store& trusted_roots,
-                   const std::vector<byte>& response_bits)
+Response::Response(const std::vector<byte>& response_bits)
    {
    BER_Decoder response_outer = BER_Decoder(response_bits).start_cons(SEQUENCE);
 
@@ -145,57 +114,72 @@ Response::Response(const Certificate_Store& trusted_roots,
       BER_Decoder basicresponse =
          BER_Decoder(response_bytes.get_next_octet_string()).start_cons(SEQUENCE);
 
-      std::vector<byte> tbs_bits;
-      AlgorithmIdentifier sig_algo;
-      std::vector<byte> signature;
-      std::vector<X509_Certificate> certs;
-
       basicresponse.start_cons(SEQUENCE)
-           .raw_bytes(tbs_bits)
+           .raw_bytes(m_tbs_bits)
          .end_cons()
-         .decode(sig_algo)
-         .decode(signature, BIT_STRING);
-      decode_optional_list(basicresponse, ASN1_Tag(0), certs);
+         .decode(m_sig_algo)
+         .decode(m_signature, BIT_STRING);
+      decode_optional_list(basicresponse, ASN1_Tag(0), m_certs);
 
       size_t responsedata_version = 0;
-      X509_DN name;
       std::vector<byte> key_hash;
-      X509_Time produced_at;
       Extensions extensions;
 
-      BER_Decoder(tbs_bits)
+      BER_Decoder(m_tbs_bits)
          .decode_optional(responsedata_version, ASN1_Tag(0),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
 
-         .decode_optional(name, ASN1_Tag(1),
+         .decode_optional(m_signer_name, ASN1_Tag(1),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
 
          .decode_optional_string(key_hash, OCTET_STRING, 2,
                                  ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
 
-         .decode(produced_at)
+         .decode(m_produced_at)
 
          .decode_list(m_responses)
 
          .decode_optional(extensions, ASN1_Tag(1),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC));
-
-      if(certs.empty())
-         {
-         if(auto cert = trusted_roots.find_cert(name, std::vector<byte>()))
-            certs.push_back(*cert);
-         else
-            throw Exception("Could not find certificate that signed OCSP response");
-         }
-
-      check_signature(tbs_bits, sig_algo, signature, trusted_roots, certs);
       }
 
    response_outer.end_cons();
    }
 
+void Response::check_signature(const Certificate_Store& trusted_roots)
+   {
+   if(m_certs.empty())
+      {
+      if(auto cert = trusted_roots.find_cert(m_signer_name, std::vector<byte>()))
+         m_certs.push_back(*cert);
+      }
+
+   if(m_certs.size() < 1)
+      throw Exception("Could not find certificate that signed OCSP response");
+
+   if(trusted_roots.certificate_known(m_certs[0]))
+      return do_check_signature(m_tbs_bits, m_sig_algo, m_signature, m_certs[0]);
+
+   // Otherwise attempt to chain the signing cert to a trust root
+
+   if(!m_certs[0].allowed_extended_usage("PKIX.OCSPSigning"))
+      throw Exception("OCSP response cert does not allow OCSP signing");
+
+   auto result = x509_path_validate(m_certs, Path_Validation_Restrictions(), trusted_roots);
+
+   if(!result.successful_validation())
+      throw Exception("Certificate validation failure: " + result.result_string());
+
+   if(!trusted_roots.certificate_known(result.trust_root())) // not needed anymore?
+      throw Exception("Certificate chain roots in unknown/untrusted CA");
+
+   const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path = result.cert_path();
+
+   do_check_signature(m_tbs_bits, m_sig_algo, m_signature, *cert_path[0]);
+   }
+
 Certificate_Status_Code Response::status_for(const X509_Certificate& issuer,
-                                                   const X509_Certificate& subject) const
+                                             const X509_Certificate& subject) const
    {
    for(const auto& response : m_responses)
       {
@@ -241,7 +225,9 @@ Response online_check(const X509_Certificate& issuer,
 
    // Check the MIME type?
 
-   OCSP::Response response(*trusted_roots, http.body());
+   OCSP::Response response(http.body());
+
+   response.check_signature(*trusted_roots);
 
    return response;
    }
