@@ -38,7 +38,9 @@ find_issuing_cert(const X509_Certificate& cert,
    for(size_t i = 0; i != certstores.size(); ++i)
       {
       if(std::shared_ptr<const X509_Certificate> c = certstores[i]->find_cert(issuer_dn, auth_key_id))
+         {
          return c;
+         }
       }
 
    return nullptr;
@@ -106,7 +108,7 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
          // certstore[0] is treated as trusted for OCSP (FIXME)
          if(certstores.size() > 1)
             {
-            ocsp_responses.push_back(ocsp_request(*issuer, *subject, *certstores[0]));
+            ocsp_responses.push_back(ocsp_request(*issuer, *subject));
             }
          }
 
@@ -174,7 +176,7 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
                ocsp.check_signature(*certstores[0]);
                ocsp_valid = true;
             }
-            catch(Exception&)
+            catch(Exception& e)
                {
                status.insert(Certificate_Status_Code::OCSP_SIGNATURE_ERROR);
                }
@@ -234,13 +236,12 @@ check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_pat
 }
 
 std::future<OCSP::Response>
-online_ocsp_check(const X509_Certificate& issuer,
-                  const X509_Certificate& subject,
-                  const Certificate_Store& trusted_roots)
+make_ocsp_request(const X509_Certificate& issuer,
+                  const X509_Certificate& subject)
    {
    return std::async(std::launch::async,
                      OCSP::online_check,
-                     issuer, subject, &trusted_roots);
+                     issuer, subject, nullptr);
    }
 
 Path_Validation_Result x509_path_validate(
@@ -303,7 +304,8 @@ Path_Validation_Result x509_path_validate(
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname,
    Usage_Type usage,
-   std::chrono::system_clock::time_point when)
+   std::chrono::system_clock::time_point when,
+   OCSP_request_fn ocsp)
    {
    std::vector<X509_Certificate> certs;
    certs.push_back(end_cert);

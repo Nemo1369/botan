@@ -69,10 +69,16 @@ void do_check_signature(const std::vector<byte>& tbs_response,
 
 }
 
+Request::Request(const X509_Certificate& issuer_cert,
+                 const X509_Certificate& subject_cert) :
+   m_issuer(issuer_cert),
+   m_subject(subject_cert),
+   m_certid(m_issuer, m_subject)
+   {
+   }
+
 std::vector<byte> Request::BER_encode() const
    {
-   CertID certid(m_issuer, m_subject);
-
    return DER_Encoder().start_cons(SEQUENCE)
         .start_cons(SEQUENCE)
           .start_explicit(0)
@@ -80,7 +86,7 @@ std::vector<byte> Request::BER_encode() const
           .end_explicit()
             .start_cons(SEQUENCE)
               .start_cons(SEQUENCE)
-                .encode(certid)
+                .encode(m_certid)
               .end_cons()
             .end_cons()
           .end_cons()
@@ -92,7 +98,7 @@ std::string Request::base64_encode() const
    return Botan::base64_encode(BER_encode());
    }
 
-Response::Response(const std::vector<byte>& response_bits)
+Response::Response(const Request& request, const std::vector<byte>& response_bits)
    {
    BER_Decoder response_outer = BER_Decoder(response_bits).start_cons(SEQUENCE);
 
@@ -141,6 +147,11 @@ Response::Response(const std::vector<byte>& response_bits)
 
          .decode_optional(extensions, ASN1_Tag(1),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC));
+
+      if(key_hash == request.issuer_key_hash() && m_certs.empty())
+         {
+         m_certs.push_back(request.issuer());
+         }
       }
 
    response_outer.end_cons();
@@ -225,9 +236,10 @@ Response online_check(const X509_Certificate& issuer,
 
    // Check the MIME type?
 
-   OCSP::Response response(http.body());
+   OCSP::Response response(req, http.body());
 
-   response.check_signature(*trusted_roots);
+   if(trusted_roots)
+      response.check_signature(*trusted_roots);
 
    return response;
    }

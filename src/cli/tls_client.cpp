@@ -253,7 +253,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
          const std::vector<Botan::X509_Certificate>& cert_chain,
          const std::vector<Botan::Certificate_Store*>& trusted_roots,
          Botan::Usage_Type usage,
-         const std::string& hostname)
+         const std::string& hostname) override
          {
          try
             {

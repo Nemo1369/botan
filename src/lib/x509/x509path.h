@@ -154,11 +154,6 @@ class BOTAN_DLL Path_Validation_Result
       explicit Path_Validation_Result(Certificate_Status_Code status) : m_overall(status) {}
 
    private:
-      friend Path_Validation_Result BOTAN_DLL x509_path_validate(
-         const std::vector<X509_Certificate>& end_certs,
-         const Path_Validation_Restrictions& restrictions,
-         const std::vector<Certificate_Store*>& certstores);
-
       Certificate_Status_Code m_overall;
       std::vector<std::set<Certificate_Status_Code>> m_all_status;
       std::vector<std::shared_ptr<const X509_Certificate>> m_cert_path;
@@ -166,14 +161,18 @@ class BOTAN_DLL Path_Validation_Result
 
 typedef std::function<std::future<OCSP::Response>
                       (const X509_Certificate&,
-                       const X509_Certificate&,
-                       const Certificate_Store&)>
+                       const X509_Certificate&)>
    OCSP_request_fn;
 
+/**
+* Make an OCSP request via a new network connection
+* opened in a std::async thread.
+*
+* The response signature is not verified before returning.
+*/
 BOTAN_DLL std::future<OCSP::Response>
-online_ocsp_check(const X509_Certificate& subject,
-                  const X509_Certificate& issuer,
-                  const Certificate_Store& trusted_roots);
+make_ocsp_request(const X509_Certificate& issuer,
+                  const X509_Certificate& subject);
 
 /**
 * PKIX Path Validation
@@ -194,7 +193,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
    std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp_check = online_ocsp_check);
+   OCSP_request_fn ocsp_check = make_ocsp_request);
 
 /**
 * PKIX Path Validation
@@ -206,14 +205,14 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result x509_path_validate(
+Path_Validation_Result BOTAN_DLL x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
    std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = online_ocsp_check);
+   OCSP_request_fn ocsp = make_ocsp_request);
 
 /**
 * PKIX Path Validation
@@ -225,14 +224,14 @@ Path_Validation_Result x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result x509_path_validate(
+Path_Validation_Result BOTAN_DLL x509_path_validate(
    const X509_Certificate& end_cert,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
    std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = online_ocsp_check);
+   OCSP_request_fn ocsp = make_ocsp_request);
 
 /**
 * PKIX Path Validation
@@ -244,14 +243,15 @@ Path_Validation_Result x509_path_validate(
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
 */
-Path_Validation_Result x509_path_validate(
+Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
    const Path_Validation_Restrictions& restrictions,
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
    std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = online_ocsp_check);
+   OCSP_request_fn ocsp = make_ocsp_request);
+
 
 }
 

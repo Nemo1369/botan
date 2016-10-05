@@ -30,6 +30,9 @@ class BOTAN_DLL CertID final : public ASN1_Object
       void encode_into(class DER_Encoder& to) const override;
 
       void decode_from(class BER_Decoder& from) override;
+
+      const std::vector<byte>& issuer_key_hash() const { return m_issuer_key_hash; }
+
    private:
       std::vector<byte> extract_key_bitstr(const X509_Certificate& cert) const;
 
