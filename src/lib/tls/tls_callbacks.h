@@ -18,6 +18,12 @@ namespace Botan {
 class Certificate_Store;
 class X509_Certificate;
 
+namespace OCSP {
+
+class Response;
+
+}
+
 namespace TLS {
 
 class Handshake_Message;
@@ -113,23 +119,10 @@ class BOTAN_DLL Callbacks
           const std::string& hostname);
 
        /**
-       * Callback with a default impl: perform HTTP request
-       *
-       * Used for accessing OCSP and CRLs during cert validation
-       *
-       * Perform either a GET or POST to specified URL, returning a future
-       * that will either hold the entire body of the response as a
-       * vector (if response OK) or else throw some exception (if error)
-       *
-       * Default version creates a thread with std::async and opens a new
-       * socket to perform the HTTP request, parsing with the code in
-       * util/http_util
+       * Callback with a default impl: make OCSP request
        */
-       virtual std::future<std::vector<byte>>
-          tls_make_http_request(const std::string& url,
-                                const std::string& verb,
-                                const std::string& content_type,
-                                const std::vector<byte>& body);
+       std::future<std::shared_ptr<const OCSP::Response>>
+          tls_ocsp_request(const X509_Certificate& issuer, const X509_Certificate& subject);
 
        /**
        * Optional callback: inspect handshake message

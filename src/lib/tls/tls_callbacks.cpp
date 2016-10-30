@@ -7,6 +7,7 @@
 
 #include <botan/tls_callbacks.h>
 #include <botan/x509path.h>
+#include <botan/ocsp.h>
 #include <botan/certstor.h>
 #include <botan/http_util.h>
 
@@ -24,20 +25,12 @@ std::string TLS::Callbacks::tls_server_choose_app_protocol(const std::vector<std
    return "";
    }
 
-std::future<std::vector<byte>>
-TLS::Callbacks::tls_make_http_request(const std::string& url,
-                                      const std::string& verb,
-                                      const std::string& content_type,
-                                      const std::vector<byte>& body)
+std::future<std::shared_ptr<const OCSP::Response>>
+TLS::Callbacks::tls_ocsp_request(const X509_Certificate& issuer, const X509_Certificate& subject)
    {
-   auto get_http_body = [=]() -> std::vector<byte>
-      {
-      HTTP::Response resp = HTTP::http_sync(url, verb, content_type, body, 1);
-      resp.throw_unless_ok();
-      return resp.body();
-      };
-
-   return std::async(std::launch::async, get_http_body);
+   return std::async(std::launch::async,
+                     OCSP::online_check,
+                     issuer, subject, nullptr);
    }
 
 namespace {

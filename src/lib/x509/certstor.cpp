@@ -26,6 +26,17 @@ void Certificate_Store_In_Memory::add_certificate(const X509_Certificate& cert)
    m_certs.push_back(std::make_shared<X509_Certificate>(cert));
    }
 
+void Certificate_Store_In_Memory::add_certificate(std::shared_ptr<X509_Certificate> cert)
+   {
+   for(size_t i = 0; i != m_certs.size(); ++i)
+      {
+      if(*m_certs[i] == *cert)
+         return;
+      }
+
+   m_certs.push_back(cert);
+   }
+
 std::vector<X509_DN> Certificate_Store_In_Memory::all_subjects() const
    {
    std::vector<X509_DN> subjects;
@@ -34,38 +45,26 @@ std::vector<X509_DN> Certificate_Store_In_Memory::all_subjects() const
    return subjects;
    }
 
-namespace {
-
-template<typename T>
 std::shared_ptr<const X509_Certificate>
-cert_search(const X509_DN& subject_dn, const std::vector<byte>& key_id,
-            const std::vector<std::shared_ptr<T>>& certs)
+Certificate_Store_In_Memory::find_cert(const X509_DN& subject_dn,
+                                       const std::vector<byte>& key_id) const
    {
-   for(size_t i = 0; i != certs.size(); ++i)
+   for(size_t i = 0; i != m_certs.size(); ++i)
       {
       // Only compare key ids if set in both call and in the cert
       if(key_id.size())
          {
-         std::vector<byte> skid = certs[i]->subject_key_id();
+         std::vector<byte> skid = m_certs[i]->subject_key_id();
 
          if(skid.size() && skid != key_id) // no match
             continue;
          }
 
-      if(certs[i]->subject_dn() == subject_dn)
-         return certs[i];
+      if(m_certs[i]->subject_dn() == subject_dn)
+         return m_certs[i];
       }
 
    return std::shared_ptr<const X509_Certificate>();
-   }
-
-}
-
-std::shared_ptr<const X509_Certificate>
-Certificate_Store_In_Memory::find_cert(const X509_DN& subject_dn,
-                                       const std::vector<byte>& key_id) const
-   {
-   return cert_search(subject_dn, key_id, m_certs);
    }
 
 void Certificate_Store_In_Memory::add_crl(const X509_CRL& crl)
@@ -133,20 +132,5 @@ Certificate_Store_In_Memory::Certificate_Store_In_Memory(const std::string& dir)
       }
    }
 #endif
-
-std::shared_ptr<const X509_Certificate>
-Certificate_Store_Overlay::find_cert(const X509_DN& subject_dn,
-                                     const std::vector<byte>& key_id) const
-   {
-   return cert_search(subject_dn, key_id, m_certs);
-   }
-
-std::vector<X509_DN> Certificate_Store_Overlay::all_subjects() const
-   {
-   std::vector<X509_DN> subjects;
-   for(size_t i = 0; i != m_certs.size(); ++i)
-      subjects.push_back(m_certs[i]->subject_dn());
-   return subjects;
-   }
 
 }

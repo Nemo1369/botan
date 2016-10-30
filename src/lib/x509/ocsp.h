@@ -59,7 +59,9 @@ class BOTAN_DLL Request
    };
 
 /**
-* An OCSP response.
+* OCSP response.
+*
+* Note this class is only usable as an OCSP client
 */
 class BOTAN_DLL Response
    {
@@ -70,17 +72,34 @@ class BOTAN_DLL Response
       Response() {}
 
       /**
-      * Creates an OCSP response.
+      * Parses an OCSP response.
       * @param request the OCSP request this is a respone to
       * @param response_bits response bits received
       */
       Response(const Request& request,
                const std::vector<byte>& response_bits);
 
-      // Throws if validation failed
-      void check_signature(const Certificate_Store& trust_roots);
+      /*
+      * Check signature and return status
+      */
+      Certificate_Status_Code check_signature(const Certificate_Store& trust_roots);
+
+      /*
+      * Verify that issuer's key signed this response
+      */
+      Certificate_Status_Code verify_signature(const X509_Certificate& issuer) const;
 
       const X509_Time& produced_at() const { return m_produced_at; }
+
+      /**
+      * @return DN of signer, if provided in response (may be empty)
+      */
+      const X509_DN& signer_name() const { return m_signer_name; }
+
+      /**
+      * @return key hash, if provided in response (may be empty)
+      */
+      const std::vector<byte>& signer_key_hash() const { return m_key_hash; }
 
       /**
        * Searches the OCSP response for issuer and subject certificate.
@@ -95,11 +114,13 @@ class BOTAN_DLL Response
        *         OCSP_CERT_NOT_LISTED
        */
       Certificate_Status_Code status_for(const X509_Certificate& issuer,
-                                         const X509_Certificate& subject) const;
+                                         const X509_Certificate& subject,
+                                         std::chrono::system_clock::time_point ref_time) const;
 
    private:
       X509_Time m_produced_at;
       X509_DN m_signer_name;
+      std::vector<byte> m_key_hash;
       std::vector<byte> m_tbs_bits;
       AlgorithmIdentifier m_sig_algo;
       std::vector<byte> m_signature;
@@ -109,17 +130,11 @@ class BOTAN_DLL Response
    };
 
 /**
-<<<<<<< HEAD
 * Makes an online OCSP request via HTTP and returns the OCSP response.
 * @param issuer issuer certificate
 * @param subject subject certificate
 * @param trusted_roots trusted roots for the OCSP response
 * @return OCSP response
-=======
-* Perform an OCSP request and return the response
-*
-* If trust_roots is set the signature is verified
->>>>>>> 865b9fc... OCSP fixes
 */
 BOTAN_DLL Response online_check(const X509_Certificate& issuer,
                                 const X509_Certificate& subject,

@@ -31,28 +31,23 @@ class BOTAN_DLL Path_Validation_Restrictions
       *        operations, eg 80 means 2^80) of a signature. Signatures
       *        weaker than this are rejected. If more than 80, SHA-1
       *        signatures are also rejected.
-      * @param ocsp_all_intermediates
       */
       Path_Validation_Restrictions(bool require_rev = false,
-                                   size_t minimum_key_strength = 80,
-                                   bool ocsp_all_intermediates = false);
+                                   size_t minimum_key_strength = 80);
 
       /**
       * @param require_rev if true, revocation information is required
       * @param minimum_key_strength is the minimum strength (in terms of
       *        operations, eg 80 means 2^80) of a signature. Signatures
       *        weaker than this are rejected.
-      * @param ocsp_all_intermediates
       * @param trusted_hashes a set of trusted hashes. Any signatures
       *        created using a hash other than one of these will be
       *        rejected.
       */
       Path_Validation_Restrictions(bool require_rev,
                                    size_t minimum_key_strength,
-                                   bool ocsp_all_intermediates,
                                    const std::set<std::string>& trusted_hashes) :
          m_require_revocation_information(require_rev),
-         m_ocsp_all_intermediates(ocsp_all_intermediates),
          m_trusted_hashes(trusted_hashes),
          m_minimum_key_strength(minimum_key_strength) {}
 
@@ -61,12 +56,6 @@ class BOTAN_DLL Path_Validation_Restrictions
       */
       bool require_revocation_information() const
          { return m_require_revocation_information; }
-
-      /**
-      * FIXME add doc
-      */
-      bool ocsp_all_intermediates() const
-         { return m_ocsp_all_intermediates; }
 
       /**
       * @return trusted signature hash functions
@@ -82,7 +71,6 @@ class BOTAN_DLL Path_Validation_Restrictions
 
    private:
       bool m_require_revocation_information;
-      bool m_ocsp_all_intermediates;
       std::set<std::string> m_trusted_hashes;
       size_t m_minimum_key_strength;
    };
@@ -109,6 +97,7 @@ class BOTAN_DLL Path_Validation_Result
 
       /**
       * @return the full path from subject to trust root
+      * This path may be empty
       */
       const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path() const { return m_cert_path; }
 
@@ -159,20 +148,25 @@ class BOTAN_DLL Path_Validation_Result
       std::vector<std::shared_ptr<const X509_Certificate>> m_cert_path;
    };
 
-typedef std::function<std::future<OCSP::Response>
-                      (const X509_Certificate&,
-                       const X509_Certificate&)>
-   OCSP_request_fn;
-
 /**
-* Make an OCSP request via a new network connection
-* opened in a std::async thread.
-*
-* The response signature is not verified before returning.
+* PKIX Path Validation
+* @param restrictions path validation restrictions
+* @param trusted_certstores list of certificate stores that contain trusted certificates
+* @param end_entity the cert to be validated
+* @param end_entity_extra optional list of additional untrusted certs for path building
+* @param hostname if not empty, compared against the DNS name in end_entity
+* @param usage if not set to UNSPECIFIED, compared against the key usage in end_entity
+* @param validation_time what reference time to use for validation
+* @return result of the path validation
 */
-BOTAN_DLL std::future<OCSP::Response>
-make_ocsp_request(const X509_Certificate& issuer,
-                  const X509_Certificate& subject);
+Path_Validation_Result BOTAN_DLL PKIX_validate(
+   const Path_Validation_Restrictions& restrictions,
+   const std::vector<Certificate_Store*>& trusted_certstores,
+   std::shared_ptr<const X509_Certificate> end_entity,
+   const std::vector<std::shared_ptr<const X509_Certificate>>& end_entity_extra,
+   const std::string& hostname = "",
+   Usage_Type usage = Usage_Type::UNSPECIFIED,
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
 
 /**
 * PKIX Path Validation
@@ -183,8 +177,6 @@ make_ocsp_request(const X509_Certificate& issuer,
 * @param usage if not set to UNSPECIFIED, compared against the key usage in end_certs[0]
 * @param validation_time what reference time to use for validation
 * @return result of the path validation
-* @param ocsp_check is a callback requesting an OCSP check be issued,
-*        default online_ocsp_check opens socket in a new thread.
 */
 Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<X509_Certificate>& end_certs,
@@ -192,8 +184,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp_check = make_ocsp_request);
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
 
 /**
 * PKIX Path Validation
@@ -211,8 +202,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const std::vector<Certificate_Store*>& certstores,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = make_ocsp_request);
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
 
 /**
 * PKIX Path Validation
@@ -230,8 +220,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = make_ocsp_request);
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
 
 /**
 * PKIX Path Validation
@@ -249,8 +238,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    const Certificate_Store& store,
    const std::string& hostname = "",
    Usage_Type usage = Usage_Type::UNSPECIFIED,
-   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now(),
-   OCSP_request_fn ocsp = make_ocsp_request);
+   std::chrono::system_clock::time_point validation_time = std::chrono::system_clock::now());
 
 
 }

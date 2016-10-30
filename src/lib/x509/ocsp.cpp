@@ -22,6 +22,7 @@ namespace OCSP {
 
 namespace {
 
+// TODO: should this be in a header somewhere?
 void decode_optional_list(BER_Decoder& ber,
                           ASN1_Tag tag,
                           std::vector<X509_Certificate>& output)
@@ -42,29 +43,6 @@ void decode_optional_list(BER_Decoder& ber,
       X509_Certificate cert(unlock(certbits.value));
       output.push_back(std::move(cert));
       }
-   }
-
-void do_check_signature(const std::vector<byte>& tbs_response,
-                        const AlgorithmIdentifier& sig_algo,
-                        const std::vector<byte>& signature,
-                        const X509_Certificate& cert)
-   {
-   std::unique_ptr<Public_Key> pub_key(cert.subject_public_key());
-
-   const std::vector<std::string> sig_info =
-      split_on(OIDS::lookup(sig_algo.oid), '/');
-
-   if(sig_info.size() != 2 || sig_info[0] != pub_key->algo_name())
-      throw Exception("Information in OCSP response does not match cert");
-
-   std::string padding = sig_info[1];
-   Signature_Format format =
-      (pub_key->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
-
-   PK_Verifier verifier(*pub_key, padding, format);
-
-   if(!verifier.verify_message(ASN1::put_in_sequence(tbs_response), signature))
-      throw Exception("Signature on OCSP response does not verify");
    }
 
 }
@@ -128,7 +106,6 @@ Response::Response(const Request& request, const std::vector<byte>& response_bit
       decode_optional_list(basicresponse, ASN1_Tag(0), m_certs);
 
       size_t responsedata_version = 0;
-      std::vector<byte> key_hash;
       Extensions extensions;
 
       BER_Decoder(m_tbs_bits)
@@ -138,7 +115,7 @@ Response::Response(const Request& request, const std::vector<byte>& response_bit
          .decode_optional(m_signer_name, ASN1_Tag(1),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
 
-         .decode_optional_string(key_hash, OCTET_STRING, 2,
+         .decode_optional_string(m_key_hash, OCTET_STRING, 2,
                                  ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC))
 
          .decode(m_produced_at)
@@ -148,7 +125,7 @@ Response::Response(const Request& request, const std::vector<byte>& response_bit
          .decode_optional(extensions, ASN1_Tag(1),
                           ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC));
 
-      if(key_hash == request.issuer_key_hash() && m_certs.empty())
+      if(m_key_hash == request.issuer_key_hash() && m_certs.empty())
          {
          m_certs.push_back(request.issuer());
          }
@@ -157,7 +134,35 @@ Response::Response(const Request& request, const std::vector<byte>& response_bit
    response_outer.end_cons();
    }
 
-void Response::check_signature(const Certificate_Store& trusted_roots)
+Certificate_Status_Code Response::verify_signature(const X509_Certificate& issuer) const
+   {
+   try
+      {
+      std::unique_ptr<Public_Key> pub_key(issuer.subject_public_key());
+
+      const std::vector<std::string> sig_info =
+         split_on(OIDS::lookup(m_sig_algo.oid), '/');
+
+      if(sig_info.size() != 2 || sig_info[0] != pub_key->algo_name())
+         return Certificate_Status_Code::OCSP_RESPONSE_INVALID;
+
+      std::string padding = sig_info[1];
+      Signature_Format format = (pub_key->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
+
+      PK_Verifier verifier(*pub_key, padding, format);
+
+      if(verifier.verify_message(ASN1::put_in_sequence(m_tbs_bits), m_signature))
+         return Certificate_Status_Code::OCSP_SIGNATURE_OK;
+      else
+         return Certificate_Status_Code::OCSP_SIGNATURE_ERROR;
+      }
+   catch(Exception&)
+      {
+      return Certificate_Status_Code::OCSP_SIGNATURE_ERROR;
+      }
+   }
+
+Certificate_Status_Code Response::check_signature(const Certificate_Store& trusted_roots)
    {
    if(m_certs.empty())
       {
@@ -166,45 +171,47 @@ void Response::check_signature(const Certificate_Store& trusted_roots)
       }
 
    if(m_certs.size() < 1)
-      throw Exception("Could not find certificate that signed OCSP response");
+      return Certificate_Status_Code::OCSP_ISSUER_NOT_FOUND;
 
    if(trusted_roots.certificate_known(m_certs[0]))
-      return do_check_signature(m_tbs_bits, m_sig_algo, m_signature, m_certs[0]);
+      return this->verify_signature(m_certs[0]);
 
    // Otherwise attempt to chain the signing cert to a trust root
 
    if(!m_certs[0].allowed_extended_usage("PKIX.OCSPSigning"))
-      throw Exception("OCSP response cert does not allow OCSP signing");
+      return Certificate_Status_Code::OCSP_RESPONSE_MISSING_KEYUSAGE;
 
    auto result = x509_path_validate(m_certs, Path_Validation_Restrictions(), trusted_roots);
 
    if(!result.successful_validation())
-      throw Exception("Certificate validation failure: " + result.result_string());
+      return result.result();
 
    if(!trusted_roots.certificate_known(result.trust_root())) // not needed anymore?
-      throw Exception("Certificate chain roots in unknown/untrusted CA");
+      return Certificate_Status_Code::OCSP_ISSUER_NOT_FOUND;
 
-   const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path = result.cert_path();
+   if(result.cert_path().size() < 1)
+      return Certificate_Status_Code::OCSP_ISSUER_NOT_FOUND;
 
-   do_check_signature(m_tbs_bits, m_sig_algo, m_signature, *cert_path[0]);
+   return this->verify_signature(*result.cert_path()[0]);
    }
 
 Certificate_Status_Code Response::status_for(const X509_Certificate& issuer,
-                                             const X509_Certificate& subject) const
+                                             const X509_Certificate& subject,
+                                             std::chrono::system_clock::time_point ref_time) const
    {
    for(const auto& response : m_responses)
       {
       if(response.certid().is_id_for(issuer, subject))
          {
-         X509_Time current_time(std::chrono::system_clock::now());
+         X509_Time x509_ref_time(ref_time);
 
          if(response.cert_status() == 1)
             return Certificate_Status_Code::CERT_IS_REVOKED;
 
-         if(response.this_update() > current_time)
+         if(response.this_update() > x509_ref_time)
             return Certificate_Status_Code::OCSP_NOT_YET_VALID;
 
-         if(response.next_update().time_is_set() && current_time > response.next_update())
+         if(response.next_update().time_is_set() && x509_ref_time > response.next_update())
             return Certificate_Status_Code::OCSP_HAS_EXPIRED;
 
          if(response.cert_status() == 0)
