@@ -8,11 +8,6 @@ cmake_policy(SET CMP0042 NEW)
 #   ./configure.py --with-bzip2 --with-zlib --with-lzma
 #
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wformat=2 -Wlogical-op -Wmissing-include-dirs -Wnon-virtual-dtor -Woverloaded-virtual -Wswitch-default -Wuninitialized -std=gnu++11")
-endif()
-
 set(CMAKE_MODULE_PATH src/cmake)
 
 if(BUILD_FOR_ARMV7_IOS_DEVICE OR BUILD_FOR_ARM64_IOS_DEVICE)

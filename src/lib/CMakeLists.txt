@@ -493,14 +493,21 @@ endif()
 add_custom_command(TARGET botan_help
         COMMAND echo "  To build a static or shared Botan library use: cmake -DLIB_TYPE=STATIC or -DLIB_TYPE=SHARED")
 
-message(STATUS "Building with ${LIB_TYPE} library type ")
-add_library(botan ${LIB_TYPE} ${CURRENT_TARGET_SOURCES})
+add_library(${CURRENT_TARGET} ${LIB_TYPE} ${CURRENT_TARGET_SOURCES})
 
 if(APPLE AND BUILD_FOR_IOS)
     set_target_properties(botan PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
 endif()
 
-target_link_libraries(botan ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
+target_link_libraries(${CURRENT_TARGET} ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
+
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
+    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-function -Wno-unused-parameter -Werror-implicit-function-declaration -Wno-missing-braces -Wno-missing-field-initializers -std=gnu99 -fno-strict-aliasing>)
+
+    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wformat=2  -Wmissing-include-dirs -Wnon-virtual-dtor -Woverloaded-virtual -Wswitch-default -Wuninitialized -std=gnu++14>)
+
+    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<CONFIG:DEBUG>:-g>)
+endif()
 
 file(GLOB include_install_files "${INCLUDE_DIR}/botan/*.h")
 foreach(include_install_file ${include_install_files})
