@@ -11,7 +11,6 @@
 
 #include <botan/tls_session.h>
 #include <botan/tls_alert.h>
-#include <future>
 
 namespace Botan {
 
@@ -121,8 +120,9 @@ class BOTAN_DLL Callbacks
        /**
        * Callback with a default impl: make OCSP request
        */
-       std::future<std::shared_ptr<const OCSP::Response>>
-          tls_ocsp_request(const X509_Certificate& issuer, const X509_Certificate& subject);
+       std::shared_ptr<const OCSP::Response>
+          tls_ocsp_request(const X509_Certificate& issuer,
+                           const X509_Certificate& subject);
 
        /**
        * Optional callback: inspect handshake message

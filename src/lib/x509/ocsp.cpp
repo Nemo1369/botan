@@ -251,27 +251,6 @@ Response online_check(const X509_Certificate& issuer,
    return response;
    }
 
-std::shared_ptr<Response>
-ocsp_check(const X509_Certificate& issuer,
-           const X509_Certificate& subject)
-   {
-   const std::string responder_url = subject.ocsp_responder();
-
-   if(responder_url.empty())
-      throw Exception("No OCSP responder specified");
-
-   OCSP::Request req(issuer, subject);
-
-   auto http = HTTP::POST_sync(responder_url,
-                               "application/ocsp-request",
-                               req.BER_encode());
-
-   http.throw_unless_ok();
-   // Check the MIME type?
-
-   return std::make_shared<OCSP::Response>(req, http.body());
-   }
-
 }
 
 }

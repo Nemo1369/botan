@@ -140,16 +140,6 @@ BOTAN_DLL Response online_check(const X509_Certificate& issuer,
                                 const X509_Certificate& subject,
                                 const Certificate_Store* trusted_roots);
 
-/**
-* Makes an online OCSP request via HTTP and returns the OCSP response.
-* @param issuer issuer certificate
-* @param subject subject certificate
-* @return OCSP response as shared_ptr
-*/
-BOTAN_DLL std::shared_ptr<const Response>
-ocsp_check(const X509_Certificate& issuer,
-           const X509_Certificate& subject);
-
 }
 
 }

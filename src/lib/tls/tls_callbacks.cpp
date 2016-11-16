@@ -25,12 +25,10 @@ std::string TLS::Callbacks::tls_server_choose_app_protocol(const std::vector<std
    return "";
    }
 
-std::future<std::shared_ptr<const OCSP::Response>>
+std::shared_ptr<const OCSP::Response>
 TLS::Callbacks::tls_ocsp_request(const X509_Certificate& issuer, const X509_Certificate& subject)
    {
-   return std::async(std::launch::async,
-                     OCSP::ocsp_check,
-                     issuer, subject);
+   return std::shared_ptr<const OCSP::Response>(OCSP::online_check(issuer, subject, nullptr));
    }
 
 namespace {
