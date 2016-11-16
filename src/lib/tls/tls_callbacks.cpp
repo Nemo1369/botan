@@ -29,8 +29,8 @@ std::future<std::shared_ptr<const OCSP::Response>>
 TLS::Callbacks::tls_ocsp_request(const X509_Certificate& issuer, const X509_Certificate& subject)
    {
    return std::async(std::launch::async,
-                     OCSP::online_check,
-                     issuer, subject, nullptr);
+                     OCSP::ocsp_check,
+                     issuer, subject);
    }
 
 namespace {

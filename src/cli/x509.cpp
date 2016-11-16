@@ -119,7 +119,7 @@ class OCSP_Check final : public Command
          cas.add_certificate(issuer);
          Botan::OCSP::Response resp = Botan::OCSP::online_check(issuer, subject, &cas);
 
-         auto status = resp.status_for(issuer, subject);
+         auto status = resp.status_for(issuer, subject, std::chrono::system_clock::now());
 
          if(status == Botan::Certificate_Status_Code::VERIFIED)
             {

@@ -162,8 +162,8 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    if(end_certs.empty())
       throw Invalid_Argument("x509_path_validate called with no subjects");
 
-   cert_path.push_back(std::make_shared<X509_Certificate>(end_certs[0]));
    std::vector<std::shared_ptr<const X509_Certificate>> cert_path;
+   cert_path.push_back(std::make_shared<X509_Certificate>(end_certs[0]));
 
    /*
    * This is an inelegant but functional way of preventing path loops
@@ -174,7 +174,7 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
    std::set<std::string> certs_seen;
 
    cert_path.push_back(end_certs[0]);
-   certs_seen.insert(end_certs[0]->fingerprint("SHA-256"));
+   certs_seen.insert(cert_path[0]->fingerprint("SHA-256"));
 
    Certificate_Store_In_Memory ee_extras;
    for(size_t i = 1; i != end_certs.size(); ++i)
@@ -208,21 +208,24 @@ Path_Validation_Result BOTAN_DLL x509_path_validate(
       if(!issuer)
          return Path_Validation_Result(Certificate_Status_Code::CERT_ISSUER_NOT_FOUND);
 
-      const std::string fprint = cert->fingerprint("SHA-256");
+      const std::string fprint = issuer->fingerprint("SHA-256");
       if(certs_seen.count(fprint) > 0)
          return Path_Validation_Result(Certificate_Status_Code::CERT_CHAIN_LOOP);
       certs_seen.insert(fprint);
 
-      cert_path.push_back(cert);
+      cert_path.push_back(issuer);
 
       if(trusted_issuer)
+         {
          break; // reached a trust root
-      if(cert->is_self_signed())
+         }
+      else if(issuer->is_self_signed())
+         {
          break; // can go no further
+         }
       // otherwise try to find the issuer of cert in the next loop
       }
 
-   std::vector<
    std::vector<std::future<const OCSP::Response>> ocsp;
 
    if(cert_path.size() >= 2 && end_entity.ocsp_responder())
@@ -289,10 +292,8 @@ Path_Validation_Result x509_path_validate(
    }
 
 Path_Validation_Restrictions::Path_Validation_Restrictions(bool require_rev,
-                                                           size_t key_strength,
-                                                           bool ocsp_all) :
+                                                           size_t key_strength) :
    m_require_revocation_information(require_rev),
-   m_ocsp_all_intermediates(ocsp_all),
    m_minimum_key_strength(key_strength)
    {
    if(key_strength <= 80)
