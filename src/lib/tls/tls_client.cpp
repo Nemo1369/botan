@@ -370,16 +370,6 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
       }
    else if(type == CERTIFICATE)
       {
-      if(state.ciphersuite().kex_algo() != "RSA")
-         {
-         state.set_expected_next(SERVER_KEX);
-         }
-      else
-         {
-         state.set_expected_next(CERTIFICATE_REQUEST); // optional
-         state.set_expected_next(SERVER_HELLO_DONE);
-         }
-
       state.server_certs(new Certificate(contents, policy()));
 
       const std::vector<X509_Certificate>& server_certs =
@@ -405,6 +395,35 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
                              "Certificate key type did not match ciphersuite");
 
       state.server_public_key.reset(peer_key.release());
+
+      if(state.ciphersuite().kex_algo() != "RSA")
+         {
+         state.set_expected_next(SERVER_KEX);
+         }
+      else
+         {
+         state.set_expected_next(CERTIFICATE_REQUEST); // optional
+         state.set_expected_next(SERVER_HELLO_DONE);
+         }
+
+      if(state.server_hello()->supports_cert_status_message())
+         {
+         state.set_expected_next(CERTIFICATE_STATUS); // optional
+         }
+      }
+   else if(type == CERTIFICATE_STATUS)
+      {
+      state.certificate_status(new Certificate_Status(contents));
+
+      if(state.ciphersuite().kex_algo() != "RSA")
+         {
+         state.set_expected_next(SERVER_KEX);
+         }
+      else
+         {
+         state.set_expected_next(CERTIFICATE_REQUEST); // optional
+         state.set_expected_next(SERVER_HELLO_DONE);
+         }
       }
    else if(type == SERVER_KEX)
       {

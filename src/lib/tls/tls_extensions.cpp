@@ -56,10 +56,9 @@ Extension* make_extension(TLS_Data_Reader& reader,
 
       case TLSEXT_SESSION_TICKET:
          return new Session_Ticket(reader, size);
-
-      default:
-         return nullptr; // not known
       }
+
+   return nullptr; // not known
    }
 
 }
@@ -601,7 +600,7 @@ std::vector<byte> Extended_Master_Secret::serialize() const
    }
 
 Encrypt_then_MAC::Encrypt_then_MAC(TLS_Data_Reader&,
-                                               u16bit extension_size)
+                                   u16bit extension_size)
    {
    if(extension_size != 0)
       throw Decoding_Error("Invalid encrypt_then_mac extension");
@@ -610,6 +609,39 @@ Encrypt_then_MAC::Encrypt_then_MAC(TLS_Data_Reader&,
 std::vector<byte> Encrypt_then_MAC::serialize() const
    {
    return std::vector<byte>();
+   }
+
+std::vector<byte> Certificate_Status_Request::serialize() const
+   {
+   /*
+   opaque ResponderID<1..2^16-1>;
+   opaque Extensions<0..2^16-1>;
+
+   CertificateStatusType status_type = ocsp(1)
+   ResponderID responder_id_list<0..2^16-1>
+   Extensions  request_extensions;
+   */
+
+   std::vector<byte> buf;
+   buf.push_back(1); // CertificateStatusType ocsp
+
+
+
+   return buf;
+   }
+
+Certificate_Status_Request::Certificate_Status_Request()
+   {
+
+   }
+
+Certificate_Status_Request::Certificate_Status_Request(TLS_Data_Reader& reader,
+                                                       u16bit extension_size)
+   {
+   if(extension_size > 0)
+      {
+
+      }
    }
 
 }
