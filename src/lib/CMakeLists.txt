@@ -1,519 +1,1272 @@
+if (NOT TARGET botan::asn1)
+    add_subdirectory(asn1)
+endif()
+
+if (NOT TARGET botan::x509)
+    add_subdirectory(cert/x509)
+endif()
+
+if (NOT TARGET botan::base64)
+    add_subdirectory(codec/base64)
+endif()
+
+if (NOT TARGET botan::hex)
+    add_subdirectory(codec/hex)
+endif()
+
+if (NOT TARGET botan::compression)
+    add_subdirectory(compression)
+endif()
+
+if (NOT TARGET botan::entropy_rng)
+    include(entropy_rng.cmake)
+endif()
+
+if (NOT TARGET botan::ffi)
+    add_subdirectory(ffi)
+endif()
+
+if (NOT TARGET botan::filters)
+    add_subdirectory(filters)
+endif()
+
+if (NOT TARGET botan::codec_filt)
+    add_subdirectory(filters/codec_filt)
+endif()
+
+if (UNIX AND NOT TARGET botan::fd_unix)
+    add_subdirectory(filters/fd_unix)
+endif()
+
+if (NOT TARGET botan::mac)
+    add_subdirectory(mac)
+endif()
+
+if (NOT TARGET botan::bigint_mp)
+    add_subdirectory(math)
+endif()
+
+if (NOT TARGET botan::ec_gfp)
+    add_subdirectory(math/ec_gfp)
+endif()
+
+if (NOT TARGET botan::numbertheory)
+    add_subdirectory(math/numbertheory)
+endif()
+
+if (NOT TARGET botan::aont)
+    add_subdirectory(misc/aont)
+endif()
+
+if (NOT TARGET botan::cryptobox)
+    add_subdirectory(misc/cryptobox)
+endif()
+
+if (NOT TARGET botan::fpe_fe1)
+    add_subdirectory(misc/fpe_fe1)
+endif()
+
+if (NOT TARGET botan::openpgp)
+    add_subdirectory(misc/openpgp)
+endif()
+
+if (NOT TARGET botan::pbes2)
+    add_subdirectory(misc/pbes2)
+endif()
+
+if (NOT TARGET botan::pem)
+    add_subdirectory(misc/pem)
+endif()
+
+if (NOT TARGET botan::rfc3394)
+    add_subdirectory(misc/rfc3394)
+endif()
+
+if (NOT TARGET botan::srp6)
+    add_subdirectory(misc/srp6)
+endif()
+
+if (NOT TARGET botan::tss)
+    add_subdirectory(misc/tss)
+endif()
+
+if (NOT TARGET botan::modes)
+    add_subdirectory(modes)
+endif()
+
+if (NOT TARGET botan::aead)
+    add_subdirectory(modes/aead)
+endif()
+
+if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
+        ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86" AND NOT TARGET botan::cmul)
+    add_subdirectory(modes/aead/gcm/clmul)
+endif()
+
+if (NOT TARGET botan::bcrypt)
+    add_subdirectory(passhash/bcrypt)
+endif()
+
+if (NOT TARGET botan::passhash9)
+    add_subdirectory(passhash/passhash9)
+endif()
+
+if (NOT TARGET botan::pbkdf)
+    add_subdirectory(pbkdf)
+endif()
+
+if (NOT TARGET botan::pk_pad)
+    add_subdirectory(pk_pad)
+endif()
+
+if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    find_package(OpenSSL)
+
+    if (NOT TARGET botan::openssl AND OPENSSL_FOUND)
+        add_subdirectory(prov/openssl)
+    endif()
+else()
+
+endif()
+
+if (NOT TARGET boost::pkcs11)
+    add_subdirectory(prov/pkcs11)
+endif()
+
+#if (NOT TARGET botan::tpm)
+#    add_subdirectory(prov/tpm)
+#endif()
+
+if (NOT TARGET botan::pubkey)
+    add_subdirectory(pubkey)
+endif()
+
+if (NOT TARGET botan::newhope)
+    add_subdirectory(pubkey/newhope)
+endif()
+
+if (NOT TARGET botan::rfc6979)
+    add_subdirectory(pubkey/rfc6979)
+endif()
+
+if (NOT TARGET botan::dlies)
+    add_subdirectory(pubkey/dlies)
+endif()
+
+if (NOT TARGET botan::mceies)
+    add_subdirectory(pubkey/mceies)
+endif()
+
+if (NOT TARGET botan::x931_rng)
+    add_subdirectory(rng/x931_rng)
+endif()
+
+if (NOT TARGET botan::tls)
+    add_subdirectory(tls)
+endif()
+
+if (NOT TARGET botan::sessions_sql)
+    add_subdirectory(tls/sessions_sql)
+endif()
+
+if (NOT TARGET botan::sessions_sqlite3)
+    add_subdirectory(tls/sessions_sqlite3)
+endif()
+
+if (NOT TARGET botan::utils)
+    add_subdirectory(utils)
+endif()
+
+if (NOT TARGET botan::datastor)
+    add_subdirectory(utils/datastor)
+endif()
+
+if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
+        ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86" AND NOT TARGET
+        botan::dyn_load)
+    add_subdirectory(utils/dyn_load)
+endif()
+
+if (NOT TARGET botan::http_util)
+    add_subdirectory(utils/http_util)
+endif()
+
+if (NOT TARGET botan::simd)
+    add_subdirectory(utils/simd)
+endif()
+
+if (NOT TARGET botan::sqlite3_interface)
+    add_subdirectory(utils/sqlite3_interface)
+endif()
+
+cmake_policy(SET CMP0042 NEW)
+cmake_policy(SET CMP0028 NEW)
+
 set(CURRENT_TARGET botan)
 
-include_directories("${CMAKE_SOURCE_DIR}/build/include")
+list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+    block/block_cipher.h
+    )
 
-option(DYN_LOAD_MODULE "Build with dyn_load usage support" FALSE)
-option(TLS_RECORD_MODULE "Build with tls record usage support" TRUE)
-option(LOCKING_ALLOCATOR_MODULE "Build with locking allocator usage support" TRUE)
-option(AES_NI_MODULE "Build with NI for AES usage support" TRUE)
-option(CLMUL_MODULE "Build with clmul usage support" TRUE)
-option(RDRAND_ENTROPY_MODULE "Build with rdrand entropy source usage support" TRUE)
-option(THREEFISH_AVX2_MODULE "Build with AVX2 for Threefish usage support" TRUE)
-option(SHA_SSE2_MODULE "Build with SSE2 for SHA usage support" TRUE)
-option(AES_SSE2_MODULE "Build with SSE2 for AES usage support" TRUE)
-option(CHACHA_SSE2_MODULE "Build with SSE2 for ChaCha usage support" TRUE)
-option(AES_SSSE3_MODULE "Build with SSSE3 for AES usage support" TRUE)
-option(CVC_MODULE "Build with CVC usage support" FALSE)
-option(RDSEED_MODULE "Build with Intel RDSeed usage support" TRUE)
-option(SQL_SESSIONS_MODULE "Build with SQL sessions storage support" TRUE)
+list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
+    block/block_cipher.cpp
+    )
 
-option(BUILD_ASN1_MODULE "Build with ASN1 module" TRUE)
-option(BUILD_BASE_MODULE "Build with BASE module" TRUE)
+option(BOTAN_BLOCK_AES "Build with AES block encryption support" TRUE)
+option(BOTAN_BLOCK_AES_SSSE3 "Build with AES block encryption through SSSE3
+instruction set support" TRUE)
+option(BOTAN_BLOCK_AES_NI "Build with AES NI block encryption support" TRUE)
+option(BOTAN_BLOCK_BLOWFISH "Build with Blowfish block encryption support" TRUE)
+option(BOTAN_BLOCK_CAMELLIA "Build with Camellia block encryption support" TRUE)
+option(BOTAN_BLOCK_CAST "Build with Cast block encryption support" TRUE)
+option(BOTAN_BLOCK_CASCADE "Build with Cascade block encryption support" TRUE)
+option(BOTAN_BLOCK_DES "Build with DES block encryption support" TRUE)
+option(BOTAN_BLOCK_GOST_28147_89 "Build with GOST.28147.89 block encryption support" TRUE)
+option(BOTAN_BLOCK_IDEA "Build with IDEA block encryption support" TRUE)
+option(BOTAN_BLOCK_IDEA_SSE2 "Build with IDEA block encryption through SSE2 instruction set support" TRUE)
+option(BOTAN_BLOCK_KASUMI "Build with Kasumi block encryption support" TRUE)
+option(BOTAN_BLOCK_LION "Build with LION block encryption support" TRUE)
+option(BOTAN_BLOCK_MISTY1 "Build with Misty1 block encryption support" TRUE)
+option(BOTAN_BLOCK_NOEKEON "Build with Noekeon block encryption support" TRUE)
+option(BOTAN_BLOCK_NOEKEON_SIMD "Build with Noekeon block encryption throught SMID instruction set support" TRUE)
+option(BOTAN_BLOCK_SEED "Build with Seed block encryption support" TRUE)
+option(BOTAN_BLOCK_SERPENT "Build with Serpent block encryption support" TRUE)
+option(BOTAN_BLOCK_SERPENT_SMID "Build with Serpent block encryption through SMID instruction set support" TRUE)
+option(BOTAN_BLOCK_TWOFISH "Build with Twofish block encryption support" TRUE)
+option(BOTAN_BLOCK_THREEFISH_512 "Build with Threefish block encryption support" TRUE)
+option(BOTAN_BLOCK_THREEFISH_512_AVX2 "Build with Threefish block encryption through AVX2 instruction set support" TRUE)
+option(BOTAN_BLOCK_XTEA "Build with XTEA block encryption support" TRUE)
 
-if(BUILD_ASN1_MODULE)
-    list(APPEND CURRENT_TARGET_ASN1_MODULE_SOURCES
-            asn1/alg_id.cpp
-            asn1/asn1_alt_name.cpp
-            asn1/asn1_attribute.cpp
-            asn1/asn1_obj.cpp
-            asn1/asn1_oid.cpp
-            asn1/asn1_str.cpp
-            asn1/asn1_time.cpp
-            asn1/ber_dec.cpp
-            asn1/der_enc.cpp
-            asn1/oid_lookup/default.cpp
-            asn1/oid_lookup/oids.cpp
-            asn1/x509_dn.cpp
-            )
-
-    list(APPEND CURRENT_TARGET_SOURCES ${CURRENT_TARGET_ASN1_MODULE_SOURCES})
+if (NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR NOT
+        ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86")
+    set(BOTAN_BLOCK_AES_NI FALSE)
+    set(BOTAN_BLOCK_AES_SSSE3 FALSE)
+    set(BOTAN_BLOCK_IDEA_SSE2 FALSE)
+    set(BOTAN_BLOCK_THREEFISH_512_AVX2 FALSE)
 endif()
 
-if(BUILD_BASE_MODULE)
-    list(APPEND CURRENT_TARGET_BASE_MODULE_SOURCES
-            base/init.cpp
-            base/scan_name.cpp
-            base/symkey.cpp
-            )
-
-    list(APPEND CURRENT_TARGET_SOURCES ${CURRENT_TARGET_BASE_MODULE_SOURCES})
-endif()
-
-# libbotan
-list(APPEND CURRENT_TARGET_SOURCES
-        block/block_cipher.cpp
-        block/aes/aes.cpp
-        block/blowfish/blfs_tab.cpp
-        block/blowfish/blowfish.cpp
-        block/camellia/camellia.cpp
-        block/cascade/cascade.cpp
-        block/cast/cast128.cpp
-        block/cast/cast256.cpp
-        block/des/des.cpp
-        block/des/des_tab.cpp
-        block/des/desx.cpp
-        block/gost_28147/gost_28147.cpp
-        block/idea/idea.cpp
-        block/kasumi/kasumi.cpp
-        block/lion/lion.cpp
-        block/misty1/misty1.cpp
-        block/noekeon/noekeon.cpp
-        block/noekeon_simd/noekeon_simd.cpp
-        block/seed/seed.cpp
-        block/serpent/serpent.cpp
-        block/serpent_simd/serp_simd.cpp
-        block/threefish/threefish.cpp
-        block/twofish/twofish.cpp
-        block/twofish/two_tab.cpp
-        block/xtea/xtea.cpp
-        cert/x509/certstor.cpp
-        cert/x509/crl_ent.cpp
-        cert/x509/key_constraint.cpp
-        cert/x509/name_constraint.cpp
-        cert/x509/ocsp.cpp
-        cert/x509/ocsp_types.cpp
-        cert/x509/pkcs10.cpp
-        cert/x509/x509_ca.cpp
-        cert/x509/x509cert.cpp
-        cert/x509/x509_crl.cpp
-        cert/x509/x509_ext.cpp
-        cert/x509/x509_obj.cpp
-        cert/x509/x509opt.cpp
-        cert/x509/x509path.cpp
-        cert/x509/x509self.cpp
-        codec/base64/base64.cpp
-        codec/hex/hex.cpp
-        compression/compression.cpp
-        entropy/dev_random/dev_random.cpp
-        entropy/egd/es_egd.cpp
-        entropy/entropy_srcs.cpp
-        entropy/proc_walk/proc_walk.cpp
-        entropy/unix_procs/unix_procs.cpp
-        entropy/unix_procs/unix_proc_sources.cpp
-        ffi/ffi.cpp
-        filters/algo_filt.cpp
-        filters/basefilt.cpp
-        filters/buf_filt.cpp
-        filters/cipher_filter.cpp
-        filters/codec_filt/b64_filt.cpp
-        filters/codec_filt/hex_filt.cpp
-        filters/comp_filter.cpp
-        filters/data_snk.cpp
-        filters/fd_unix/fd_unix.cpp
-        filters/filter.cpp
-        filters/key_filt.cpp
-        filters/out_buf.cpp
-        filters/pipe.cpp
-        filters/pipe_io.cpp
-        filters/pipe_rw.cpp
-        filters/secqueue.cpp
-        filters/threaded_fork.cpp
-        hash/blake2/blake2b.cpp
-        hash/checksum/adler32/adler32.cpp
-        hash/checksum/crc24/crc24.cpp
-        hash/checksum/crc32/crc32.cpp
-        hash/comb4p/comb4p.cpp
-        hash/gost_3411/gost_3411.cpp
-        hash/hash.cpp
-        hash/keccak/keccak.cpp
-        hash/md4/md4.cpp
-        hash/md5/md5.cpp
-        hash/mdx_hash/mdx_hash.cpp
-        hash/par_hash/par_hash.cpp
-        hash/rmd160/rmd160.cpp
-        hash/sha1/sha160.cpp
-        hash/sha2_32/sha2_32.cpp
-        hash/sha2_64/sha2_64.cpp
-        hash/skein/skein_512.cpp
-        hash/tiger/tiger.cpp
-        hash/tiger/tig_tab.cpp
-        hash/whirlpool/whirlpool.cpp
-        hash/whirlpool/whrl_tab.cpp
-        kdf/hkdf/hkdf.cpp
-        kdf/kdf1/kdf1.cpp
-        kdf/kdf1_iso18033/kdf1_iso18033.cpp
-        kdf/kdf2/kdf2.cpp
-        kdf/kdf.cpp
-        kdf/prf_tls/prf_tls.cpp
-        kdf/prf_x942/prf_x942.cpp
-        kdf/sp800_56c/sp800_56c.cpp
-        kdf/sp800_108/sp800_108.cpp
-        mac/cbc_mac/cbc_mac.cpp
-        mac/cmac/cmac.cpp
-        mac/hmac/hmac.cpp
-        mac/mac.cpp
-        mac/poly1305/poly1305.cpp
-        mac/siphash/siphash.cpp
-        mac/x919_mac/x919_mac.cpp
-        math/bigint/big_code.cpp
-        math/bigint/bigint.cpp
-        math/bigint/big_io.cpp
-        math/bigint/big_ops2.cpp
-        math/bigint/big_ops3.cpp
-        math/bigint/big_rand.cpp
-        math/bigint/divide.cpp
-        math/ec_gfp/curve_gfp.cpp
-        math/ec_gfp/curve_nistp.cpp
-        math/ec_gfp/point_gfp.cpp
-        math/mp/mp_comba.cpp
-        math/mp/mp_core.cpp
-        math/mp/mp_karat.cpp
-        math/mp/mp_monty.cpp
-        math/numbertheory/dsa_gen.cpp
-        math/numbertheory/jacobi.cpp
-        math/numbertheory/make_prm.cpp
-        math/numbertheory/mp_numth.cpp
-        math/numbertheory/numthry.cpp
-        math/numbertheory/powm_fw.cpp
-        math/numbertheory/powm_mnt.cpp
-        math/numbertheory/pow_mod.cpp
-        math/numbertheory/primes.cpp
-        math/numbertheory/reducer.cpp
-        math/numbertheory/ressol.cpp
-        misc/aont/package.cpp
-        misc/cryptobox/cryptobox.cpp
-        misc/fpe_fe1/fpe_fe1.cpp
-        misc/openpgp/openpgp.cpp
-        misc/pbes2/pbes2.cpp
-        misc/pem/pem.cpp
-        misc/rfc3394/rfc3394.cpp
-        misc/srp6/srp6.cpp
-        misc/srp6/srp6_files.cpp
-        misc/tss/tss.cpp
-        modes/aead/aead.cpp
-        modes/aead/ccm/ccm.cpp
-        modes/aead/chacha20poly1305/chacha20poly1305.cpp
-        modes/aead/eax/eax.cpp
-        modes/aead/gcm/gcm.cpp
-        modes/aead/ocb/ocb.cpp
-        modes/aead/siv/siv.cpp
-        modes/cbc/cbc.cpp
-        modes/cfb/cfb.cpp
-        modes/cipher_mode.cpp
-        modes/ecb/ecb.cpp
-        modes/mode_pad/mode_pad.cpp
-        modes/xts/xts.cpp
-        passhash/bcrypt/bcrypt.cpp
-        passhash/passhash9/passhash9.cpp
-        pbkdf/pbkdf1/pbkdf1.cpp
-        pbkdf/pbkdf2/pbkdf2.cpp
-        pbkdf/pbkdf.cpp
-        pk_pad/eme.cpp
-        pk_pad/eme_oaep/oaep.cpp
-        pk_pad/eme_pkcs1/eme_pkcs.cpp
-        pk_pad/eme_raw/eme_raw.cpp
-        pk_pad/emsa.cpp
-        pk_pad/emsa1/emsa1.cpp
-        pk_pad/emsa_pkcs1/emsa_pkcs1.cpp
-        pk_pad/emsa_pssr/pssr.cpp
-        pk_pad/emsa_raw/emsa_raw.cpp
-        pk_pad/emsa_x931/emsa_x931.cpp
-        pk_pad/hash_id/hash_id.cpp
-        pk_pad/mgf1/mgf1.cpp
-        pubkey/blinding.cpp
-        pubkey/curve25519/curve25519.cpp
-        pubkey/curve25519/donna.cpp
-        pubkey/dh/dh.cpp
-        pubkey/dl_algo/dl_algo.cpp
-        pubkey/dl_group/dl_group.cpp
-        pubkey/dl_group/named.cpp
-        pubkey/dlies/dlies.cpp
-        pubkey/dsa/dsa.cpp
-        pubkey/ecc_key/ecc_key.cpp
-        pubkey/ecdh/ecdh.cpp
-        pubkey/ecdsa/ecdsa.cpp
-        pubkey/ecgdsa/ecgdsa.cpp
-        pubkey/ecies/ecies.cpp
-        pubkey/eckcdsa/eckcdsa.cpp
-        pubkey/ec_group/ec_group.cpp
-        pubkey/ec_group/named.cpp
-        pubkey/elgamal/elgamal.cpp
-        pubkey/gost_3410/gost_3410.cpp
-        pubkey/keypair/keypair.cpp
-        pubkey/mce/code_based_key_gen.cpp
-        pubkey/mce/gf2m_rootfind_dcmp.cpp
-        pubkey/mce/gf2m_small_m.cpp
-        pubkey/mce/goppa_code.cpp
-        pubkey/mceies/mceies.cpp
-        pubkey/mce/mceliece.cpp
-        pubkey/mce/mceliece_key.cpp
-        pubkey/mce/polyn_gf2m.cpp
-        pubkey/mce/workfactor.cpp
-        pubkey/newhope/newhope.cpp
-        pubkey/pk_algs.cpp
-        pubkey/pkcs8.cpp
-        pubkey/pk_keys.cpp
-        pubkey/pk_ops.cpp
-        pubkey/pubkey.cpp
-        pubkey/rfc6979/rfc6979.cpp
-        pubkey/rsa/rsa.cpp
-        pubkey/workfactor.cpp
-        pubkey/x509_key.cpp
-        rng/hmac_drbg/hmac_drbg.cpp
-        rng/hmac_rng/hmac_rng.cpp
-        rng/rng.cpp
-        rng/auto_rng/auto_rng.cpp
-        rng/stateful_rng/stateful_rng.cpp
-        rng/system_rng/system_rng.cpp
-        rng/x931_rng/x931_rng.cpp
-        stream/chacha/chacha.cpp
-        stream/ctr/ctr.cpp
-        stream/ofb/ofb.cpp
-        stream/rc4/rc4.cpp
-        stream/salsa20/salsa20.cpp
-        stream/stream_cipher.cpp
-        tls/credentials_manager.cpp
-        tls/msg_certificate.cpp
-        tls/msg_cert_req.cpp
-        tls/msg_cert_verify.cpp
-        tls/msg_client_hello.cpp
-        tls/msg_client_kex.cpp
-        tls/msg_finished.cpp
-        tls/msg_hello_verify.cpp
-        tls/msg_server_hello.cpp
-        tls/msg_server_kex.cpp
-        tls/msg_session_ticket.cpp
-        tls/tls_alert.cpp
-        tls/tls_blocking.cpp
-        tls/tls_channel.cpp
-        tls/tls_ciphersuite.cpp
-        tls/tls_client.cpp
-        tls/tls_extensions.cpp
-        tls/tls_handshake_hash.cpp
-        tls/tls_handshake_io.cpp
-        tls/tls_handshake_state.cpp
-        tls/tls_policy.cpp
-        tls/tls_server.cpp
-        tls/tls_record.cpp
-        tls/tls_session.cpp
-        tls/tls_session_key.cpp
-        tls/tls_session_manager_memory.cpp
-        tls/tls_suite_info.cpp
-        tls/tls_version.cpp
-        utils/assert.cpp
-        utils/calendar.cpp
-        utils/charset.cpp
-        utils/cpuid.cpp
-        utils/data_src.cpp
-        utils/datastor/datastor.cpp
-        utils/filesystem.cpp
-        utils/http_util/http_util.cpp
-        utils/locking_allocator/locking_allocator.cpp
-        utils/os_utils.cpp
-        utils/parsing.cpp
-        utils/read_cfg.cpp
-        utils/semaphore.cpp
-        utils/version.cpp
-        utils/zero_mem.cpp
+if (BOTAN_BLOCK_AES)
+    list(APPEND ${CURRENT_TARGET}_AES_HEADERS
+        block/aes/aes.h    
         )
 
-if(APPLE AND BUILD_FOR_IOS)
-    set(DYN_LOAD_MODULE FALSE)
-    set(AES_NI_MODULE FALSE)
-    set(LOCKING_ALLOCATOR_MODULE FALSE)
-    set(CLMUL_MODULE FALSE)
-    set(RDRAND_ENTROPY_MODULE FALSE)
-    set(THREEFISH_AVX2_MODULE FALSE)
-    set(SHA_SSE2_MODULE FALSE)
-    set(AES_SSE2_MODULE FALSE)
-    set(CHACHA_SSE2_MODULE FALSE)
-    set(AES_SSSE3_MODULE FALSE)
-    set(CVC_MODULE FALSE)
-    set(RDSEED_MODULE FALSE)
+    list(APPEND ${CURRENT_TARGET}_AES_SOURCES
+        block/aes/aes.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_AES)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_AES_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_AES_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_AES_SSSE3)
+    list(APPEND ${CURRENT_TARGET}_AES_SSSE3_HEADERS
+        block/aes_ssse3/aes_ssse3.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_AES_SSSE3_SOURCES
+        block/aes_ssse3/aes_ssse3.cpp
+        )
+
+    set_source_files_properties(aes_ssse3/aes_ssse3.cpp 
+        PROPERTIES COMPILE_FLAGS "-mssse3")
+
+    add_definitions(-DBOTAN_HAS_AES_SSSE3)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_AES_SSSE3_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_AES_SSSE3_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_AES_NI)
+    list(APPEND ${CURRENT_TARGET}_AES_NI_HEADERS
+        block/aes_ni/aes_ni.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_AES_NI_SOURCES
+        block/aes_ni/aes_ni.cpp
+        )
+
+    set_source_files_properties(aes_ni/aes_ni.cpp 
+        PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
+
+    add_definitions(-DBOTAN_HAS_AES_NI)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_AES_NI_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_AES_NI_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_BLOWFISH)
+    list(APPEND ${CURRENT_TARGET}_BLOWFISH_HEADERS
+        block/blowfish/blowfish.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_BLOWFISH_SOURCES
+        block/blowfish/blfs_tab.cpp
+        block/blowfish/blowfish.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_BLOWFISH)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_BLOWFISH_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_BLOWFISH_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_CAMELLIA)
+    list(APPEND ${CURRENT_TARGET}_CAMELLIA_HEADERS
+        block/camellia/camellia.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CAMELLIA_SOURCES
+        block/camellia/camellia.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CAMELLIA)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CAMELLIA_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CAMELLIA_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_CASCADE)
+    list(APPEND ${CURRENT_TARGET}_CASCADE_HEADERS
+        block/cascade/cascade.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CASCADE_SOURCES
+        block/cascade/cascade.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CASCADE)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CASCADE_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CASCADE_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_CAST)
+    list(APPEND ${CURRENT_TARGET}_CAST_PRIVATE_HEADERS
+        block/cast/cast_sboxes.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CAST_PUBLIC_HEADERS
+        block/cast/cast128.h
+        block/cast/cast256.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CAST_SOURCES
+        block/cast/cast128.cpp
+        block/cast/cast256.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CAST)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CAST_PUBLIC_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
+        ${${CURRENT_TARGET}_CAST_PRIVATE_HEADERS}
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CAST_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_DES)
+    list(APPEND ${CURRENT_TARGET}_DES_HEADERS
+        block/des/des.h
+        block/des/desx.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_DES_SOURCES
+        block/des/des.cpp
+        block/des/desx.cpp
+        block/des/des_tab.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_DES)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_DES_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_DES_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_GOST_28147_89)
+    list(APPEND ${CURRENT_TARGET}_GOST_28147_89_HEADERS
+        block/gost_28147/gost_28147.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_GOST_28147_89_SOURCES
+        block/gost_28147/gost_28147.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_GOST_28147_89)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_GOST_28147_89_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_GOST_28147_89_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_IDEA)
+    list(APPEND ${CURRENT_TARGET}_IDEA_HEADERS
+        block/idea/idea.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_IDEA_SOURCES
+        block/idea/idea.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_IDEA)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_IDEA_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_IDEA_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_IDEA_SSE2)
+    list(APPEND ${CURRENT_TARGET}_IDEA_SSE2_HEADERS
+        block/idea_sse2/idea_sse2.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_IDEA_SSE2_SOURCES
+        block/idea_sse2/idea_sse2.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_IDEA_SSE2)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_IDEA_SSE2_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_IDEA_SSE2_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_KASUMI)
+    list(APPEND ${CURRENT_TARGET}_KASUMI_HEADERS
+        block/kasumi/kasumi.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_KASUMI_SOURCES
+        block/kasumi/kasumi.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_KASUMI)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_KASUMI_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_KASUMI_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_LION)
+    list(APPEND ${CURRENT_TARGET}_LION_HEADERS
+        block/lion/lion.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_LION_SOURCES
+        block/lion/lion.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_LION)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_LION_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_LION_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_MISTY1)
+    list(APPEND ${CURRENT_TARGET}_MISTY1_HEADERS
+        block/misty1/misty1.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_MISTY1_SOURCES
+        block/misty1/misty1.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_MISTY1)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_MISTY1_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_MISTY1_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_NOEKEON)
+    list(APPEND ${CURRENT_TARGET}_NOEKEON_HEADERS
+        block/noekeon/noekeon.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_NOEKEON_SOURCES
+        block/noekeon/noekeon.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_NOEKEON)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_NOEKEON_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_NOEKEON_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_NOEKEON_SIMD)
+    list(APPEND ${CURRENT_TARGET}_NOEKEON_SIMD_HEADERS
+        block/noekeon_simd/noekeon_simd.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_NOEKEON_SIMD_SOURCES
+        block/noekeon_simd/noekeon_simd.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_NOEKEON_SIMD)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_NOEKEON_SIMD_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_NOEKEON_SIMD_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_SEED)
+    list(APPEND ${CURRENT_TARGET}_SEED_HEADERS
+        block/seed/seed.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SEED_SOURCES
+        block/seed/seed.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SEED)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SEED_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SEED_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_SERPENT)
+    list(APPEND ${CURRENT_TARGET}_PRIVATE_SERPENT_HEADERS
+        block/serpent/serpent_sbox.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_SERPENT_HEADERS
+        block/serpent/serpent.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SERPENT_SOURCES
+        block/serpent/serpent.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SERPENT)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_PUBLIC_SERPENT_HEADERS}
+        )
+
+    list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
+        ${${CURRENT_TARGET}_PRIVATE_SERPENT_HEADERS}
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SERPENT_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_SERPENT_SIMD)
+    list(APPEND ${CURRENT_TARGET}_SERPENT_SIMD_HEADERS
+        block/serpent_simd/serp_simd.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SERPENT_SIMD_SOURCES
+        block/serpent_simd/serp_simd.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SERPENT_SIMD)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SERPENT_SIMD_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SERPENT_SIMD_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_THREEFISH)
+    list(APPEND ${CURRENT_TARGET}_THREEFISH_HEADERS
+        block/threefish/threefish.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_THREEFISH_SOURCES
+        block/threefish/threefish.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_THREEFISH)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_THREEFISH_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_THREEFISH_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_THREEFISH_512_AVX2)
+    list(APPEND ${CURRENT_TARGET}_THREEFISH_AVX2_HEADERS
+        block/threefish_avx2/threefish_avx2.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_THREEFISH_AVX2_SOURCES
+        block/threefish_avx2/threefish_avx2.cpp
+        )
+
+    set_source_files_properties(threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
+
+    add_definitions(-DBOTAN_HAS_THREEFISH_AVX2)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_THREEFISH_AVX2_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_THREEFISH_AVX2_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_TWOFISH)
+    list(APPEND ${CURRENT_TARGET}_TWOFISH_HEADERS
+        block/twofish/twofish.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_TWOFISH_SOURCES
+        block/twofish/twofish.cpp
+        block/twofish/two_tab.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_TWOFISH)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_TWOFISH_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_TWOFISH_SOURCES}
+        )
+endif()
+
+if (BOTAN_BLOCK_XTEA)
+    list(APPEND ${CURRENT_TARGET}_XTEA_HEADERS
+        block/xtea/xtea.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_XTEA_SOURCES
+        block/xtea/xtea.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_XTEA)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_XTEA_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_XTEA_SOURCES}
+        )
+endif()
+
+list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+    stream/stream_cipher.h
+    )
+
+list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
+    stream/stream_cipher.cpp
+    )
+
+option(BOTAN_STREAM_CHACHA "Build with CHACHA stream encryption support" TRUE)
+option(BOTAN_STREAM_SALSA20 "Build with SALSA20 stream encryption support" TRUE)
+option(BOTAN_STREAM_CTR_BE "Build with CTR BE stream encryption support" TRUE)
+option(BOTAN_STREAM_OFB "Build with OFB stream encryption support" TRUE)
+option(BOTAN_STREAM_RC4 "Build with RC4 stream encryption support" TRUE)
+
+if (BOTAN_STREAM_CHACHA)
+    list(APPEND ${CURRENT_TARGET}_CHACHA_HEADERS
+        stream/chacha/chacha.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CHACHA_SOURCES
+        stream/chacha/chacha.cpp
+        )
+
+    if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
+            ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86")
+        add_definitions(-DBOTAN_HAS_CHACHA_SSE2)
+        list(APPEND ${CURRENT_TARGET}_CHACHA_SOURCES
+            stream/chacha/chacha_sse2/chacha_sse2.cpp
+            )
+    endif()
+
+    add_definitions(-DBOTAN_HAS_CHACHA)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CHACHA_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CHACHA_SOURCES}
+        )
+endif()
+
+if (BOTAN_STREAM_SALSA20)
+    list(APPEND ${CURRENT_TARGET}_SALSA20_HEADERS
+        stream/salsa20/salsa20.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SALSA20_SOURCES
+        stream/salsa20/salsa20.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SALSA20)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SALSA20_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SALSA20_SOURCES}
+        )
+endif()
+
+if (BOTAN_STREAM_CTR_BE)
+    list(APPEND ${CURRENT_TARGET}_CTR_BE_HEADERS
+        stream/ctr/ctr.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CTR_BE_SOURCES
+        stream/ctr/ctr.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CTR_BE)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CTR_BE_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CTR_BE_SOURCES}
+        )
+endif()
+
+if (BOTAN_STREAM_OFB)
+    list(APPEND ${CURRENT_TARGET}_OFB_HEADERS
+        stream/ofb/ofb.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_OFB_SOURCES
+        stream/ofb/ofb.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_OFB)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_OFB_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_OFB_SOURCES}
+        )
+endif()
+
+if (BOTAN_STREAM_RC4)
+    list(APPEND ${CURRENT_TARGET}_RC4_HEADERS
+        stream/rc4/rc4.h    
+        )
+
+    list(APPEND ${CURRENT_TARGET}_RC4_SOURCES
+        stream/rc4/rc4.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_RC4)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_RC4_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_RC4_SOURCES}
+        )
+endif()
+
+list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+    hash/hash.h
+    )
+
+list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
+    hash/hash.cpp
+    )
+
+if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86")
+    set(CMAKE_TARGET_ARCHITECTURE_SUPPORTS_SSE2 TRUE)
+endif()
+
+option(BOTAN_HASH_BLAKE2B "Build with Blake2 hash support" TRUE)
+option(BOTAN_HASH_CHECKSUM_ADLER32 "Build with Adler32 hash checksum support" TRUE)
+option(BOTAN_HASH_CHECKSUM_CRC24 "Build with CRC24 hash checksum support" TRUE)
+option(BOTAN_HASH_CHECKSUM_CRC32 "Build with CRC32 hash checksum support" TRUE)
+option(BOTAN_HASH_COMB4P "Build with Comb4p hash support" TRUE)
+option(BOTAN_HASH_GOST_34_11 "Build with GOST.34.11 hash support" TRUE)
+option(BOTAN_HASH_KECCAK "Build with Keccak hash support" TRUE)
+option(BOTAN_HASH_MD4 "Build with MD4 hash support" TRUE)
+option(BOTAN_HASH_MD5 "Build with MD5 hash support" TRUE)
+option(BOTAN_HASH_PARALLEL_HASH "Build with parallel hash support" TRUE)
+option(BOTAN_HASH_RIPEMD_160 "Build with Ripemd160 hash support" TRUE)
+option(BOTAN_HASH_SHA1 "Build with SHA1 hash support" TRUE)
+option(BOTAN_HASH_SHA1_SSE2 "Build with SHA1 through SSE2 instruction set hash support" ${CMAKE_TARGET_ARCHITECTURE_SUPPORTS_SSE2})
+option(BOTAN_HASH_SHA2_32 "Build with SHA2_32 hash support" TRUE)
+option(BOTAN_HASH_SHA2_64 "Build with SHA2_64 hash support" TRUE)
+option(BOTAN_HASH_SKEIN "Build with Skein hash support" TRUE)
+option(BOTAN_HASH_TIGER "Build with Tiger hash support" TRUE)
+option(BOTAN_HASH_WHIRLPOOL "Build with Whirlpool hash support" TRUE)
+
+if (BOTAN_HASH_BLAKE2B)
+    list(APPEND ${CURRENT_TARGET}_BLAKE2B_HEADERS
+        hash/blake2/blake2b.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_BLAKE2B_SOURCES
+        hash/blake2/blake2b.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_BLAKE2B)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_BLAKE2B_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_BLAKE2B_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_CHECKSUM_ADLER32)
+    list(APPEND ${CURRENT_TARGET}_ADLER32_HEADERS
+        hash/checksum/adler32/adler32.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_ADLER32_SOURCES
+        hash/checksum/adler32/adler32.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_ADLER32)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_ADLER32_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_ADLER32_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_CHECKSUM_CRC24)
+    list(APPEND ${CURRENT_TARGET}_CRC24_HEADERS
+        hash/checksum/crc24/crc24.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CRC24_SOURCES
+        hash/checksum/crc24/crc24.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CRC24)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CRC24_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CRC24_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_CHECKSUM_CRC32)
+    list(APPEND ${CURRENT_TARGET}_CRC32_HEADERS
+        hash/checksum/crc32/crc32.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_CRC32_SOURCES
+        hash/checksum/crc32/crc32.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_CRC32)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_CRC32_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_CRC32_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_COMB4P)
+    list(APPEND ${CURRENT_TARGET}_COMB4P_HEADERS
+        hash/comb4p/comb4p.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_COMB4P_SOURCES
+        hash/comb4p/comb4p.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_COMB4P)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_COMB4P_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_COMB4P_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_GOST_34_11)
+    list(APPEND ${CURRENT_TARGET}_GOST_34_11_HEADERS
+        hash/gost_3411/gost_3411.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_GOST_34_11_SOURCES
+        hash/gost_3411/gost_3411.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_GOST_34_11)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_GOST_34_11_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_GOST_34_11_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_KECCAK)
+    list(APPEND ${CURRENT_TARGET}_KECCAK_HEADERS
+        hash/keccak/keccak.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_KECCAK_SOURCES
+        hash/keccak/keccak.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_KECCAK)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_KECCAK_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_KECCAK_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_MD4)
+    list(APPEND ${CURRENT_TARGET}_MD4_HEADERS
+        hash/md4/md4.h
+        hash/mdx_hash/mdx_hash.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_MD4_SOURCES
+        hash/md4/md4.cpp
+        hash/mdx_hash/mdx_hash.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_MD4)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_MD4_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_MD4_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_MD5)
+    list(APPEND ${CURRENT_TARGET}_MD5_HEADERS
+        hash/md5/md5.h
+        hash/mdx_hash/mdx_hash.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_MD5_SOURCES
+        hash/md5/md5.cpp
+        hash/mdx_hash/mdx_hash.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_MD5)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_MD5_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_MD5_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_PARALLEL_HASH)
+    list(APPEND ${CURRENT_TARGET}_PARALLEL_HASH_HEADERS
+        hash/par_hash/par_hash.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_PARALLEL_HASH_SOURCES
+        hash/par_hash/par_hash.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_PARALLEL_HASH)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_PARALLEL_HASH_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_PARALLEL_HASH_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_RIPEMD_160)
+    list(APPEND ${CURRENT_TARGET}_RIPEMD_160_HEADERS
+        hash/rmd160/rmd160.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_RIPEMD_160_SOURCES
+        hash/rmd160/rmd160.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_RIPEMD_160)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_RIPEMD_160_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_RIPEMD_160_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_SHA1)
+    list(APPEND ${CURRENT_TARGET}_SHA1_HEADERS
+        hash/sha1/sha160.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SHA1_SOURCES
+        hash/sha1/sha160.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SHA1)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SHA1_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SHA1_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_SHA1_SSE2)
+    list(APPEND ${CURRENT_TARGET}_SHA1_SSE2_HEADERS
+        hash/sha1_sse2/sha1_sse2.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SHA1_SSE2_SOURCES
+        hash/sha1_sse2/sha1_sse2.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SHA1_SSE2)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SHA1_SSE2_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SHA1_SSE2_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_SHA2_32)
+    list(APPEND ${CURRENT_TARGET}_SHA2_32_HEADERS
+        hash/sha2_32/sha2_32.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SHA2_32_SOURCES
+        hash/sha2_32/sha2_32.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SHA2_32)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SHA2_32_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SHA2_32_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_SHA2_64)
+    list(APPEND ${CURRENT_TARGET}_SHA2_64_HEADERS
+        hash/sha2_64/sha2_64.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SHA2_64_SOURCES
+        hash/sha2_64/sha2_64.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SHA2_64)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SHA2_64_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SHA2_64_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_SKEIN_512)
+    list(APPEND ${CURRENT_TARGET}_SKEIN_512_HEADERS
+        hash/skein/skein_512.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_SKEIN_512_SOURCES
+        hash/skein/skein_512.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_SKEIN_512)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_SKEIN_512_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_SKEIN_512_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_TIGER)
+    list(APPEND ${CURRENT_TARGET}_TIGER_HEADERS
+        hash/tiger/tiger.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_TIGER_SOURCES
+        hash/tiger/tiger.cpp
+        hash/tiger/tig_tab.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_TIGER)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_TIGER_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_TIGER_SOURCES}
+        )
+endif()
+
+if (BOTAN_HASH_WHIRLPOOL)
+    list(APPEND ${CURRENT_TARGET}_WHIRLPOOL_HEADERS
+        hash/whirlpool/whrlpool.h
+        )
+
+    list(APPEND ${CURRENT_TARGET}_WHIRLPOOL_SOURCES
+        hash/whirlpool/whirlpool.cpp
+        hash/whirlpool/whrl_tab.cpp
+        )
+
+    add_definitions(-DBOTAN_HAS_WHIRLPOOL)
+    list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+        ${${CURRENT_TARGET}_WHIRLPOOL_HEADERS}
+        )
+    list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_WHIRLPOOL_SOURCES}
+        )
+endif()
+
+list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
+    base/botan.h
+    base/buf_comp.h
+    base/init.h
+    base/key_spec.h
+    base/lookup.h
+    base/secmem.h
+    base/scan_name.h
+    base/sym_algo.h
+    base/symkey.h
+    )
+
+list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
+    base/algo_registry.h
+    )
+
+list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
+    base/init.cpp
+    base/scan_name.cpp
+    base/symkey.cpp
+    )
+
+list(APPEND ${CURRENT_TARGET}_HEADERS
+    ${${CURRENT_TARGET}_PUBLIC_HEADERS}
+    ${${CURRENT_TARGET}_PRIVATE_HEADERS}
+    )
+
+list(APPEND ${CURRENT_TARGET}_SOURCES
+    ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
+    )
+
+if (BUILD_SHARED_LIBRARIES)
+    add_library(${CURRENT_TARGET} SHARED
+        ${${CURRENT_TARGET}_HEADERS}
+        ${${CURRENT_TARGET}_SOURCES}
+        )
+else()
+    add_library(${CURRENT_TARGET} STATIC
+        ${${CURRENT_TARGET}_HEADERS}
+        ${${CURRENT_TARGET}_SOURCES}
+        )
 endif()
 
 if(APPLE)
-    find_library(SECURITY_LIBRARY Security)
-
-    list(APPEND CURRENT_TARGET_LIBRARIES ${SECURITY_LIBRARY})
-
-    list(APPEND CURRENT_TARGET_SOURCES entropy/darwin_secrandom/darwin_secrandom.cpp)
+    set_target_properties(${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
 endif()
 
-if(RDRAND_ENTROPY_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES
-            rng/rdrand_rng/rdrand_rng.cpp
-            )
-endif()
+target_include_directories(${CURRENT_TARGET} PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
+    )
 
-if(SQL_SESSIONS_MODULE)
-    list(APPEND CURRENT_TARGET_INCLUDES
-            utils/sqlite3_interface/sqlite3
-            )
-    if(TARGET sqlite3)
-        list(APPEND CURRENT_TARGET_LIBRARIES
-                sqlite3
-                )
-    else()
-        add_subdirectory(utils/sqlite3_interface/sqlite3)
-        list(APPEND CURRENT_TARGET_LIBRARIES
-                sqlite3
-                )
-    endif()
+target_compile_options(${CURRENT_TARGET} PUBLIC
+    $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
 
-    list(APPEND CURRENT_TARGET_SOURCES
-            utils/sqlite3_interface/sqlite3_interface.cpp
-            tls/sessions_sqlite3/tls_session_manager_sqlite.cpp
-            tls/sessions_sql/tls_session_manager_sql.cpp)
+target_compile_options(${CURRENT_TARGET} PUBLIC
+    $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
 
-endif()
+target_compile_options(${CURRENT_TARGET} PUBLIC
+    $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
-if(RDSEED_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES entropy/rdseed/rdseed.cpp)
-endif()
+target_compile_options(${CURRENT_TARGET} PUBLIC
+    $<$<CONFIG:RELEASE>:${BOTAN_COMPILER_RELEASE_FLAGS}>)
 
-if(CVC_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES
-            cert/cvc/asn1_eac_str.cpp
-            cert/cvc/asn1_eac_tm.cpp
-            cert/cvc/cvc_ado.cpp
-            cert/cvc/cvc_req.cpp
-            cert/cvc/cvc_self.cpp
-            cert/cvc/ecdsa_sig.cpp
-            cert/cvc/signed_obj.cpp)
-endif()
+target_link_libraries(${CURRENT_TARGET} PRIVATE 
+    botan::bigint_mp
+    botan::hex
+    botan::utils
+    )
 
-if(DYN_LOAD_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES utils/dyn_load/dyn_load.cpp)
-endif()
+install(FILES ${${CURRENT_TARGET}_PUBLIC_HEADERS} DESTINATION ${CMAKE_BINARY_DIR}/include/botan)
 
-if(LOCKING_ALLOCATOR_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES utils/locking_allocator/locking_allocator.cpp)
-endif()
+install(FILES ${${CURRENT_TARGET}_PRIVATE_HEADERS} DESTINATION ${CMAKE_BINARY_DIR}/include/botan/internal)
 
-if(AES_NI_MODULE)
+foreach(ITERATOR ${${CURRENT_TARGET}_PUBLIC_HEADERS})
+    file(COPY ${ITERATOR} DESTINATION ${CMAKE_BINARY_DIR}/include/botan)
+endforeach()
 
-    set(CLMUL_MODULE TRUE)
+foreach(ITERATOR ${${CURRENT_TARGET}_PRIVATE_HEADERS})
+    file(COPY ${ITERATOR} DESTINATION ${CMAKE_BINARY_DIR}/include/botan/internal)
+endforeach()
 
-    list(APPEND CURRENT_TARGET_SOURCES block/aes_ni/aes_ni.cpp)
+install(TARGETS ${CURRENT_TARGET} EXPORT ${CURRENT_TARGET}_targets
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    )
 
-    # AES-NI
-    set_source_files_properties(block/aes_ni/aes_ni.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
-endif()
+install(EXPORT ${CURRENT_TARGET}_targets
+    FILE ${CURRENT_TARGET}_targets.cmake
+    DESTINATION lib/cmake/${CURRENT_TARGET}
+    )
 
-if(THREEFISH_AVX2_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES block/threefish_avx2/threefish_avx2.cpp)
+write_config_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake")
+write_basic_package_version_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+    VERSION ${BOTAN_VERSION}
+    COMPATIBILITY AnyNewerVersion
+    )
 
-    # AVX2
-    set_source_files_properties(block/threefish_avx2/threefish_avx2.cpp PROPERTIES COMPILE_FLAGS "-mavx2")
-endif()
+install(FILES
+    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
+    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+    DESTINATION lib/cmake/${CURRENT_TARGET}
+    )
 
-if(RDRAND_ENTROPY_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES entropy/rdrand/rdrand.cpp)
-endif()
-
-if(AES_SSE2_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES block/idea_sse2/idea_sse2.cpp)
-endif()
-
-if(SHA_SSE2_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES hash/sha1_sse2/sha1_sse2.cpp)
-endif()
-
-if(CHACHA_SSE2_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES stream/chacha/chacha_sse2/chacha_sse2.cpp)
-endif()
-
-if(AES_SSSE3_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES block/aes_ssse3/aes_ssse3.cpp)
-
-    # SSSE3
-    set_source_files_properties(block/aes_ssse3/aes_ssse3.cpp PROPERTIES COMPILE_FLAGS "-mssse3")
-endif()
-
-if(CLMUL_MODULE)
-    list(APPEND CURRENT_TARGET_SOURCES modes/aead/gcm/clmul/clmul.cpp)
-    set_source_files_properties(modes/aead/gcm/clmul/clmul.cpp PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
-endif()
-
-# add a new target to show help for options that we add
-# use add_custom_command(TARGET botan_help ...) to extend the help text
-add_custom_target(botan_help)
-
-if(WITH_LZMA)
-    find_package(LZMA)
-    if(LZMA_FOUND)
-        include_directories(${LZMA_INCLUDE_DIR})
-        set(BOTAN_LIBRARIES ${BOTAN_LIBRARIES} ${LZMA_LIBRARIES})
-        set(CURRENT_TARGET_SOURCES ${CURRENT_TARGET_SOURCES}
-                compression/lzma/lzma.cpp)
-    endif(LZMA_FOUND)
-endif(WITH_LZMA)
-add_custom_command(TARGET botan_help
-        COMMAND echo "  To build with lzma support use: cmake -DWITH_LZMA=1")
-
-if(WITH_BZIP2)
-    find_package(BZip2)
-    if(BZIP2_FOUND)
-        include_directories(${BZIP_INCLUDE_DIRS})
-        set(BOTAN_LIBRARIES ${BOTAN_LIBRARIES} ${BZIP2_LIBRARIES})
-        set(CURRENT_TARGET_SOURCES ${CURRENT_TARGET_SOURCES}
-                compression/bzip2/bzip2.cpp)
-    endif(BZIP2_FOUND)
-endif(WITH_BZIP2)
-add_custom_command(TARGET botan_help
-        COMMAND echo "  To build with bzip2 support use: cmake -DWITH_BZIP2=1")
-
-if(WITH_ZLIB)
-    find_package(ZLIB)
-    if(ZLIB_FOUND)
-        include_directories(${ZLIB_INCLUDE_DIRS})
-        set(BOTAN_LIBRARIES ${BOTAN_LIBRARIES} ${ZLIB_LIBRARIES})
-        set(CURRENT_TARGET_SOURCES ${CURRENT_TARGET_SOURCES}
-                compression/zlib/zlib.cpp)
-    endif(ZLIB_FOUND)
-endif(WITH_ZLIB)
-add_custom_command(TARGET botan_help
-        COMMAND echo "  To build with zlib support use: cmake -DWITH_ZLIB=1")
-
-if(NOT WIN32)
-    if(UNIX AND NOT APPLE)
-        list(APPEND CURRENT_TARGET_LIBRARIES rt dl pthread)
-    elseif(APPLE)
-        list(APPEND CURRENT_TARGET_LIBRARIES dl pthread)
-    endif()
-endif()
-
-set(CMAKE_DEBUG_POSTFIX "d")
-
-if(NOT LIB_TYPE)
-    set(LIB_TYPE STATIC)
-endif()
-
-add_custom_command(TARGET botan_help
-        COMMAND echo "  To build a static or shared Botan library use: cmake -DLIB_TYPE=STATIC or -DLIB_TYPE=SHARED")
-
-add_library(${CURRENT_TARGET} ${LIB_TYPE} ${CURRENT_TARGET_SOURCES})
-
-if(APPLE AND BUILD_FOR_IOS)
-    set_target_properties(botan PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
-endif()
-
-target_link_libraries(${CURRENT_TARGET} ${BOTAN_LIBRARIES} ${CURRENT_TARGET_LIBRARIES})
-
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
-    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-function -Wno-unused-parameter -Werror-implicit-function-declaration -Wno-missing-braces -Wno-missing-field-initializers -std=gnu99 -fno-strict-aliasing>)
-
-    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wformat=2  -Wmissing-include-dirs -Wnon-virtual-dtor -Woverloaded-virtual -Wswitch-default -Wuninitialized -std=gnu++14>)
-
-    target_compile_options(${CURRENT_TARGET} PUBLIC $<$<CONFIG:DEBUG>:-g>)
-endif()
-
-file(GLOB include_install_files "${INCLUDE_DIR}/botan/*.h")
-foreach(include_install_file ${include_install_files})
-    get_filename_component(full_include_install_file ${include_install_file} REALPATH)
-    install(FILES ${full_include_install_file} DESTINATION "include/botan-1.11/botan/")
-endforeach(include_install_file ${include_instal_files})
-install(TARGETS botan
-        ARCHIVE DESTINATION "lib/botan"
-        LIBRARY DESTINATION "lib/botan")
+export(TARGETS ${CURRENT_TARGET}
+    FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)

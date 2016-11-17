@@ -98,14 +98,14 @@ class DataSource;
 
 namespace ASN1 {
 
-std::vector<byte> put_in_sequence(const std::vector<byte>& val);
-std::string to_string(const BER_Object& obj);
+BOTAN_DLL std::vector<byte> put_in_sequence(const std::vector<byte>& val);
+BOTAN_DLL std::string to_string(const BER_Object& obj);
 
 /**
 * Heuristics tests; is this object possibly BER?
 * @param src a data source that will be peeked at but not modified
 */
-bool maybe_BER(DataSource& src);
+bool BOTAN_DLL maybe_BER(DataSource& src);
 
 }
 

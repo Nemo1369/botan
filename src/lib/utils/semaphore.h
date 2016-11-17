@@ -11,6 +11,8 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <botan/build.h>
+
 namespace Botan {
 
 class Semaphore
@@ -18,9 +20,9 @@ class Semaphore
    public:
       explicit Semaphore(int value = 0) : m_value(value), m_wakeups(0) {}
 
-      void acquire();
+      void BOTAN_DLL acquire();
 
-      void release(size_t n = 1);
+      void BOTAN_DLL release(size_t n = 1);
 
    private:
       int m_value;

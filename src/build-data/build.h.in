@@ -11,10 +11,10 @@
 *  - OS: %{os}
 */
 
-#define BOTAN_VERSION_MAJOR %{version_major}
-#define BOTAN_VERSION_MINOR %{version_minor}
-#define BOTAN_VERSION_PATCH %{version_patch}
-#define BOTAN_VERSION_DATESTAMP %{version_datestamp}
+#cmakedefine BOTAN_VERSION_MAJOR @BOTAN_VERSION_MAJOR@
+#cmakedefine BOTAN_VERSION_MINOR @BOTAN_VERSION_MINOR@ 
+#cmakedefine BOTAN_VERSION_PATCH @BOTAN_VERSION_PATCH@ 
+#cmakedefine BOTAN_VERSION_DATESTAMP @BOTAN_VERSION_DATESTAMP@
 
 #define BOTAN_VERSION_RELEASE_TYPE "%{release_type}"
 
@@ -23,12 +23,14 @@
 #define BOTAN_DISTRIBUTION_INFO "%{distribution_info}"
 
 #define BOTAN_INSTALL_PREFIX R"(%{prefix})"
-#define BOTAN_INSTALL_HEADER_DIR "%{includedir}/botan-%{version_major}.%{version_minor}"
+#define BOTAN_INSTALL_HEADER_DIR "%{includedir}/botan-@BOTAN_VERSION_MAJOR@.@BOTAN_VERSION_MINOR@"
 #define BOTAN_INSTALL_LIB_DIR "%{libdir}"
 #define BOTAN_LIB_LINK "%{link_to}"
 
+#if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
 #ifndef BOTAN_DLL
-  #define BOTAN_DLL %{visibility_attribute}
+#define BOTAN_DLL __attribute__((visibility("default")))
+#endif
 #endif
 
 /* How much to allocate for a buffer of no particular size */
@@ -51,7 +53,7 @@
 #define BOTAN_BLOCK_CIPHER_PAR_MULT 4
 
 /* How many bits per limb in a BigInt */
-#define BOTAN_MP_WORD_BITS %{mp_bits}
+#cmakedefine BOTAN_MP_WORD_BITS @BOTAN_MP_WORD_BITS@
 
 /*
 * If enabled uses memset via volatile function pointer to zero memory,
@@ -177,9 +179,6 @@ Each read generates 32 bits of output
 #endif
 
 /* Target identification and feature test macros */
-%{target_os_defines}
-
-%{target_cpu_defines}
 
 #if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN) || \
     defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
@@ -196,8 +195,6 @@ Each read generates 32 bits of output
 #if !defined(BOTAN_TARGET_CPU_DEFAULT_CACHE_LINE_SIZE)
   #define BOTAN_TARGET_CPU_DEFAULT_CACHE_LINE_SIZE 32
 #endif
-
-%{target_compiler_defines}
 
 /*
 * Compile-time deprecatation warnings
@@ -259,12 +256,10 @@ Each read generates 32 bits of output
 /*
 * Module availability definitions
 */
-%{module_defines}
 
 /*
 * Local configuration options (if any) follow
 */
-%{local_config}
 
 // Append to macros living outside of functions, so that invocations must end with a semicolon.
 // The struct is only declared to force the semicolon, it is never defined.

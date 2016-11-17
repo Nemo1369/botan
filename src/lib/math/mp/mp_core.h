@@ -57,25 +57,25 @@ void bigint_cnd_abs(word cnd, word x[], size_t size);
 * @param y the second operand
 * @param y_size size of y (must be >= x_size)
 */
-void bigint_add2(word x[], size_t x_size,
+void BOTAN_DLL bigint_add2(word x[], size_t x_size,
                  const word y[], size_t y_size);
 
 /**
 * Three operand addition
 */
-void bigint_add3(word z[],
+void BOTAN_DLL bigint_add3(word z[],
                  const word x[], size_t x_size,
                  const word y[], size_t y_size);
 
 /**
 * Two operand addition with carry out
 */
-word bigint_add2_nc(word x[], size_t x_size, const word y[], size_t y_size);
+word BOTAN_DLL bigint_add2_nc(word x[], size_t x_size, const word y[], size_t y_size);
 
 /**
 * Three operand addition with carry out
 */
-word bigint_add3_nc(word z[],
+word BOTAN_DLL bigint_add3_nc(word z[],
                     const word x[], size_t x_size,
                     const word y[], size_t y_size);
 
@@ -100,16 +100,16 @@ word bigint_sub3(word z[],
 /*
 * Shift Operations
 */
-void bigint_shl1(word x[], size_t x_size,
+void BOTAN_DLL bigint_shl1(word x[], size_t x_size,
                  size_t word_shift, size_t bit_shift);
 
-void bigint_shr1(word x[], size_t x_size,
+void BOTAN_DLL bigint_shr1(word x[], size_t x_size,
                  size_t word_shift, size_t bit_shift);
 
-void bigint_shl2(word y[], const word x[], size_t x_size,
+void BOTAN_DLL bigint_shl2(word y[], const word x[], size_t x_size,
                  size_t word_shift, size_t bit_shift);
 
-void bigint_shr2(word y[], const word x[], size_t x_size,
+void BOTAN_DLL bigint_shr2(word y[], const word x[], size_t x_size,
                  size_t word_shift, size_t bit_shift);
 
 /*
@@ -128,7 +128,7 @@ void bigint_linmul3(word z[], const word x[], size_t x_size, word y);
 * @param p_dash Montgomery value
 * @param workspace array of at least 2*(p_size+1) words
 */
-void bigint_monty_redc(word z[],
+void BOTAN_DLL bigint_monty_redc(word z[],
                        const word p[], size_t p_size,
                        word p_dash,
                        word workspace[]);
@@ -136,14 +136,14 @@ void bigint_monty_redc(word z[],
 /*
 * Montgomery Multiplication
 */
-void bigint_monty_mul(BigInt& z, const BigInt& x, const BigInt& y,
+void BOTAN_DLL bigint_monty_mul(BigInt& z, const BigInt& x, const BigInt& y,
                       const word p[], size_t p_size, word p_dash,
                       word workspace[]);
 
 /*
 * Montgomery Squaring
 */
-void bigint_monty_sqr(BigInt& z, const BigInt& x,
+void BOTAN_DLL bigint_monty_sqr(BigInt& z, const BigInt& x,
                       const word p[], size_t p_size, word p_dash,
                       word workspace[]);
 
@@ -156,12 +156,12 @@ s32bit bigint_cmp(const word x[], size_t x_size,
 /**
 * Compute ((n1<<bits) + n0) / d
 */
-word bigint_divop(word n1, word n0, word d);
+word BOTAN_DLL bigint_divop(word n1, word n0, word d);
 
 /**
 * Compute ((n1<<bits) + n0) % d
 */
-word bigint_modop(word n1, word n0, word d);
+word BOTAN_DLL bigint_modop(word n1, word n0, word d);
 
 /*
 * Comba Multiplication / Squaring
@@ -181,9 +181,9 @@ void bigint_comba_sqr16(word out[32], const word in[16]);
 /*
 * High Level Multiplication/Squaring Interfaces
 */
-void bigint_mul(BigInt& z, const BigInt& x, const BigInt& y, word workspace[]);
+void BOTAN_DLL bigint_mul(BigInt& z, const BigInt& x, const BigInt& y, word workspace[]);
 
-void bigint_sqr(word z[], size_t z_size, word workspace[],
+void BOTAN_DLL bigint_sqr(word z[], size_t z_size, word workspace[],
                 const word x[], size_t x_size, size_t x_sw);
 
 }

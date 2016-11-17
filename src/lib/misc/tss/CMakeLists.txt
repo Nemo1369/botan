@@ -1,0 +1,91 @@
+cmake_minimum_required(VERSION 2.8.11)
+
+cmake_policy(SET CMP0042 NEW)
+cmake_policy(SET CMP0028 NEW)
+
+set(CURRENT_TARGET tss)
+
+list(APPEND CURRENT_TARGET_PUBLIC_HEADERS
+    tss.h
+    )
+
+list(APPEND CURRENT_TARGET_UNGROUPED_SOURCES
+    tss.cpp
+    )
+
+list(APPEND CURRENT_TARGET_HEADERS
+    ${CURRENT_TARGET_PUBLIC_HEADERS}
+    )
+
+list(APPEND CURRENT_TARGET_SOURCES
+    ${CURRENT_TARGET_UNGROUPED_SOURCES}
+    )
+
+if (BUILD_SHARED_LIBRARIES)
+    add_library(botan_${CURRENT_TARGET} SHARED
+        ${CURRENT_TARGET_HEADERS}
+        ${CURRENT_TARGET_SOURCES}
+        )
+else()
+    add_library(botan_${CURRENT_TARGET} STATIC
+        ${CURRENT_TARGET_HEADERS}
+        ${CURRENT_TARGET_SOURCES}
+        )
+endif()
+
+target_include_directories(botan_${CURRENT_TARGET} PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
+    )
+
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
+    botan::entropy_rng
+    botan::filters
+    botan::hex
+    botan::utils
+    botan
+        )
+
+add_library(botan::${CURRENT_TARGET} ALIAS botan_${CURRENT_TARGET})
+set_property(TARGET botan_${CURRENT_TARGET} PROPERTY EXPORT_NAME ${CURRENT_TARGET})
+
+install(FILES ${CURRENT_TARGET_PUBLIC_HEADERS} DESTINATION ${CMAKE_BINARY_DIR}/include/botan)
+
+install(FILES ${CURRENT_TARGET_PRIVATE_HEADERS} DESTINATION ${CMAKE_BINARY_DIR}/include/botan/internal)
+
+foreach(ITERATOR ${CURRENT_TARGET_PUBLIC_HEADERS})
+    file(COPY ${ITERATOR} DESTINATION ${CMAKE_BINARY_DIR}/include/botan)
+endforeach()
+
+foreach(ITERATOR ${CURRENT_TARGET_PRIVATE_HEADERS})
+    file(COPY ${ITERATOR} DESTINATION ${CMAKE_BINARY_DIR}/include/botan/internal)
+endforeach()
+
+install(TARGETS botan_${CURRENT_TARGET} EXPORT botan_${CURRENT_TARGET}_targets
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    )
+
+install(EXPORT botan_${CURRENT_TARGET}_targets
+    FILE botan_${CURRENT_TARGET}_targets.cmake
+    NAMESPACE botan::
+    DESTINATION lib/cmake/${CURRENT_TARGET}
+    )
+
+write_config_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake")
+write_basic_package_version_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+    VERSION ${BOTAN_VERSION}
+    COMPATIBILITY AnyNewerVersion
+    )
+
+install(FILES
+    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
+    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+    DESTINATION lib/cmake/${CURRENT_TARGET}
+    )
+
+export(TARGETS botan_${CURRENT_TARGET}
+    NAMESPACE botan::
+    FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+

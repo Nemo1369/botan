@@ -1,4 +1,6 @@
-include_directories("${CMAKE_SOURCE_DIR}/build/include")
+set(CURRENT_TARGET cli)
+
+include_directories("${CMAKE_BINARY_DIR}/include")
 
 list(APPEND CURRENT_TARGET_LIBRARIES)
 if(NOT WIN32)
@@ -35,6 +37,19 @@ add_executable(botan_cli
         utils.cpp
         x509.cpp
         )
+
+    target_compile_options(botan_${CURRENT_TARGET} PUBLIC
+    $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
+
+target_compile_options(botan_${CURRENT_TARGET} PUBLIC
+    $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
+
+target_compile_options(botan_${CURRENT_TARGET} PUBLIC
+    $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
+
+target_compile_options(botan_${CURRENT_TARGET} PUBLIC
+    $<$<CONFIG:RELEASE>:${BOTAN_COMPILER_RELEASE_FLAGS}>)
+
 
 #find_package( LZMA REQUIRED )
 #if ( LZMA_FOUND )

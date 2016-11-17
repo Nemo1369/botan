@@ -17,7 +17,7 @@ namespace OS {
 /**
 * Returns the OS assigned process ID, if available. Otherwise throws.
 */
-uint32_t get_process_id();
+uint32_t BOTAN_DLL get_process_id();
 
 /**
 * Returns the value of the hardware cycle counter, if available.
@@ -26,32 +26,32 @@ uint32_t get_process_id();
 * The epoch and update rate are arbitrary and may not be constant
 * (depending on the hardware).
 */
-uint64_t get_processor_timestamp();
+uint64_t BOTAN_DLL get_processor_timestamp();
 
 /**
 * Returns the value of the system clock with best resolution available,
 * normalized to nanoseconds resolution.
 */
-uint64_t get_system_timestamp_ns();
+uint64_t BOTAN_DLL get_system_timestamp_ns();
 
 /*
 * Returns the maximum amount of memory (in bytes) we could/should
 * hyptothetically allocate. Reads "BOTAN_MLOCK_POOL_SIZE" from
 * environment which can be set to zero.
 */
-size_t get_memory_locking_limit();
+size_t BOTAN_DLL get_memory_locking_limit();
 
 /*
 * Request so many bytes of page-aligned RAM locked into memory using
 * mlock, VirtualLock, or similar. Returns null on failure. The memory
 * returned is zeroed. Free it with free_locked_pages.
 */
-void* allocate_locked_pages(size_t length);
+void* BOTAN_DLL allocate_locked_pages(size_t length);
 
 /*
 * Free memory allocated by allocate_locked_pages
 */
-void free_locked_pages(void* ptr, size_t length);
+void BOTAN_DLL free_locked_pages(void* ptr, size_t length);
 
 }
 
