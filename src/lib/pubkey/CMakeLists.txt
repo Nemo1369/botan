@@ -16,6 +16,7 @@ list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
     keypair/keypair.h
     dl_group/dl_group.h
     dl_algo/dl_algo.h
+    ecies/ecies.h
     ecc_key/ecc_key.h
     )
 
@@ -38,6 +39,7 @@ list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
     dl_group/dl_group.cpp
     dl_group/named.cpp
     dl_algo/dl_algo.cpp
+    ecies/ecies.cpp
     ecc_key/ecc_key.cpp
     )
 
@@ -367,6 +369,7 @@ target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan::pbes2
     botan::mac
     botan::pem
+    botan::modes
     botan::pk_pad
     botan::numbertheory
     botan::entropy_rng
