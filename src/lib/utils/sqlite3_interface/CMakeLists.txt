@@ -35,8 +35,9 @@ endif()
 
 if (NOT TARGET sqlite3)
     add_subdirectory(sqlite3)
-    list(APPEND ${CURRENT_TARGET}_LIBRARIES sqlite3)
 endif()
+
+list(APPEND ${CURRENT_TARGET}_LIBRARIES sqlite3)
 
 target_include_directories(botan_${CURRENT_TARGET} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
