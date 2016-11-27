@@ -135,9 +135,9 @@ configure_file(${PROJECT_SOURCE_DIR}/src/build-data/build.h.in
 add_subdirectory("src/lib")
 
 if(BUILD_UNIT_TESTS)
-    add_subdirectory("src/tests")
+#    add_subdirectory("src/tests")
 
-    add_dependencies(botan_tests botan)
+#    add_dependencies(botan_tests botan)
 endif()
 
 # add_subdirectory("src/cli")

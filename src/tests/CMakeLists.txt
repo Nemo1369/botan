@@ -5,6 +5,13 @@ if(NOT WIN32)
     #    list(APPEND extra_link_libraries dl pthread)
 endif()
 
+list(APPEND CURRENT_TARGET_LIBRARIES
+        botan::hex
+        botan::entropy_rng
+        botan
+        botan::utils
+        )
+
 # botan-tests
 add_executable(botan_tests
         main.cpp
