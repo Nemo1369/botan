@@ -20,7 +20,7 @@ list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
     x509_obj.h
     x509cert.h
     x509path.h
-    x509self.h    
+    x509self.h
     )
 
 list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
@@ -62,7 +62,7 @@ else()
 endif()
 
 if(APPLE)
-    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
 endif()
 
 target_include_directories(botan_${CURRENT_TARGET} PUBLIC
@@ -78,7 +78,7 @@ target_compile_options(botan_${CURRENT_TARGET} PUBLIC
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
     $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
-target_link_libraries(botan_${CURRENT_TARGET} PRIVATE 
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan
     botan::hex
     botan::base64
@@ -133,3 +133,16 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

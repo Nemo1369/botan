@@ -57,7 +57,7 @@ option(BOTAN_PUBKEY_MCELIECE "Build with McEliece pubkey encryption support" TRU
 
 if (BOTAN_PUBKEY_RSA)
     list(APPEND ${CURRENT_TARGET}_RSA_HEADERS
-        rsa/rsa.h    
+        rsa/rsa.h
         )
 
     list(APPEND ${CURRENT_TARGET}_RSA_SOURCES
@@ -81,7 +81,7 @@ endif()
 
 if (BOTAN_PUBKEY_DSA)
     list(APPEND ${CURRENT_TARGET}_DSA_HEADERS
-        dsa/dsa.h    
+        dsa/dsa.h
         )
 
     list(APPEND ${CURRENT_TARGET}_DSA_SOURCES
@@ -105,7 +105,7 @@ endif()
 
 if (BOTAN_PUBKEY_DIFFIE_HELLMAN)
     list(APPEND ${CURRENT_TARGET}_DIFFIE_HELLMAN_HEADERS
-        dh/dh.h    
+        dh/dh.h
         )
 
     list(APPEND ${CURRENT_TARGET}_DIFFIE_HELLMAN_SOURCES
@@ -127,7 +127,7 @@ endif()
 
 if (BOTAN_PUBKEY_ECDSA)
     list(APPEND ${CURRENT_TARGET}_ECDSA_HEADERS
-        ecdsa/ecdsa.h    
+        ecdsa/ecdsa.h
         )
 
     list(APPEND ${CURRENT_TARGET}_ECDSA_SOURCES
@@ -154,7 +154,7 @@ endif()
 
 if (BOTAN_PUBKEY_ECGDSA)
     list(APPEND ${CURRENT_TARGET}_ECGDSA_HEADERS
-        ecgdsa/ecgdsa.h    
+        ecgdsa/ecgdsa.h
         )
 
     list(APPEND ${CURRENT_TARGET}_ECGDSA_SOURCES
@@ -186,7 +186,7 @@ endif()
 
 if (BOTAN_PUBKEY_GOST_34_10_2001)
     list(APPEND ${CURRENT_TARGET}_GOST_34_10_2001_HEADERS
-        gost_3410/gost_3410.h    
+        gost_3410/gost_3410.h
         )
 
     list(APPEND ${CURRENT_TARGET}_GOST_34_10_2001_SOURCES
@@ -216,7 +216,7 @@ endif()
 
 if (BOTAN_PUBKEY_ELGAMAL)
     list(APPEND ${CURRENT_TARGET}_ELGAMAL_HEADERS
-        elgamal/elgamal.h    
+        elgamal/elgamal.h
         )
 
     list(APPEND ${CURRENT_TARGET}_ELGAMAL_SOURCES
@@ -238,7 +238,7 @@ endif()
 
 if (BOTAN_PUBKEY_ECDH)
     list(APPEND ${CURRENT_TARGET}_ECDH_HEADERS
-        ecdh/ecdh.h    
+        ecdh/ecdh.h
         )
 
     list(APPEND ${CURRENT_TARGET}_ECDH_SOURCES
@@ -266,7 +266,7 @@ endif()
 
 if (BOTAN_PUBKEY_CURVE_25519)
     list(APPEND ${CURRENT_TARGET}_CURVE_25519_HEADERS
-        curve25519/curve25519.h    
+        curve25519/curve25519.h
         )
 
     list(APPEND ${CURRENT_TARGET}_CURVE_25519_SOURCES
@@ -418,3 +418,16 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

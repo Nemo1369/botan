@@ -6,7 +6,7 @@ cmake_policy(SET CMP0028 NEW)
 set(CURRENT_TARGET aead)
 
 list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-    aead.h    
+    aead.h
     )
 
 list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
@@ -22,7 +22,7 @@ option(BOTAN_MODES_AEAD_SIV "Build with AEAD SIV mode support" TRUE)
 
 if (BOTAN_MODES_AEAD_CCM)
     list(APPEND ${CURRENT_TARGET}_AEAD_CCM_HEADERS
-        ccm/ccm.h    
+        ccm/ccm.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_CCM_SOURCES
@@ -40,7 +40,7 @@ endif()
 
 if (BOTAN_MODES_AEAD_CHACHA20_POLY1305)
     list(APPEND ${CURRENT_TARGET}_AEAD_CHACHA20_POLY1305_HEADERS
-        chacha20poly1305/chacha20poly1305.h    
+        chacha20poly1305/chacha20poly1305.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_CHACHA20_POLY1305_SOURCES
@@ -63,7 +63,7 @@ endif()
 
 if (BOTAN_MODES_AEAD_EAX)
     list(APPEND ${CURRENT_TARGET}_AEAD_EAX_HEADERS
-        eax/eax.h    
+        eax/eax.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_EAX_SOURCES
@@ -86,7 +86,7 @@ endif()
 
 if (BOTAN_MODES_AEAD_GCM)
     list(APPEND ${CURRENT_TARGET}_AEAD_GCM_HEADERS
-        gcm/gcm.h    
+        gcm/gcm.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_GCM_SOURCES
@@ -108,7 +108,7 @@ endif()
 
 if (BOTAN_MODES_AEAD_OCB)
     list(APPEND ${CURRENT_TARGET}_AEAD_OCB_HEADERS
-        ocb/ocb.h    
+        ocb/ocb.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_OCB_SOURCES
@@ -126,7 +126,7 @@ endif()
 
 if (BOTAN_MODES_AEAD_SIV)
     list(APPEND ${CURRENT_TARGET}_AEAD_SIV_HEADERS
-        siv/siv.h    
+        siv/siv.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AEAD_SIV_SOURCES
@@ -175,7 +175,7 @@ target_compile_options(botan_${CURRENT_TARGET} PUBLIC
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
     $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
-target_link_libraries(botan_${CURRENT_TARGET} PRIVATE 
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan::bigint_mp
     botan::mac
     botan::modes
@@ -226,3 +226,15 @@ export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
 
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

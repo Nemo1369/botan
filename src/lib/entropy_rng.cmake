@@ -6,29 +6,35 @@ cmake_policy(SET CMP0028 NEW)
 set(CURRENT_TARGET entropy_rng)
 
 list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-    entropy/entropy_src.h
-    )
+        entropy/entropy_src.h
+        )
 
 list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
-    entropy/entropy_srcs.cpp
-    )
+        entropy/entropy_srcs.cpp
+        )
 
 option(BOTAN_ENTROPY_BEOS_STATS "Build with BeOS stats entropy source support"
-    FALSE)
+        FALSE)
 
-if (WIN32)
+if(WIN32)
     option(BOTAN_ENTROPY_CRYPTOAPI_RNG "Build with cryptoapi random generator entropy source support" TRUE)
 endif()
 
-if (APPLE)
-    option(BOTAN_ENTROPY_DARWIN_SECRANDOM "Build with Darwin secure random entropy source support" TRUE)
+if(APPLE)
+    if(${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+        set(BOTAN_ENTROPY_DARWIN_SECRANDOM_ENABLED TRUE)
+    else()
+        set(BOTAN_ENTROPY_DARWIN_SECRANDOM_ENABLED FALSE)
+    endif()
+
+    option(BOTAN_ENTROPY_DARWIN_SECRANDOM "Build with Darwin secure random entropy source support" ${BOTAN_ENTROPY_DARWIN_SECRANDOM_ENABLED})
 endif()
 
-if (UNIX)
+if(UNIX)
     option(BOTAN_ENTROPY_DEV_RANDOM "Build with /dev/random entropy source support" TRUE)
 endif()
 
-if (UNIX)
+if(UNIX)
     option(BOTAN_ENTROPY_PROC_WALKER "Build with process walker entropy source support" TRUE)
 endif()
 
@@ -38,9 +44,9 @@ endif()
 
 option(BOTAN_ENTROPY_RDRAND "Build with rdrand entropy source support" TRUE)
 
-if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
+if(${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
         ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86")
-    if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR
+    if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR
             CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_MSVC OR
             CMAKE_COMPILER_IS_ICC)
         option(BOTAN_ENTROPY_RDSEED "Build with rdseed entropy source support" TRUE)
@@ -49,58 +55,58 @@ else()
     set(BOTAN_ENTROPY_RDRAND FALSE)
 endif()
 
-if (UNIX)
+if(UNIX)
     option(BOTAN_ENTROPY_UNIX_PROCESS_RUNNER "Build with UNIX process runner entropy source support" TRUE)
 endif()
 
-if (WIN32)
+if(WIN32)
     option(BOTAN_ENTROPY_WINDOWS_STATS "Build with windows stats entropy source support" TRUE)
 endif()
 
-if (BOTAN_ENTROPY_BEOS_STATS)
+if(BOTAN_ENTROPY_BEOS_STATS)
     list(APPEND ${CURRENT_TARGET}_BEOS_HEADERS
-        entropy/beos_stats/es_beos.h
-        )
+            entropy/beos_stats/es_beos.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_BEOS_SOURCES
-        entropy/beos_stats/es_beos.cpp
-        )
+            entropy/beos_stats/es_beos.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_BEOS)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_BEOS_HEADERS}
-        )
+            ${${CURRENT_TARGET}_BEOS_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_BEOS_SOURCES}
-        )
+            ${${CURRENT_TARGET}_BEOS_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_CRYPTOAPI_RNG AND WIN32)
+if(BOTAN_ENTROPY_CRYPTOAPI_RNG AND WIN32)
     list(APPEND ${CURRENT_TARGET}_CRYPTOAPI_RNG_HEADERS
-        entropy/cryptoapi_rng/es_capi.h
-        )
+            entropy/cryptoapi_rng/es_capi.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_CRYPTOAPI_RNG_SOURCES
-        entropy/cryptoapi_rng/es_capi.h
-        )
+            entropy/cryptoapi_rng/es_capi.h
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_CAPI)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_CRYPTOAPI_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_CRYPTOAPI_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_CRYPTOAPI_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_CRYPTOAPI_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_DARWIN_SECRANDOM AND APPLE)
+if(BOTAN_ENTROPY_DARWIN_SECRANDOM AND APPLE)
     list(APPEND ${CURRENT_TARGET}_DARWIN_SECRANDOM_HEADERS
-        entropy/darwin_secrandom/darwin_secrandom.h
-        )
+            entropy/darwin_secrandom/darwin_secrandom.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_DARWIN_SECRANDOM_SOURCES
-        entropy/darwin_secrandom/darwin_secrandom.cpp
-        )
+            entropy/darwin_secrandom/darwin_secrandom.cpp
+            )
 
     find_library(SECURITY_LIBRARY Security)
 
@@ -108,151 +114,151 @@ if (BOTAN_ENTROPY_DARWIN_SECRANDOM AND APPLE)
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_DARWIN_SECRANDOM)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_DARWIN_SECRANDOM_HEADERS}
-        )
+            ${${CURRENT_TARGET}_DARWIN_SECRANDOM_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_DARWIN_SECRANDOM_SOURCES}
-        )
+            ${${CURRENT_TARGET}_DARWIN_SECRANDOM_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_DEV_RANDOM AND UNIX)
+if(BOTAN_ENTROPY_DEV_RANDOM AND UNIX)
     list(APPEND ${CURRENT_TARGET}_DEV_RANDOM_HEADERS
-        entropy/dev_random/dev_random.h
-        )
+            entropy/dev_random/dev_random.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_DEV_RANDOM_SOURCES
-        entropy/dev_random/dev_random.cpp
-        )
+            entropy/dev_random/dev_random.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_DEV_RANDOM)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_DEV_RANDOM_HEADERS}
-        )
+            ${${CURRENT_TARGET}_DEV_RANDOM_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_DEV_RANDOM_SOURCES}
-        )
+            ${${CURRENT_TARGET}_DEV_RANDOM_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_EGD AND UNIX)
+if(BOTAN_ENTROPY_EGD AND UNIX)
     list(APPEND ${CURRENT_TARGET}_EGD_HEADERS
-        entropy/egd/es_egd.h
-        )
+            entropy/egd/es_egd.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_EGD_SOURCES
-        entropy/egd/es_egd.cpp
-        )
+            entropy/egd/es_egd.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_EGD)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_EGD_HEADERS}
-        )
+            ${${CURRENT_TARGET}_EGD_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_EGD_SOURCES}
-        )
+            ${${CURRENT_TARGET}_EGD_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_PROC_WALKER)
+if(BOTAN_ENTROPY_PROC_WALKER)
     list(APPEND ${CURRENT_TARGET}_PROC_WALKER_HEADERS
-        entropy/proc_walk/proc_walk.h
-        )
+            entropy/proc_walk/proc_walk.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_PROC_WALKER_SOURCES
-        entropy/proc_walk/proc_walk.cpp
-        )
+            entropy/proc_walk/proc_walk.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_PROC_WALKER)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_PROC_WALKER_HEADERS}
-        )
+            ${${CURRENT_TARGET}_PROC_WALKER_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_PROC_WALKER_SOURCES}
-        )
+            ${${CURRENT_TARGET}_PROC_WALKER_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_RDRAND)
+if(BOTAN_ENTROPY_RDRAND)
     list(APPEND ${CURRENT_TARGET}_RDRAND_HEADERS
-        entropy/rdrand/rdrand.h
-        )
+            entropy/rdrand/rdrand.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_RDRAND_SOURCES
-        entropy/rdrand/rdrand.cpp
-        )
+            entropy/rdrand/rdrand.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_RDRAND)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_RDRAND_HEADERS}
-        )
+            ${${CURRENT_TARGET}_RDRAND_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_RDRAND_SOURCES}
-        )
+            ${${CURRENT_TARGET}_RDRAND_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_RDSEED)
+if(BOTAN_ENTROPY_RDSEED)
     list(APPEND ${CURRENT_TARGET}_RDSEED_HEADERS
-        entropy/rdseed/rdseed.h
-        )
+            entropy/rdseed/rdseed.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_RDSEED_SOURCES
-        entropy/rdseed/rdseed.cpp
-        )
+            entropy/rdseed/rdseed.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_RDSEED)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_RDSEED_HEADERS}
-        )
+            ${${CURRENT_TARGET}_RDSEED_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_RDSEED_SOURCES}
-        )
+            ${${CURRENT_TARGET}_RDSEED_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_UNIX_PROCESS_RUNNER)
+if(BOTAN_ENTROPY_UNIX_PROCESS_RUNNER)
     list(APPEND ${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_HEADERS
-        entropy/unix_procs/unix_procs.h
-        )
+            entropy/unix_procs/unix_procs.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_SOURCES
-        entropy/unix_procs/unix_procs.cpp
-        entropy/unix_procs/unix_proc_sources.cpp
-        )
+            entropy/unix_procs/unix_procs.cpp
+            entropy/unix_procs/unix_proc_sources.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_UNIX_PROCESS_RUNNER)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_HEADERS}
-        )
+            ${${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_SOURCES}
-        )
+            ${${CURRENT_TARGET}_UNIX_PROCESS_RUNNER_SOURCES}
+            )
 endif()
 
-if (BOTAN_ENTROPY_WINDOWS_STATS)
+if(BOTAN_ENTROPY_WINDOWS_STATS)
     list(APPEND ${CURRENT_TARGET}_WINDOWS_STATS_HEADERS
-        entropy/win32_stats/es_win32.h
-        )
+            entropy/win32_stats/es_win32.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_WINDOWS_STATS_SOURCES
-        entropy/win32_stats/es_win32.cpp
-        )
+            entropy/win32_stats/es_win32.cpp
+            )
 
     list(APPEND ${CURRENT_TARGET}_LIBRARIES
-        user32
-        )
+            user32
+            )
 
     add_definitions(-DBOTAN_HAS_ENTROPY_SRC_WIN32)
     list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
-        ${${CURRENT_TARGET}_WINDOWS_STATS_HEADERS}
-        )
+            ${${CURRENT_TARGET}_WINDOWS_STATS_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_WINDOWS_STATS_SOURCES}
-        )
+            ${${CURRENT_TARGET}_WINDOWS_STATS_SOURCES}
+            )
 endif()
 
 list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-    rng/rng.h
-    )
+        rng/rng.h
+        )
 
 list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
-    rng/rng.cpp
-    )
+        rng/rng.cpp
+        )
 
 option(BOTAN_AUTO_SEEDING_RNG "Build with auto seeding random generator support" TRUE)
 option(BOTAN_HMAC_SEEDING_RNG "Build with auto seeding random generator support" TRUE)
@@ -260,169 +266,169 @@ option(BOTAN_HMAC_DRBG_SEEDING_RNG "Build with auto seeding random generator sup
 option(BOTAN_STATEFUL_SEEDING_RNG "Build with auto seeding random generator support" TRUE)
 option(BOTAN_SYSTEM_SEEDING_RNG "Build with auto seeding random generator support" TRUE)
 
-if (CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_GNUC OR
+if(CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_GNUC OR
         CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_ICC OR
         CMAKE_COMPILER_IS_MSVC)
-    if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
+    if(${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
             ${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86")
         option(BOTAN_RDRAND_RNG "Build with auto seeding random generator support" TRUE)
     endif()
 endif()
 
-if (BOTAN_AUTO_SEEDING_RNG)
+if(BOTAN_AUTO_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_AUTO_SEEDING_RNG_HEADERS
-        rng/auto_rng/auto_rng.h    
-        )
+            rng/auto_rng/auto_rng.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_AUTO_SEEDING_RNG_SOURCES
-        rng/auto_rng/auto_rng.cpp
-        )
+            rng/auto_rng/auto_rng.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_AUTO_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_AUTO_SEEDING_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_AUTO_SEEDING_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_AUTO_SEEDING_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_AUTO_SEEDING_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_STATEFUL_SEEDING_RNG)
+if(BOTAN_STATEFUL_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_HEADERS
-        rng/stateful_rng/stateful_rng.h    
-        )
+            rng/stateful_rng/stateful_rng.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_SOURCES
-        rng/stateful_rng/stateful_rng.cpp
-        )
+            rng/stateful_rng/stateful_rng.cpp
+            )
 
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_STATEFUL_SEEDING_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_HMAC_SEEDING_RNG)
+if(BOTAN_HMAC_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_HMAC_SEEDING_RNG_HEADERS
-        rng/hmac_rng/hmac_rng.h    
-        )
+            rng/hmac_rng/hmac_rng.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_HMAC_SEEDING_RNG_SOURCES
-        rng/hmac_rng/hmac_rng.cpp
-        )
+            rng/hmac_rng/hmac_rng.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_HMAC_RNG)
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_HMAC_SEEDING_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_HMAC_SEEDING_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_HMAC_SEEDING_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_HMAC_SEEDING_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_HMAC_DRBG_SEEDING_RNG)
+if(BOTAN_HMAC_DRBG_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_HEADERS
-        rng/hmac_drbg/hmac_drbg.h    
-        )
+            rng/hmac_drbg/hmac_drbg.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_SOURCES
-        rng/hmac_drbg/hmac_drbg.cpp
-        )
+            rng/hmac_drbg/hmac_drbg.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_HMAC_DRBG)
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_HMAC_DRBG_SEEDING_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_SYSTEM_SEEDING_RNG)
+if(BOTAN_SYSTEM_SEEDING_RNG)
     list(APPEND ${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_HEADERS
-        rng/system_rng/system_rng.h    
-        )
+            rng/system_rng/system_rng.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_SOURCES
-        rng/system_rng/system_rng.cpp
-        )
+            rng/system_rng/system_rng.cpp
+            )
 
     add_definitions(-DBOTAN_HAS_SYSTEM_RNG)
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_SYSTEM_SEEDING_RNG_SOURCES}
+            )
 endif()
 
-if (BOTAN_RDRAND_RNG)
+if(BOTAN_RDRAND_RNG)
     list(APPEND ${CURRENT_TARGET}_RDRAND_RNG_HEADERS
-        rng/rdrand_rng/rdrand_rng.h    
-        )
+            rng/rdrand_rng/rdrand_rng.h
+            )
 
     list(APPEND ${CURRENT_TARGET}_RDRAND_RNG_SOURCES
-        rng/rdrand_rng/rdrand_rng.cpp
-        )
+            rng/rdrand_rng/rdrand_rng.cpp
+            )
 
     list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-        ${${CURRENT_TARGET}_RDRAND_RNG_HEADERS}
-        )
+            ${${CURRENT_TARGET}_RDRAND_RNG_HEADERS}
+            )
     list(APPEND ${CURRENT_TARGET}_SOURCES
-        ${${CURRENT_TARGET}_RDRAND_RNG_SOURCES}
-        )
+            ${${CURRENT_TARGET}_RDRAND_RNG_SOURCES}
+            )
 endif()
 
 list(APPEND ${CURRENT_TARGET}_HEADERS
-    ${${CURRENT_TARGET}_PUBLIC_HEADERS}
-    ${${CURRENT_TARGET}_PRIVATE_HEADERS}
-    )
+        ${${CURRENT_TARGET}_PUBLIC_HEADERS}
+        ${${CURRENT_TARGET}_PRIVATE_HEADERS}
+        )
 
 list(APPEND ${CURRENT_TARGET}_SOURCES
-    ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
-    )
-
-if (BUILD_SHARED_LIBRARIES)
-    add_library(botan_${CURRENT_TARGET} SHARED
-        ${${CURRENT_TARGET}_HEADERS}
-        ${${CURRENT_TARGET}_SOURCES}
+        ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
         )
+
+if(BUILD_SHARED_LIBRARIES)
+    add_library(botan_${CURRENT_TARGET} SHARED
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
 else()
     add_library(botan_${CURRENT_TARGET} STATIC
-        ${${CURRENT_TARGET}_HEADERS}
-        ${${CURRENT_TARGET}_SOURCES}
-        )
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
 endif()
 
 set_target_properties(botan_${CURRENT_TARGET} PROPERTIES LINKER_LANGUAGE CXX)
 
 if(APPLE)
-    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
 endif()
 
 target_include_directories(botan_${CURRENT_TARGET} PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
-    )
+        "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
+        )
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
+        $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
+        $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
+        $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<CONFIG:RELEASE>:${BOTAN_COMPILER_RELEASE_FLAGS}>)
+        $<$<CONFIG:RELEASE>:${BOTAN_COMPILER_RELEASE_FLAGS}>)
 
 target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
-    ${${CURRENT_TARGET}_LIBRARIES}
-    botan::mac
-    botan::utils
-    )
+        ${${CURRENT_TARGET}_LIBRARIES}
+        botan::mac
+        botan::utils
+        )
 
 add_library(botan::${CURRENT_TARGET} ALIAS botan_${CURRENT_TARGET})
 set_property(TARGET botan_${CURRENT_TARGET} PROPERTY EXPORT_NAME ${CURRENT_TARGET})
@@ -440,31 +446,35 @@ foreach(ITERATOR ${${CURRENT_TARGET}_PRIVATE_HEADERS})
 endforeach()
 
 install(TARGETS botan_${CURRENT_TARGET} EXPORT botan_${CURRENT_TARGET}_targets
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    )
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        )
 
 install(EXPORT botan_${CURRENT_TARGET}_targets
-    FILE botan_${CURRENT_TARGET}_targets.cmake
-    NAMESPACE botan::
-    DESTINATION lib/cmake/${CURRENT_TARGET}
-    )
+        FILE botan_${CURRENT_TARGET}_targets.cmake
+        NAMESPACE botan::
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
 
 write_config_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake")
 write_basic_package_version_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
-    VERSION ${BOTAN_VERSION}
-    COMPATIBILITY AnyNewerVersion
-    )
+        VERSION ${BOTAN_VERSION}
+        COMPATIBILITY AnyNewerVersion
+        )
 
 install(FILES
-    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
-    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
-    DESTINATION lib/cmake/${CURRENT_TARGET}
-    )
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
 
 export(TARGETS botan_${CURRENT_TARGET}
-    NAMESPACE botan::
-    FILE
-    ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+        NAMESPACE botan::
+        FILE
+        ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
 
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()

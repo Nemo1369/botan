@@ -25,7 +25,7 @@ option(BOTAN_MODE_XTS "Build with XTS cipher mode support" TRUE)
 
 if (BOTAN_MODE_ECB)
     list(APPEND ${CURRENT_TARGET}_MODE_ECB_HEADERS
-        ecb/ecb.h    
+        ecb/ecb.h
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_ECB_SOURCES
@@ -51,7 +51,7 @@ if (BOTAN_MODE_CBC)
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_CBC_HEADERS
-        cbc/cbc.h    
+        cbc/cbc.h
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_CBC_SOURCES
@@ -69,7 +69,7 @@ endif()
 
 if (BOTAN_MODE_CFB)
     list(APPEND ${CURRENT_TARGET}_MODE_CFB_HEADERS
-        cfb/cfb.h    
+        cfb/cfb.h
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_CFB_SOURCES
@@ -95,7 +95,7 @@ if (BOTAN_MODE_XTS)
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_XTS_HEADERS
-        xts/xts.h    
+        xts/xts.h
         )
 
     list(APPEND ${CURRENT_TARGET}_MODE_XTS_SOURCES
@@ -194,3 +194,16 @@ export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
 
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

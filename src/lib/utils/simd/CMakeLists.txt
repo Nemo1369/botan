@@ -11,7 +11,7 @@ list(APPEND ${CURRENT_TARGET}_PRIVATE_HEADERS
 
 add_library(botan_${CURRENT_TARGET} INTERFACE)
 
-target_include_directories(botan_${CURRENT_TARGET} INTERFACE 
+target_include_directories(botan_${CURRENT_TARGET} INTERFACE
     "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
     )
 
@@ -57,4 +57,3 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
-

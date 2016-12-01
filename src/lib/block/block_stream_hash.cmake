@@ -48,7 +48,7 @@ endif()
 
 if (BOTAN_BLOCK_AES)
     list(APPEND ${CURRENT_TARGET}_AES_HEADERS
-        aes/aes.h    
+        aes/aes.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AES_SOURCES
@@ -73,7 +73,7 @@ if (BOTAN_BLOCK_AES_SSSE3)
         aes_ssse3/aes_ssse3.cpp
         )
 
-    set_source_files_properties(aes_ssse3/aes_ssse3.cpp 
+    set_source_files_properties(aes_ssse3/aes_ssse3.cpp
         PROPERTIES COMPILE_FLAGS "-mssse3")
 
     add_definitions(-DBOTAN_HAS_AES_SSSE3)
@@ -87,14 +87,14 @@ endif()
 
 if (BOTAN_BLOCK_AES_NI)
     list(APPEND ${CURRENT_TARGET}_AES_NI_HEADERS
-        aes_ni/aes_ni.h    
+        aes_ni/aes_ni.h
         )
 
     list(APPEND ${CURRENT_TARGET}_AES_NI_SOURCES
         aes_ni/aes_ni.cpp
         )
 
-    set_source_files_properties(aes_ni/aes_ni.cpp 
+    set_source_files_properties(aes_ni/aes_ni.cpp
         PROPERTIES COMPILE_FLAGS "-maes -mpclmul -mssse3")
 
     add_definitions(-DBOTAN_HAS_AES_NI)
@@ -513,7 +513,7 @@ else()
 endif()
 
 if(APPLE)
-    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
 endif()
 
 target_include_directories(botan_${CURRENT_TARGET} PUBLIC
@@ -532,7 +532,7 @@ target_compile_options(botan_${CURRENT_TARGET} PUBLIC
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
     $<$<CONFIG:RELEASE>:${BOTAN_COMPILER_RELEASE_FLAGS}>)
 
-target_link_libraries(botan_${CURRENT_TARGET} PRIVATE 
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan::bigint_mp
     #   botan::hash
     #   botan::stream
@@ -581,3 +581,8 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()

@@ -1,14 +1,68 @@
-# CMake file for compiling the sqlite3 static library under Windows (for ease of use)
-#
-# Copyright (c) 2012-2016 Sebastien Rombauts (sebastien.rombauts@gmail.com)
-#
-# Distributed under the MIT License (MIT) (See accompanying file LICENSE.txt
-# or copy at http://opensource.org/licenses/MIT) 
+cmake_minimum_required(VERSION 2.8.11)
 
-# add sources of the "sqlite3" static library
-if (NOT TARGET sqlite3)
-    add_library(sqlite3
-        sqlite3.c
+cmake_policy(SET CMP0042 NEW)
+cmake_policy(SET CMP0028 NEW)
+
+set(CURRENT_TARGET sqlite3)
+
+list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
         sqlite3.h
         )
+
+list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
+        sqlite3.c
+        )
+
+list(APPEND ${CURRENT_TARGET}_HEADERS
+        ${${CURRENT_TARGET}_PUBLIC_HEADERS}
+        )
+
+list(APPEND ${CURRENT_TARGET}_SOURCES
+        ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
+        )
+
+if (BUILD_SHARED_LIBRARIES)
+    add_library(${CURRENT_TARGET} SHARED
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
+else()
+    add_library(${CURRENT_TARGET} STATIC
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
+endif()
+
+
+install(TARGETS ${CURRENT_TARGET} EXPORT ${CURRENT_TARGET}_targets
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        )
+
+install(EXPORT ${CURRENT_TARGET}_targets
+        FILE ${CURRENT_TARGET}_targets.cmake
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
+
+install(FILES
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
+
+export(TARGETS ${CURRENT_TARGET}
+        FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(${CURRENT_TARGET} PROPERTIES
+            ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+            BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+            LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+            )
 endif()

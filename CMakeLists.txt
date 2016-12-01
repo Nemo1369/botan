@@ -11,8 +11,6 @@ include(TargetArchitecture)
 include(RypplWriteConfig)
 include(CheckTypeSize)
 
-target_architecture(CMAKE_TARGET_ARCHITECTURE)
-
 set(BOTAN_VERSION 1.11.32)
 set(BOTAN_VERSION_MAJOR 1)
 set(BOTAN_VERSION_MINOR 11)
@@ -35,8 +33,13 @@ endif()
 
 option(BUILD_SHARED_LIBRARIES "Build shared library" TRUE)
 option(BUILD_UNIT_TESTS "Build unit tests" FALSE)
-set(APPLE_SIGN_IDENTITY "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)"
-        CACHE STRING "Sign identity name")
+
+set(APPLE_CODE_SIGN_IDENTITY "iPhone Developer: nemo1369@gmail.com (S686GL5RJ6)" CACHE STRING "Sign identity name")
+set(CMAKE_TARGET_ARCHITECTURE "" CACHE string "Target build architecture")
+
+if(NOT CMAKE_TARGET_ARCHITECTURE)
+    target_architecture(CMAKE_TARGET_ARCHITECTURE)
+endif()
 
 if(${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64")
     add_definitions(-DBOTAN_TARGET_ARCH_IS_X86_64)
@@ -119,18 +122,32 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     set(CMAKE_COMPILER_IS_MSVC TRUE)
 endif()
 
-check_type_size(int CMAKE_TARGET_INTEGER_SIZE_BYTE)
+if(${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    check_type_size(int CMAKE_TARGET_INTEGER_SIZE_BYTE)
+else()
+    string(FIND ${CMAKE_TARGET_ARCHITECTURE} "64" CMAKE_TARGET_ARCHITECTURE_64_BIT)
+    string(FIND ${CMAKE_TARGET_ARCHITECTURE} "32" CMAKE_TARGET_ARCHITECTURE_32_BIT)
+
+    if(${CMAKE_TARGET_ARCHITECTURE_64_BIT})
+        set(CMAKE_TARGET_INTEGER_SIZE_BYTE 8)
+    endif()
+
+    if(${CMAKE_TARGET_ARCHITECTURE_32_BIT})
+        set(CMAKE_TARGET_INTEGER_SIZE_BYTE 4)
+    endif()
+endif()
+
 math(EXPR CMAKE_TARGET_INTEGER_SIZE_BITS "${CMAKE_TARGET_INTEGER_SIZE_BYTE} *
 8")
 
 if(CMAKE_TARGET_INTEGER_SIZE_BITS EQUAL 64)
-    add_definitions(-DTARGET_CPU_HAS_NATIVE_64BIT)
+add_definitions(-DTARGET_CPU_HAS_NATIVE_64BIT)
 endif()
 
 set(BOTAN_MP_WORD_BITS ${CMAKE_TARGET_INTEGER_SIZE_BITS})
 
 configure_file(${PROJECT_SOURCE_DIR}/src/build-data/build.h.in
-        ${CMAKE_BINARY_DIR}/include/botan/build.h)
+${CMAKE_BINARY_DIR}/include/botan/build.h)
 
 add_subdirectory("src/lib")
 

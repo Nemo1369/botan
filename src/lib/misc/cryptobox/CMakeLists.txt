@@ -6,56 +6,56 @@ cmake_policy(SET CMP0028 NEW)
 set(CURRENT_TARGET cryptobox)
 
 list(APPEND ${CURRENT_TARGET}_PUBLIC_HEADERS
-    cryptobox.h
-    )
+        cryptobox.h
+        )
 
 list(APPEND ${CURRENT_TARGET}_UNGROUPED_SOURCES
-    cryptobox.cpp
-    )
+        cryptobox.cpp
+        )
 
 list(APPEND ${CURRENT_TARGET}_HEADERS
-    ${${CURRENT_TARGET}_PUBLIC_HEADERS}
-    )
+        ${${CURRENT_TARGET}_PUBLIC_HEADERS}
+        )
 
 list(APPEND ${CURRENT_TARGET}_SOURCES
-    ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
-    )
+        ${${CURRENT_TARGET}_UNGROUPED_SOURCES}
+        )
 
 if (BUILD_SHARED_LIBRARIES)
     add_library(botan_${CURRENT_TARGET} SHARED
-        ${${CURRENT_TARGET}_HEADERS}
-        ${${CURRENT_TARGET}_SOURCES}
-        )
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
 else()
     add_library(botan_${CURRENT_TARGET} STATIC
-        ${${CURRENT_TARGET}_HEADERS}
-        ${${CURRENT_TARGET}_SOURCES}
-        )
+            ${${CURRENT_TARGET}_HEADERS}
+            ${${CURRENT_TARGET}_SOURCES}
+            )
 endif()
 
 target_include_directories(botan_${CURRENT_TARGET} PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
-    )
+        "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>"
+        )
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
+        $<$<COMPILE_LANGUAGE:C>:${BOTAN_C_COMPILER_FLAGS}>)
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
+        $<$<COMPILE_LANGUAGE:CXX>:${BOTAN_CXX_COMPILER_FLAGS}>)
 
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
-    $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
+        $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
 target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
-    botan::filters
-    botan
-    botan::mac
-    botan::entropy_rng
-    botan::base64
-    botan::pbkdf
-    botan::pem
-    botan::utils
-    )
+        botan::filters
+        botan
+        botan::mac
+        botan::entropy_rng
+        botan::base64
+        botan::pbkdf
+        botan::pem
+        botan::utils
+        )
 
 add_library(botan::${CURRENT_TARGET} ALIAS botan_${CURRENT_TARGET})
 set_property(TARGET botan_${CURRENT_TARGET} PROPERTY EXPORT_NAME ${CURRENT_TARGET})
@@ -73,31 +73,44 @@ foreach(ITERATOR ${${CURRENT_TARGET}_PRIVATE_HEADERS})
 endforeach()
 
 install(TARGETS botan_${CURRENT_TARGET} EXPORT botan_${CURRENT_TARGET}_targets
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    )
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        )
 
 install(EXPORT botan_${CURRENT_TARGET}_targets
-    FILE botan_${CURRENT_TARGET}_targets.cmake
-    NAMESPACE botan::
-    DESTINATION lib/cmake/${CURRENT_TARGET}
-    )
+        FILE botan_${CURRENT_TARGET}_targets.cmake
+        NAMESPACE botan::
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
 
 write_config_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake")
 write_basic_package_version_file("${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
-    VERSION ${BOTAN_VERSION}
-    COMPATIBILITY AnyNewerVersion
-    )
+        VERSION ${BOTAN_VERSION}
+        COMPATIBILITY AnyNewerVersion
+        )
 
 install(FILES
-    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
-    "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
-    DESTINATION lib/cmake/${CURRENT_TARGET}
-    )
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config.cmake"
+        "${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_config_version.cmake"
+        DESTINATION lib/cmake/${CURRENT_TARGET}
+        )
 
 export(TARGETS botan_${CURRENT_TARGET}
-    NAMESPACE botan::
-    FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+        NAMESPACE botan::
+        FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
 
 
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

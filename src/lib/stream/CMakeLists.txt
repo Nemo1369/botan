@@ -21,7 +21,7 @@ option(BOTAN_STREAM_RC4 "Build with RC4 stream encryption support" TRUE)
 
 if (BOTAN_STREAM_CHACHA)
     list(APPEND ${CURRENT_TARGET}_CHACHA_HEADERS
-        chacha/chacha.h    
+        chacha/chacha.h
         )
 
     if (${CMAKE_TARGET_ARCHITECTURE} STREQUAL "x86_64" OR
@@ -47,7 +47,7 @@ endif()
 
 if (BOTAN_STREAM_SALSA20)
     list(APPEND ${CURRENT_TARGET}_SALSA20_HEADERS
-        salsa20/salsa20.h    
+        salsa20/salsa20.h
         )
 
     list(APPEND ${CURRENT_TARGET}_SALSA20_SOURCES
@@ -65,7 +65,7 @@ endif()
 
 if (BOTAN_STREAM_CTR_BE)
     list(APPEND ${CURRENT_TARGET}_CTR_BE_HEADERS
-        ctr/ctr.h    
+        ctr/ctr.h
         )
 
     list(APPEND ${CURRENT_TARGET}_CTR_BE_SOURCES
@@ -83,7 +83,7 @@ endif()
 
 if (BOTAN_STREAM_OFB)
     list(APPEND ${CURRENT_TARGET}_OFB_HEADERS
-        ofb/ofb.h    
+        ofb/ofb.h
         )
 
     list(APPEND ${CURRENT_TARGET}_OFB_SOURCES
@@ -101,7 +101,7 @@ endif()
 
 if (BOTAN_STREAM_RC4)
     list(APPEND ${CURRENT_TARGET}_RC4_HEADERS
-        rc4/rc4.h    
+        rc4/rc4.h
         )
 
     list(APPEND ${CURRENT_TARGET}_RC4_SOURCES
@@ -150,7 +150,7 @@ target_compile_options(botan_${CURRENT_TARGET} PUBLIC
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
     $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
-target_link_libraries(botan_${CURRENT_TARGET} PRIVATE 
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan::bigint_mp
     botan::block
     )
@@ -197,3 +197,16 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()

@@ -26,7 +26,7 @@ option(BOTAN_PK_PAD_EME_OAEP "Build with EMSA x931 support" TRUE)
 
 if (BOTAN_PK_PAD_EME_OAEP)
     list(APPEND ${CURRENT_TARGET}_EME_OAEP_HEADERS
-        eme_oaep/oaep.h    
+        eme_oaep/oaep.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EME_OAEP_SOURCES
@@ -52,7 +52,7 @@ endif()
 
 if (BOTAN_PK_PAD_EME_PKCS)
     list(APPEND ${CURRENT_TARGET}_EME_PKCS_HEADERS
-        eme_pkcs/eme_pkcs.h    
+        eme_pkcs/eme_pkcs.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EME_PKCS_SOURCES
@@ -70,7 +70,7 @@ endif()
 
 if (BOTAN_PK_PAD_EME_RAW)
     list(APPEND ${CURRENT_TARGET}_EME_RAW_HEADERS
-        eme_raw/eme_raw.h    
+        eme_raw/eme_raw.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EME_RAW_SOURCES
@@ -88,7 +88,7 @@ endif()
 
 if (BOTAN_PK_PAD_EMSA1)
     list(APPEND ${CURRENT_TARGET}_EMSA1_HEADERS
-        emsa1/emsa1.h    
+        emsa1/emsa1.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EMSA1_SOURCES
@@ -110,7 +110,7 @@ if (BOTAN_PK_PAD_EMSA_PKCS1)
         )
 
     list(APPEND ${CURRENT_TARGET}_EMSA_PKCS1_SOURCES
-        emsa_pkcs1/emsa_pkcs1.cpp        
+        emsa_pkcs1/emsa_pkcs1.cpp
         )
 
     if (NOT TARGET botan::hash_id)
@@ -132,7 +132,7 @@ endif()
 
 if (BOTAN_PK_PAD_EMSA_PSSR)
     list(APPEND ${CURRENT_TARGET}_EMSA_PSSR_HEADERS
-        emsa_pssr/pssr.h    
+        emsa_pssr/pssr.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EMSA_PSSR_SOURCES
@@ -159,7 +159,7 @@ endif()
 
 if (BOTAN_PK_PAD_EMSA_RAW)
     list(APPEND ${CURRENT_TARGET}_EMSA_RAW_HEADERS
-        emsa_raw/emsa_raw.h    
+        emsa_raw/emsa_raw.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EMSA_RAW_SOURCES
@@ -177,7 +177,7 @@ endif()
 
 if (BOTAN_PK_PAD_EMSA_X931)
     list(APPEND ${CURRENT_TARGET}_EMSA_X931_HEADERS
-        emsa_x931/emsa_x931.h    
+        emsa_x931/emsa_x931.h
         )
 
     list(APPEND ${CURRENT_TARGET}_EMSA_X931_SOURCES
@@ -226,7 +226,7 @@ target_compile_options(botan_${CURRENT_TARGET} PUBLIC
 target_compile_options(botan_${CURRENT_TARGET} PUBLIC
     $<$<CONFIG:DEBUG>:${BOTAN_COMPILER_DEBUG_FLAGS}>)
 
-target_link_libraries(botan_${CURRENT_TARGET} PRIVATE 
+target_link_libraries(botan_${CURRENT_TARGET} PRIVATE
     botan
     botan::mgf1
     botan::utils
@@ -275,3 +275,16 @@ install(FILES
 export(TARGETS botan_${CURRENT_TARGET}
     NAMESPACE botan::
     FILE ${CMAKE_BINARY_DIR}/lib/cmake/${CURRENT_TARGET}/${CURRENT_TARGET}_targets.cmake)
+
+if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ${APPLE_CODE_SIGN_IDENTITY})
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES XCODE_ATTRIBUTE_DEVELOPMENT_TEAM ${CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM})
+endif()
+
+if(APPLE)
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        )
+endif()
