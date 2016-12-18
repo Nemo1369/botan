@@ -34,6 +34,7 @@ else()
 endif()
 
 if (NOT TARGET sqlite3)
+    include_directories(BEFORE sqlite3)
     add_subdirectory(sqlite3)
 endif()
 
@@ -109,7 +110,7 @@ if(APPLE AND NOT ${CMAKE_TARGET_ARCHITECTURE} STREQUAL ${CMAKE_HOST_SYSTEM_PROCE
 endif()
 
 if(APPLE)
-    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES 
+    set_target_properties(botan_${CURRENT_TARGET} PROPERTIES
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
         BINARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
