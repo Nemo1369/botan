@@ -14,11 +14,11 @@ find_package(LIBLZMA)
 find_package(BZIP2)
 
 option(BOTAN_COMPRESSION_BZIP2 "Build with bzip2 compression support"
-    ${ZLIB_FOUND})
+    ${BZIP2_FOUND})
 option(BOTAN_COMPRESSION_LZMA "Build with lzma compression support"
     ${LZMA_FOUND})
 option(BOTAN_COMPRESSION_ZLIB "Build with zlib compression support"
-    ${BZIP2_FOUND})
+    ${ZLIB_FOUND})
 
 if (BOTAN_COMPRESSION_BZIP2)
     list(APPEND ${CURRENT_TARGET}_INCLUDES
