@@ -18,7 +18,7 @@ option(BOTAN_COMPRESSION_BZIP2 "Build with bzip2 compression support"
 option(BOTAN_COMPRESSION_LZMA "Build with lzma compression support"
     ${LZMA_FOUND})
 option(BOTAN_COMPRESSION_ZLIB "Build with zlib compression support"
-    ${ZLIB_FOUND})
+    ${ ZLIB_FOUND})
 
 if (BOTAN_COMPRESSION_BZIP2)
     list(APPEND ${CURRENT_TARGET}_INCLUDES
