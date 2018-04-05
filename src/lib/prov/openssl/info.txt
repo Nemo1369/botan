@@ -1,4 +1,6 @@
-define OPENSSL 20151219
+<defines>
+OPENSSL -> 20151219
+</defines>
 
 load_on vendor
 
@@ -7,5 +9,13 @@ openssl.h
 </header:internal>
 
 <libs>
-all -> crypto
+all!windows -> crypto
+windows -> libeay32.lib
 </libs>
+
+<requires>
+block
+stream
+modes
+pubkey
+</requires>

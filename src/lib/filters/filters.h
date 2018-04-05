@@ -5,18 +5,25 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_FILTERS_H__
-#define BOTAN_FILTERS_H__
+#ifndef BOTAN_FILTERS_H_
+#define BOTAN_FILTERS_H_
 
-#include <botan/block_cipher.h>
-#include <botan/stream_cipher.h>
-#include <botan/hash.h>
-#include <botan/mac.h>
-
-#include <botan/pipe.h>
 #include <botan/basefilt.h>
 #include <botan/key_filt.h>
 #include <botan/data_snk.h>
+#include <botan/pipe.h>
+
+#if defined(BOTAN_HAS_STREAM_CIPHER)
+   #include <botan/stream_cipher.h>
+#endif
+
+#if defined(BOTAN_HAS_HASH)
+   #include <botan/hash.h>
+#endif
+
+#if defined(BOTAN_HAS_MAC)
+   #include <botan/mac.h>
+#endif
 
 #if defined(BOTAN_HAS_CODEC_FILTERS)
   #include <botan/b64_filt.h>
@@ -25,10 +32,12 @@
 
 namespace Botan {
 
+#if defined(BOTAN_HAS_STREAM_CIPHER)
+
 /**
 * Stream Cipher Filter
 */
-class BOTAN_DLL StreamCipher_Filter : public Keyed_Filter
+class BOTAN_PUBLIC_API(2,0) StreamCipher_Filter final : public Keyed_Filter
    {
    public:
 
@@ -39,7 +48,7 @@ class BOTAN_DLL StreamCipher_Filter : public Keyed_Filter
       * @param input data
       * @param input_len length of input in bytes
       */
-      void write(const byte input[], size_t input_len) override;
+      void write(const uint8_t input[], size_t input_len) override;
 
       bool valid_iv_length(size_t iv_len) const override
          { return m_cipher->valid_iv_length(iv_len); }
@@ -87,17 +96,20 @@ class BOTAN_DLL StreamCipher_Filter : public Keyed_Filter
       */
       StreamCipher_Filter(const std::string& cipher, const SymmetricKey& key);
    private:
-      secure_vector<byte> m_buffer;
+      secure_vector<uint8_t> m_buffer;
       std::unique_ptr<StreamCipher> m_cipher;
    };
+#endif
+
+#if defined(BOTAN_HAS_HASH)
 
 /**
 * Hash Filter.
 */
-class BOTAN_DLL Hash_Filter : public Filter
+class BOTAN_PUBLIC_API(2,0) Hash_Filter final : public Filter
    {
    public:
-      void write(const byte input[], size_t len) override { m_hash->update(input, len); }
+      void write(const uint8_t input[], size_t len) override { m_hash->update(input, len); }
       void end_msg() override;
 
       std::string name() const override { return m_hash->name(); }
@@ -127,14 +139,17 @@ class BOTAN_DLL Hash_Filter : public Filter
       std::unique_ptr<HashFunction> m_hash;
       const size_t m_out_len;
    };
+#endif
+
+#if defined(BOTAN_HAS_MAC)
 
 /**
 * MessageAuthenticationCode Filter.
 */
-class BOTAN_DLL MAC_Filter : public Keyed_Filter
+class BOTAN_PUBLIC_API(2,0) MAC_Filter final : public Keyed_Filter
    {
    public:
-      void write(const byte input[], size_t len) override { m_mac->update(input, len); }
+      void write(const uint8_t input[], size_t len) override { m_mac->update(input, len); }
       void end_msg() override;
 
       std::string name() const override { return m_mac->name(); }
@@ -205,6 +220,7 @@ class BOTAN_DLL MAC_Filter : public Keyed_Filter
       std::unique_ptr<MessageAuthenticationCode> m_mac;
       const size_t m_out_len;
    };
+#endif
 
 }
 

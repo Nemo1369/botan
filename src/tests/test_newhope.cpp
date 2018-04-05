@@ -7,28 +7,36 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_NEWHOPE) && defined(BOTAN_HAS_CHACHA)
-  #include <botan/newhope.h>
-  #include <botan/sha3.h>
-  #include <botan/chacha.h>
-  #include <botan/rng.h>
+   #include <botan/newhope.h>
+   #include <botan/sha3.h>
+   #include <botan/chacha.h>
+   #include <botan/rng.h>
 #endif
 
 namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_NEWHOPE) && defined(BOTAN_HAS_CHACHA)
 
-class NEWHOPE_RNG : public Botan::RandomNumberGenerator
+class NEWHOPE_RNG final : public Botan::RandomNumberGenerator
    {
    public:
-      std::string name() const override { return "NEWHOPE_RNG"; }
-      void clear() override { /* ignored */ }
+      std::string name() const override
+         {
+         return "NEWHOPE_RNG";
+         }
+      void clear() override
+         {
+         /* ignored */
+         }
 
-      void randomize(byte out[], size_t len) override
+      void randomize(uint8_t out[], size_t len) override
          {
          if(m_first.size() == len)
             {
             if(len != 32)
+               {
                throw Test_Error("NEWHOPE_RNG called in unexpected way, bad test?");
+               }
 
             Botan::copy_mem(out, m_first.data(), m_first.size());
             return;
@@ -44,7 +52,7 @@ class NEWHOPE_RNG : public Botan::RandomNumberGenerator
 
          m_calls += 1;
 
-         byte nonce[8] = { 0 };
+         uint8_t nonce[8] = { 0 };
 
          if(m_calls < 3)
             {
@@ -58,9 +66,15 @@ class NEWHOPE_RNG : public Botan::RandomNumberGenerator
          m_chacha.set_iv(nonce, 8);
          }
 
-      bool is_seeded() const override { return true; }
+      bool is_seeded() const override
+         {
+         return true;
+         }
 
-      void add_entropy(const byte[], size_t) override { /* ignored */ }
+      void add_entropy(const uint8_t[], size_t) override
+         {
+         /* ignored */
+         }
 
       NEWHOPE_RNG(const std::vector<uint8_t>& seed)
          {
@@ -83,13 +97,16 @@ class NEWHOPE_RNG : public Botan::RandomNumberGenerator
    private:
       Botan::ChaCha m_chacha;
       std::vector<uint8_t> m_first;
-      byte m_calls = 0;
+      uint8_t m_calls = 0;
    };
 
-class NEWHOPE_Tests : public Text_Based_Test
+class NEWHOPE_Tests final : public Text_Based_Test
    {
    public:
-      NEWHOPE_Tests() : Text_Based_Test("pubkey/newhope.vec", {"DRBG_SeedA", "H_OutputA", "DRBG_SeedB", "H_OutputB", "SharedKey"}) {}
+      NEWHOPE_Tests()
+         : Text_Based_Test(
+              "pubkey/newhope.vec",
+              "DRBG_SeedA,H_OutputA,DRBG_SeedB,H_OutputB,SharedKey") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -104,7 +121,7 @@ class NEWHOPE_Tests : public Text_Based_Test
 
          Botan::SHA_3_256 sha3;
 
-         std::vector<uint8_t> send_a(NEWHOPE_SENDABYTES);
+         std::vector<uint8_t> send_a(Botan::NEWHOPE_SENDABYTES);
          Botan::newhope_poly a_sk;
          Botan::newhope_keygen(send_a.data(), &a_sk, drbg_a);
 
@@ -114,7 +131,7 @@ class NEWHOPE_Tests : public Text_Based_Test
          result.test_eq("Hash Output A", h_send_a, h_output_a);
 
          std::vector<uint8_t> sharedkey_b(32);
-         std::vector<uint8_t> send_b(NEWHOPE_SENDBBYTES);
+         std::vector<uint8_t> send_b(Botan::NEWHOPE_SENDBBYTES);
          Botan::newhope_sharedb(sharedkey_b.data(), send_b.data(), send_a.data(), drbg_b);
          result.test_eq("Key B", sharedkey_b, shared_key);
 

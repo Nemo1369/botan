@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ECKCDSA_KEY_H__
-#define BOTAN_ECKCDSA_KEY_H__
+#ifndef BOTAN_ECKCDSA_KEY_H_
+#define BOTAN_ECKCDSA_KEY_H_
 
 #include <botan/ecc_key.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * This class represents ECKCDSA public keys.
 */
-class BOTAN_DLL ECKCDSA_PublicKey : public virtual EC_PublicKey
+class BOTAN_PUBLIC_API(2,0) ECKCDSA_PublicKey : public virtual EC_PublicKey
    {
    public:
 
@@ -31,10 +31,10 @@ class BOTAN_DLL ECKCDSA_PublicKey : public virtual EC_PublicKey
       /**
       * Load a public key.
       * @param alg_id the X.509 algorithm identifier
-      * @param key_bits X.509 subject public key info structure
+      * @param key_bits DER encoded public key bits
       */
       ECKCDSA_PublicKey(const AlgorithmIdentifier& alg_id,
-                      const secure_vector<byte>& key_bits) :
+                      const std::vector<uint8_t>& key_bits) :
          EC_PublicKey(alg_id, key_bits) {}
 
       /**
@@ -52,13 +52,13 @@ class BOTAN_DLL ECKCDSA_PublicKey : public virtual EC_PublicKey
          create_verification_op(const std::string& params,
                                 const std::string& provider) const override;
    protected:
-      ECKCDSA_PublicKey() {}
+      ECKCDSA_PublicKey() = default;
    };
 
 /**
 * This class represents ECKCDSA private keys.
 */
-class BOTAN_DLL ECKCDSA_PrivateKey : public ECKCDSA_PublicKey,
+class BOTAN_PUBLIC_API(2,0) ECKCDSA_PrivateKey final : public ECKCDSA_PublicKey,
                                     public EC_PrivateKey
    {
    public:
@@ -66,10 +66,10 @@ class BOTAN_DLL ECKCDSA_PrivateKey : public ECKCDSA_PublicKey,
       /**
       * Load a private key.
       * @param alg_id the X.509 algorithm identifier
-      * @param key_bits PKCS #8 structure
+      * @param key_bits ECPrivateKey bits
       */
       ECKCDSA_PrivateKey(const AlgorithmIdentifier& alg_id,
-                       const secure_vector<byte>& key_bits) :
+                       const secure_vector<uint8_t>& key_bits) :
          EC_PrivateKey(alg_id, key_bits, true) {}
 
       /**

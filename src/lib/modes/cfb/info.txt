@@ -1,1 +1,7 @@
-define MODE_CFB 20131128
+<defines>
+MODE_CFB -> 20131128
+</defines>
+
+<requires>
+block
+</requires>

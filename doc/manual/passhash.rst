@@ -68,24 +68,37 @@ schedule) and may also make some hardware attacks more expensive.
 Botan provides two techniques for password hashing, bcrypt and
 passhash9.
 
-.. _bcrypt:
-
-Bcrypt Password Hashing
+Bcrypt
 ----------------------------------------
 
-:wikipedia:`Bcrypt` is a password hashing scheme originally designed
-for use in OpenBSD, but numerous other implementations exist.
-It is made available by including ``bcrypt.h``. Bcrypt provides
-outputs that look like this::
+`Bcrypt <https://www.usenix.org/legacy/event/usenix99/provos/provos.pdf>`_ is a
+password hashing scheme originally designed for use in OpenBSD, but numerous
+other implementations exist. It is made available by including ``bcrypt.h``.
+
+It has the advantage that it requires a small amount (4K) of fast RAM
+to compute, which can make hardware password cracking somewhat more
+expensive.
+
+Bcrypt provides outputs that look like this::
 
   "$2a$12$7KIYdyv8Bp32WAvc.7YvI.wvRlyVn0HP/EhPmmOyMQA4YKxINO0p2"
 
-.. cpp:function:: std::string generate_bcrypt(const std::string& password, \
-   RandomNumberGenerator& rng, u16bit work_factor = 10)
+Currently only the `2a` bcrypt format is supported.
 
-   Takes the password to hash, a rng, and a work factor. Higher values
-   increase the amount of time the algorithm runs, increasing the cost
-   of cracking attempts. The resulting hash is returned as a string.
+.. cpp:function:: std::string generate_bcrypt(const std::string& password, \
+   RandomNumberGenerator& rng, uint16_t work_factor = 10)
+
+   Takes the password to hash, a rng, and a work factor. Higher work
+   factors increase the amount of time the algorithm runs, increasing
+   the cost of cracking attempts. The increase is exponential, so a
+   work factor of 10 takes roughly twice as long as work factor 9.
+
+   The resulting password hash is returned as a string.
+
+   Work factor must be at least 4. The bcrypt format allows up to 31,
+   but Botan currently rejects all work factors greater than 18 since
+   even that work factor requires roughly 30 seconds of computation on
+   a fast machine.
 
 .. cpp:function:: bool check_bcrypt(const std::string& password, \
    const std::string& hash)
@@ -100,12 +113,23 @@ Passhash9
 ----------------------------------------
 
 Botan also provides a password hashing technique called passhash9, in
-``passhash9.h``, which is based on PBKDF2. Its outputs look like::
+``passhash9.h``, which is based on PBKDF2.
+
+Passhash9 hashes look like::
 
   "$9$AAAKxwMGNPSdPkOKJS07Xutm3+1Cr3ytmbnkjO6LjHzCMcMQXvcT"
 
+This function should be secure with the proper parameters, and will remain in
+the library for the forseeable future, but it is specific to Botan rather than
+being a widely used password hash. Prefer bcrypt.
+
+.. warning::
+
+   This password format string ("$9$") conflicts with the format used
+   for scrypt password hashes on Cisco systems.
+
 .. cpp:function:: std::string generate_passhash9(const std::string& password, \
-   RandomNumberGenerator& rng, u16bit work_factor = 10, byte alg_id = 1)
+   RandomNumberGenerator& rng, uint16_t work_factor = 10, uint8_t alg_id = 1)
 
    Functions much like ``generate_bcrypt``. The last parameter,
    ``alg_id``, specifies which PRF to use. Currently defined values are

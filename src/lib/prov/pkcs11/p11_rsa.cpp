@@ -7,14 +7,15 @@
 */
 
 #include <botan/p11_rsa.h>
+#include <botan/pk_keys.h>
 
 #if defined(BOTAN_HAS_RSA)
 
 #include <botan/internal/p11_mechanism.h>
-#include <botan/internal/pk_ops.h>
-#include <botan/internal/pk_ops.h>
+#include <botan/pk_ops.h>
 #include <botan/rng.h>
 #include <botan/blinding.h>
+#include <botan/pow_mod.h>
 
 namespace Botan {
 
@@ -76,12 +77,14 @@ PKCS11_RSA_PrivateKey::PKCS11_RSA_PrivateKey(Session& session, uint32_t bits,
    pub_key_props.set_verify(true);
    pub_key_props.set_token(false);	// don't create a persistent public key object
 
-   ObjectHandle pub_key_handle = 0;
-   m_handle = 0;
+   ObjectHandle pub_key_handle = CK_INVALID_HANDLE;
+   ObjectHandle priv_key_handle = CK_INVALID_HANDLE;
    Mechanism mechanism = { static_cast< CK_MECHANISM_TYPE >(MechanismType::RsaPkcsKeyPairGen), nullptr, 0 };
    session.module()->C_GenerateKeyPair(session.handle(), &mechanism,
                                        pub_key_props.data(), pub_key_props.count(), priv_key_props.data(), priv_key_props.count(),
-                                       &pub_key_handle, &m_handle);
+                                       &pub_key_handle, &priv_key_handle);
+
+   this->reset_handle(priv_key_handle);
 
    m_n = BigInt::decode(get_attribute_value(AttributeType::Modulus));
    m_e = BigInt::decode(get_attribute_value(AttributeType::PublicExponent));
@@ -102,9 +105,9 @@ RSA_PrivateKey PKCS11_RSA_PrivateKey::export_key() const
                          , BigInt::decode(n));
    }
 
-secure_vector<byte> PKCS11_RSA_PrivateKey::pkcs8_private_key() const
+secure_vector<uint8_t> PKCS11_RSA_PrivateKey::private_key_bits() const
    {
-   return export_key().pkcs8_private_key();
+   return export_key().private_key_bits();
    }
 
 
@@ -128,12 +131,12 @@ class PKCS11_RSA_Decryption_Operation final : public PK_Ops::Decryption
          m_bits = m_key.get_n().bits() - 1;
          }
 
-      secure_vector<byte> decrypt(byte& valid_mask, const byte ciphertext[], size_t ciphertext_len) override
+      secure_vector<uint8_t> decrypt(uint8_t& valid_mask, const uint8_t ciphertext[], size_t ciphertext_len) override
          {
          valid_mask = 0;
          m_key.module()->C_DecryptInit(m_key.session().handle(), m_mechanism.data(), m_key.handle());
 
-         std::vector<byte> encrypted_data(ciphertext, ciphertext + ciphertext_len);
+         std::vector<uint8_t> encrypted_data(ciphertext, ciphertext + ciphertext_len);
 
          // blind for RSA/RAW decryption
          if(! m_mechanism.padding_size())
@@ -141,7 +144,7 @@ class PKCS11_RSA_Decryption_Operation final : public PK_Ops::Decryption
             encrypted_data = BigInt::encode(m_blinder.blind(BigInt::decode(encrypted_data)));
             }
 
-         secure_vector<byte> decrypted_data;
+         secure_vector<uint8_t> decrypted_data;
          m_key.module()->C_Decrypt(m_key.session().handle(), encrypted_data, decrypted_data);
 
          // Unblind for RSA/RAW decryption
@@ -164,7 +167,7 @@ class PKCS11_RSA_Decryption_Operation final : public PK_Ops::Decryption
 
 // note:	multiple-part encryption operations (with C_EncryptUpdate/C_EncryptFinal)
 //			are not supported (PK_Ops::Encryption does not provide an `update` method)
-class PKCS11_RSA_Encryption_Operation : public PK_Ops::Encryption
+class PKCS11_RSA_Encryption_Operation final : public PK_Ops::Encryption
    {
    public:
 
@@ -179,12 +182,12 @@ class PKCS11_RSA_Encryption_Operation : public PK_Ops::Encryption
          return m_bits;
          }
 
-      secure_vector<byte> encrypt(const byte msg[], size_t msg_len, RandomNumberGenerator&) override
+      secure_vector<uint8_t> encrypt(const uint8_t msg[], size_t msg_len, RandomNumberGenerator&) override
          {
          m_key.module()->C_EncryptInit(m_key.session().handle(), m_mechanism.data(), m_key.handle());
 
-         secure_vector<byte> encrytped_data;
-         m_key.module()->C_Encrypt(m_key.session().handle(), secure_vector<byte>(msg, msg + msg_len), encrytped_data);
+         secure_vector<uint8_t> encrytped_data;
+         m_key.module()->C_Encrypt(m_key.session().handle(), secure_vector<uint8_t>(msg, msg + msg_len), encrytped_data);
          return encrytped_data;
          }
 
@@ -195,7 +198,7 @@ class PKCS11_RSA_Encryption_Operation : public PK_Ops::Encryption
    };
 
 
-class PKCS11_RSA_Signature_Operation : public PK_Ops::Signature
+class PKCS11_RSA_Signature_Operation final : public PK_Ops::Signature
    {
    public:
 
@@ -203,14 +206,14 @@ class PKCS11_RSA_Signature_Operation : public PK_Ops::Signature
          : m_key(key), m_mechanism(MechanismWrapper::create_rsa_sign_mechanism(padding))
          {}
 
-      void update(const byte msg[], size_t msg_len) override
+      void update(const uint8_t msg[], size_t msg_len) override
          {
          if(!m_initialized)
             {
             // first call to update: initialize and cache message because we can not determine yet whether a single- or multiple-part operation will be performed
             m_key.module()->C_SignInit(m_key.session().handle(), m_mechanism.data(), m_key.handle());
             m_initialized = true;
-            m_first_message = secure_vector<byte>(msg, msg + msg_len);
+            m_first_message = secure_vector<uint8_t>(msg, msg + msg_len);
             return;
             }
 
@@ -224,9 +227,9 @@ class PKCS11_RSA_Signature_Operation : public PK_Ops::Signature
          m_key.module()->C_SignUpdate(m_key.session().handle(), const_cast< Byte* >(msg), msg_len);
          }
 
-      secure_vector<byte> sign(RandomNumberGenerator&) override
+      secure_vector<uint8_t> sign(RandomNumberGenerator&) override
          {
-         secure_vector<byte> signature;
+         secure_vector<uint8_t> signature;
          if(!m_first_message.empty())
             {
             // single call to update: perform single-part operation
@@ -245,12 +248,12 @@ class PKCS11_RSA_Signature_Operation : public PK_Ops::Signature
    private:
       const PKCS11_RSA_PrivateKey& m_key;
       bool m_initialized = false;
-      secure_vector<byte> m_first_message;
+      secure_vector<uint8_t> m_first_message;
       MechanismWrapper m_mechanism;
    };
 
 
-class PKCS11_RSA_Verification_Operation : public PK_Ops::Verification
+class PKCS11_RSA_Verification_Operation final : public PK_Ops::Verification
    {
    public:
 
@@ -258,14 +261,14 @@ class PKCS11_RSA_Verification_Operation : public PK_Ops::Verification
          : m_key(key), m_mechanism(MechanismWrapper::create_rsa_sign_mechanism(padding))
          {}
 
-      void update(const byte msg[], size_t msg_len) override
+      void update(const uint8_t msg[], size_t msg_len) override
          {
          if(!m_initialized)
             {
             // first call to update: initialize and cache message because we can not determine yet whether a single- or multiple-part operation will be performed
             m_key.module()->C_VerifyInit(m_key.session().handle(), m_mechanism.data(), m_key.handle());
             m_initialized = true;
-            m_first_message = secure_vector<byte>(msg, msg + msg_len);
+            m_first_message = secure_vector<uint8_t>(msg, msg + msg_len);
             return;
             }
 
@@ -279,7 +282,7 @@ class PKCS11_RSA_Verification_Operation : public PK_Ops::Verification
          m_key.module()->C_VerifyUpdate(m_key.session().handle(), const_cast< Byte* >(msg), msg_len);
          }
 
-      bool is_valid_signature(const byte sig[], size_t sig_len) override
+      bool is_valid_signature(const uint8_t sig[], size_t sig_len) override
          {
          ReturnValue return_value = ReturnValue::SignatureInvalid;
          if(!m_first_message.empty())
@@ -305,7 +308,7 @@ class PKCS11_RSA_Verification_Operation : public PK_Ops::Verification
    private:
       const PKCS11_RSA_PublicKey& m_key;
       bool m_initialized = false;
-      secure_vector<byte> m_first_message;
+      secure_vector<uint8_t> m_first_message;
       MechanismWrapper m_mechanism;
    };
 

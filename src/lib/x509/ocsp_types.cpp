@@ -17,32 +17,18 @@ namespace Botan {
 namespace OCSP {
 
 CertID::CertID(const X509_Certificate& issuer,
-               const X509_Certificate& subject)
+               const BigInt& subject_serial)
    {
    /*
    In practice it seems some responders, including, notably,
    ocsp.verisign.com, will reject anything but SHA-1 here
    */
-   std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-160"));
+   std::unique_ptr<HashFunction> hash(HashFunction::create_or_throw("SHA-160"));
 
    m_hash_id = AlgorithmIdentifier(hash->name(), AlgorithmIdentifier::USE_NULL_PARAM);
-   m_issuer_key_hash = unlock(hash->process(extract_key_bitstr(issuer)));
-   m_issuer_dn_hash = unlock(hash->process(subject.raw_issuer_dn()));
-   m_subject_serial = BigInt::decode(subject.serial_number());
-   }
-
-std::vector<byte> CertID::extract_key_bitstr(const X509_Certificate& cert) const
-   {
-   const auto key_bits = cert.subject_public_key_bits();
-
-   AlgorithmIdentifier public_key_algid;
-   std::vector<byte> public_key_bitstr;
-
-   BER_Decoder(key_bits)
-      .decode(public_key_algid)
-      .decode(public_key_bitstr, BIT_STRING);
-
-   return public_key_bitstr;
+   m_issuer_key_hash = unlock(hash->process(issuer.subject_public_key_bitstring()));
+   m_issuer_dn_hash = unlock(hash->process(issuer.raw_subject_dn()));
+   m_subject_serial = subject_serial;
    }
 
 bool CertID::is_id_for(const X509_Certificate& issuer,
@@ -53,12 +39,12 @@ bool CertID::is_id_for(const X509_Certificate& issuer,
       if(BigInt::decode(subject.serial_number()) != m_subject_serial)
          return false;
 
-      std::unique_ptr<HashFunction> hash(HashFunction::create(OIDS::lookup(m_hash_id.oid)));
+      std::unique_ptr<HashFunction> hash(HashFunction::create(OIDS::lookup(m_hash_id.get_oid())));
 
       if(m_issuer_dn_hash != unlock(hash->process(subject.raw_issuer_dn())))
          return false;
 
-      if(m_issuer_key_hash != unlock(hash->process(extract_key_bitstr(issuer))))
+      if(m_issuer_key_hash != unlock(hash->process(issuer.subject_public_key_bitstring())))
          return false;
       }
    catch(...)
@@ -111,7 +97,7 @@ void SingleResponse::decode_from(class BER_Decoder& from)
                        ASN1_Tag(CONTEXT_SPECIFIC | CONSTRUCTED))
       .end_cons();
 
-   m_cert_status = cert_status.type_tag;
+   m_cert_status = cert_status.type();
    }
 
 }

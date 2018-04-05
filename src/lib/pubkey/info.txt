@@ -1,20 +1,12 @@
-define PUBLIC_KEY_CRYPTO 20131128
-
-<source>
-blinding.cpp
-pk_algs.cpp
-pk_keys.cpp
-pk_ops.cpp
-pkcs8.cpp
-pubkey.cpp
-workfactor.cpp
-x509_key.cpp
-</source>
+<defines>
+PUBLIC_KEY_CRYPTO -> 20131128
+</defines>
 
 <header:public>
 blinding.h
 pk_algs.h
 pk_keys.h
+pk_ops.h
 pk_ops_fwd.h
 pkcs8.h
 pubkey.h
@@ -23,7 +15,6 @@ x509_key.h
 </header:public>
 
 <header:internal>
-pk_ops.h
 pk_ops_impl.h
 </header:internal>
 
@@ -31,7 +22,6 @@ pk_ops_impl.h
 asn1
 bigint
 kdf
-pbes2
 pem
 pk_pad
 numbertheory

@@ -9,7 +9,6 @@
 #include <botan/eax.h>
 #include <botan/cmac.h>
 #include <botan/ctr.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 
@@ -18,9 +17,9 @@ namespace {
 /*
 * EAX MAC-based PRF
 */
-secure_vector<byte> eax_prf(byte tag, size_t block_size,
+secure_vector<uint8_t> eax_prf(uint8_t tag, size_t block_size,
                            MessageAuthenticationCode& mac,
-                           const byte in[], size_t length)
+                           const uint8_t in[], size_t length)
    {
    for(size_t i = 0; i != block_size - 1; ++i)
       {
@@ -67,7 +66,11 @@ std::string EAX_Mode::name() const
 
 size_t EAX_Mode::update_granularity() const
    {
-   return 1;
+   /*
+   * For EAX this actually can be as low as 1 but that causes problems
+   * for applications which use update_granularity as the buffer size.
+   */
+   return m_cipher->parallel_bytes();
    }
 
 Key_Length_Specification EAX_Mode::key_spec() const
@@ -78,7 +81,7 @@ Key_Length_Specification EAX_Mode::key_spec() const
 /*
 * Set the EAX key
 */
-void EAX_Mode::key_schedule(const byte key[], size_t length)
+void EAX_Mode::key_schedule(const uint8_t key[], size_t length)
    {
    /*
    * These could share the key schedule, which is one nice part of EAX,
@@ -91,12 +94,12 @@ void EAX_Mode::key_schedule(const byte key[], size_t length)
 /*
 * Set the EAX associated data
 */
-void EAX_Mode::set_associated_data(const byte ad[], size_t length)
+void EAX_Mode::set_associated_data(const uint8_t ad[], size_t length)
    {
    m_ad_mac = eax_prf(1, block_size(), *m_cmac, ad, length);
    }
 
-void EAX_Mode::start_msg(const byte nonce[], size_t nonce_len)
+void EAX_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
    {
    if(!valid_nonce_length(nonce_len))
       throw Invalid_IV_Length(name(), nonce_len);
@@ -117,11 +120,11 @@ size_t EAX_Encryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void EAX_Encryption::finish(secure_vector<byte>& buffer, size_t offset)
+void EAX_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
 
-   secure_vector<byte> data_mac = m_cmac->final();
+   secure_vector<uint8_t> data_mac = m_cmac->final();
    xor_buf(data_mac, m_nonce_mac, data_mac.size());
 
    if(m_ad_mac.empty())
@@ -141,11 +144,11 @@ size_t EAX_Decryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void EAX_Decryption::finish(secure_vector<byte>& buffer, size_t offset)
+void EAX_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    {
    BOTAN_ASSERT(buffer.size() >= offset, "Offset is sane");
    const size_t sz = buffer.size() - offset;
-   byte* buf = buffer.data() + offset;
+   uint8_t* buf = buffer.data() + offset;
 
    BOTAN_ASSERT(sz >= tag_size(), "Have the tag as part of final input");
 
@@ -157,9 +160,9 @@ void EAX_Decryption::finish(secure_vector<byte>& buffer, size_t offset)
       m_ctr->cipher(buf, buf, remaining);
       }
 
-   const byte* included_tag = &buf[remaining];
+   const uint8_t* included_tag = &buf[remaining];
 
-   secure_vector<byte> mac = m_cmac->final();
+   secure_vector<uint8_t> mac = m_cmac->final();
    mac ^= m_nonce_mac;
 
    if(m_ad_mac.empty())
@@ -169,7 +172,7 @@ void EAX_Decryption::finish(secure_vector<byte>& buffer, size_t offset)
 
    mac ^= m_ad_mac;
 
-   if(!same_mem(mac.data(), included_tag, tag_size()))
+   if(!constant_time_compare(mac.data(), included_tag, tag_size()))
       throw Integrity_Failure("EAX tag check failed");
 
    buffer.resize(offset + remaining);

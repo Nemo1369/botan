@@ -3,28 +3,41 @@ Botan: Crypto and TLS for C++11
 
 Botan (Japanese for peony) is a cryptography library written in C++11
 and released under the permissive `Simplified BSD
-<http://botan.randombit.net/license.txt>`_ license.
+<https://botan.randombit.net/license.txt>`_ license.
 
 Botan's goal is to be the best option for cryptography in new C++ code by
 offering the tools necessary to implement a range of practical systems, such as
 TLS/DTLS, PKIX certificate handling, PKCS#11 and TPM hardware support, password
-hashing, and post quantum crypto schemes. Find the full feature list below.
+hashing, and post quantum crypto schemes. In addition to the C++, botan has a
+C89 API specifically designed to be easy to call from other languages. A Python
+binding using ctypes is included, and several other
+`language bindings <https://github.com/randombit/botan/wiki/Language-Bindings>`_
+are available.
+
+Find the full feature list below.
 
 Development is coordinated on `GitHub <https://github.com/randombit/botan>`_
 and contributions are welcome (read `doc/contributing.rst` for more info).
 
-If you need help, open a GitHub issue, email the `mailing list
-<http://lists.randombit.net/mailman/listinfo/botan-devel/>`_, or try
-the botan `gitter.im <https://gitter.im/libbotan/Chat>`_ channel.
+If you need help with a problem, please open an `issue on GitHub
+<https://github.com/randombit/botan/issues>`_ or email the
+`botan-devel mailing list
+<https://lists.randombit.net/mailman/listinfo/botan-devel/>`_.
 
-If you think you've found a security bug, read the `security page
-<http://botan.randombit.net/security.html>`_ for contact information
-and procedures.
+New releases are announced on the
+`botan-announce mailing list
+<https://lists.randombit.net/mailman/listinfo/botan-announce/>`_.
+
+If you think you have found a security bug in Botan please contact
+Jack Lloyd by emailing jack@randombit.net. His PGP public key with
+fingerprint 4E60C73551AF2188DF0A5A6278E9804357123B60 can can be found
+in ``doc/pgpkey.txt`` in the distribution,
+https://keybase.io/jacklloyd, and some public PGP key servers.
 
 .. highlight:: none
 
 For all the details on building the library, read the
-`users manual <http://botan.randombit.net/manual>`_, but basically::
+`users manual <https://botan.randombit.net/manual>`_, but basically::
 
   $ ./configure.py --help
   $ ./configure.py [probably some options]
@@ -36,14 +49,8 @@ For all the details on building the library, read the
   # shows available commands
   $ make install
 
-The library can also be built into a single-file amalgamation for easy
-inclusion into external build systems.
-
-In addition to C++, botan has a C89 API specifically designed to be easy
-to call from other languages. A Python binding using ctypes is included.
-
-Continuous integration status
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Botan can also be built into a single-file amalgamation for easy inclusion into
+external build systems, see the manual for details.
 
 .. image:: https://travis-ci.org/randombit/botan.svg?branch=master
     :target: https://travis-ci.org/randombit/botan
@@ -53,16 +60,10 @@ Continuous integration status
     :target: https://ci.appveyor.com/project/randombit/botan/branch/master
     :alt: AppVeyor CI status
 
-.. image:: https://circleci.com/gh/randombit/botan.svg?style=shield
-    :target: https://circleci.com/gh/randombit/botan
-    :alt: CircleCI status
-
 .. image:: https://botan-ci.kullo.net/badge
     :target: https://botan-ci.kullo.net/
     :alt: Kullo CI status
 
-Static analyzer status
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. image:: https://codecov.io/github/randombit/botan/coverage.svg?branch=master
     :target: https://codecov.io/github/randombit/botan
     :alt: Code coverage report
@@ -71,167 +72,132 @@ Static analyzer status
     :target: https://scan.coverity.com/projects/624
     :alt: Coverity results
 
-.. image:: https://sonarqube.com/api/badges/gate?key=botan
-    :target: https://sonarqube.com/dashboard/index/botan
-    :alt: Sonarqube analysis
+.. image:: https://sonarcloud.io/api/project_badges/measure?project=botan&metric=ncloc
+    :target: https://sonarcloud.io/dashboard/index/botan
+    :alt: Sonarcloud analysis
 
-Download
+.. image:: https://bestpractices.coreinfrastructure.org/projects/531/badge
+    :target: https://bestpractices.coreinfrastructure.org/projects/531
+    :alt: CII Best Practices statement
+
+Release Downloads
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-See the `change notes <http://botan.randombit.net/news.html>`_ and
-`security page <http://botan.randombit.net/security.html>`_
+See the `release notes <https://botan.randombit.net/news.html>`_ and
+`security advisories <https://botan.randombit.net/security.html>`_
 
 All releases are signed with a
-`PGP key <http://botan.randombit.net/pgpkey.txt>`_::
+`PGP key <https://botan.randombit.net/pgpkey.txt>`_::
 
   pub   2048R/EFBADFBC 2004-10-30
         Key fingerprint = 621D AF64 11E1 851C 4CF9  A2E1 6211 EBF1 EFBA DFBC
   uid                  Botan Distribution Key
 
-Some distributions such as Arch, Fedora and Debian include packages
-for Botan. However these are often out of date; using the latest
-source release is recommended.
+Some `distributions <https://github.com/randombit/botan/wiki/Distros>`_
+such as Arch, Fedora and Debian include packages for Botan. However
+these are often out of date; using the latest source release is recommended.
 
-Current Development Work (1.11)
+Current Stable Release
 ----------------------------------------
 
-The 1.11 branch is highly recommended, especially for new projects. While still
-technically API unstable, the 1.11 branch is very close to an API freeze for
-a new stable release branch.
+Version 2 requires a C++11 compiler; GCC 4.8 and later, Clang 3.8 and later, and
+MSVC 2015/2017 are regularly tested. New releases of Botan 2 are made on a
+quarterly basis.
 
-Versions 1.11 and later require a working C++11 compiler; GCC 4.8 and later,
-Clang 3.5 and later, and MSVC 2015 are regularly tested.
+The latest 2.x release is
+`2.5.0 <https://botan.randombit.net/releases/Botan-2.5.0.tgz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-2.5.0.tgz.asc>`_
+released on 2018-04-02
 
-The latest 1.11 release is
-`1.11.33 <http://botan.randombit.net/releases/Botan-1.11.33.tgz>`_
-`(sig) <http://botan.randombit.net/releases/Botan-1.11.33.tgz.asc>`_
-released on 2016-10-26
-
-Old Stable Series (1.10)
+Old Release
 ----------------------------------------
 
-The 1.10 branch is the last version of the library written in C++98 and is still
-the most commonly packaged version. It is no longer supported except for
-critical security updates (with all support ending on 2018-1-1), and the
-developers do not recommend its use anymore.
+The 1.10 branch is the last version of the library written in C++98. It is no
+longer supported except for critical security updates (with all support ending
+in 2018), and the developers do not recommend its use anymore.
 
 The latest 1.10 release is
-`1.10.13 <http://botan.randombit.net/releases/Botan-1.10.13.tgz>`_
-`(sig) <http://botan.randombit.net/releases/Botan-1.10.13.tgz.asc>`_
-released on 2016-04-23
-
-Books and other resources
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-You should have some knowledge of cryptography *before* trying to use
-the library. This is an area where it is very easy to make mistakes,
-and where things are often subtle and/or counterintuitive. Obviously
-the library tries to provide things at a high level precisely to
-minimize the number of ways things can go wrong, but naive use will
-almost certainly not result in a secure system.
-
-Especially recommended are:
-
-- *Cryptography Engineering*
-  by Niels Ferguson, Bruce Schneier, and Tadayoshi Kohno
-
-- *Security Engineering -- A Guide to Building Dependable Distributed Systems*
-  by Ross Anderson
-  (`available online <https://www.cl.cam.ac.uk/~rja14/book.html>`_)
-
-- *Handbook of Applied Cryptography*
-  by Alfred J. Menezes, Paul C. Van Oorschot, and Scott A. Vanstone
-  (`available online <http://www.cacr.math.uwaterloo.ca/hac/>`_)
-
-If you're doing something non-trivial or unique, you might want to at
-the very least ask for review/input on a mailing list such as the
-`metzdowd <http://www.metzdowd.com/mailman/listinfo/cryptography>`_ or
-`randombit <http://lists.randombit.net/mailman/listinfo/cryptography>`_
-crypto lists. And (if possible) pay a professional cryptographer or
-security company to review your design and code.
+`1.10.17 <https://botan.randombit.net/releases/Botan-1.10.17.tgz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-1.10.17.tgz.asc>`_
+released on 2017-10-02
 
 Find Enclosed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TLS/Public Key Infrastructure
+Transport Layer Security (TLS) Protocol
 ----------------------------------------
 
-* TLS and DTLS (v1.0 to v1.2), including using preshared keys
-  (TLS-PSK) and passwords (TLS-SRP) and most important extensions,
-  such as session tickets, SNI, and ALPN.
-* X.509v3 certificates and CRLs
-* PKIX certificate path validation
-* OCSP requests
-* PKCS #10 certificate requests
+* TLS v1.0, v1.1, and v1.2. The broken SSLv3 protocol is no longer supported.
+* DTLS v1.0 and v1.2 are adaptations of TLS to datagram operation.
+* Extensions include session tickets, SNI, ALPN, OCSP staple requests (client
+  side only right now), encrypt-then-mac CBC, and extended master secret.
+* Supports authentication using preshared keys (PSK) or passwords (SRP)
+* Supports record encryption with ChaCha20Poly1305, AES/OCB, AES/GCM, AES/CCM,
+  Camellia/GCM, and legacy CBC ciphersuites with AES, Camellia, SEED, or 3DES.
+* Key exchange using Diffie-Hellman, ECDH, RSA, or CECPQ1
+
+Public Key Infrastructure
+----------------------------------------
+
+* X.509v3 certificates and CRL creation and handling
+* PKIX certificate path validation, including name constraints.
+* OCSP request creation and response handling
+* PKCS #10 certificate request generation and processing
+* SQL database backed certificate store
 
 Public Key Cryptography
 ----------------------------------------
 
 * RSA signatures and encryption
 * DH and ECDH key agreement
-* Signature schemes DSA, ECDSA, ECGDSA, ECKCDSA, GOST 34.10-2001
-* Post-quantum XMSS (hash based) signature scheme
-* Post-quantum KEM schemes McEliece (code based) and NewHope (Ring-LWE)
+* Signature schemes ECDSA, DSA, Ed25519, ECGDSA, ECKCDSA, SM2, and GOST 34.10-2001
+* Post-quantum signature scheme XMSS
+* Post-quantum key agreement schemes McEliece and NewHope
 * ElGamal encryption
 * Padding schemes OAEP, PSS, PKCS #1 v1.5, X9.31
 
-Ciphers and cipher modes
+Ciphers, hashes, MACs, and checksums
 ----------------------------------------
 
 * Authenticated cipher modes EAX, OCB, GCM, SIV, CCM, and ChaCha20Poly1305
-* Unauthenticated cipher modes CTR, CBC, XTS, CFB, OFB, and ECB
-* AES (including constant time SSSE3 and AES-NI versions)
-* AES candidates Serpent, Twofish, CAST-256
-* Stream ciphers Salsa20/XSalsa20, ChaCha20, SHAKE-128, and RC4
-* DES, 3DES and DESX
-* Threefish-512, Noekeon, Blowfish, CAST-128, IDEA, XTEA
-* National/telecom block ciphers SEED, KASUMI, MISTY1, GOST 28147
-* Large block cipher construction Lion
-
-Hash functions and MACs
-----------------------------------------
-
-* SHA-1, SHA-224, SHA-256, SHA-384, and SHA-512
-* SHA-3 (and Keccak-1600)
-* Skein-512, BLAKE2b
-* RIPEMD-160, Tiger, Whirlpool, GOST 34.11
-* Authentication codes HMAC, CMAC, Poly1305, SipHash
-* Hash function combiners (Parallel and Comb4P)
-* Non-cryptographic checksums Adler32, CRC24, CRC32
-* Obsolete algorithms MD5, MD4, CBC-MAC, X9.19 DES-MAC
+* Cipher modes CTR, CBC, XTS, CFB, and OFB
+* Block ciphers AES, ARIA, Blowfish, Camellia, CAST-128, CAST-256,
+  DES/3DES, GOST 28147, IDEA, KASUMI, Lion, MISTY1, Noekeon, SEED,
+  Serpent, SHACAL2, SM4, Threefish-512, Twofish, XTEA
+* Stream ciphers ChaCha20, Salsa20/XSalsa20, SHAKE-128, and RC4
+* Hash functions SHA-1, SHA-2, SHA-3, RIPEMD-160, Skein-512,
+  BLAKE2b, SM3, Tiger, Whirlpool, GOST 34.11, MD5, MD4
+* Hash function combiners Parallel and Comb4P
+* Authentication codes HMAC, CMAC, Poly1305, SipHash, GMAC, CBC-MAC, X9.19 DES-MAC
+* Non-cryptographic checksums Adler32, CRC24, and CRC32
 
 Other Useful Things
 ----------------------------------------
 
-* Interfaces for accessing PKCS #11 and TPM hardware
-* Key derivation functions for passwords, including PBKDF2
-* Password hashing functions, including bcrypt and a PBKDF based scheme
-* General key derivation functions KDF1 and KDF2 from IEEE 1363
+* Full C++ PKCS #11 API wrapper
+* Interfaces for TPM v1.2 device access
+* Simple compression API wrapping zlib, bzip2, and lzma libraries
+* RNG wrappers for system RNG and hardware RNGs
+* HMAC_DRBG and entropy collection system for userspace RNGs
+* PBKDF2 password based key derivation
+* Password hashing function bcrypt and passhash9 (custom PBKDF scheme)
+* SRP-6a password authenticated key exchange
+* Key derivation functions including HKDF, KDF2, SP 800-108, SP 800-56A, SP 800-56C
+* HOTP and TOTP algorithms
 * Format preserving encryption scheme FE1
 * Threshold secret sharing
-* RFC 3394 keywrapping
-* Rivest's all or nothing transform
+* NIST key wrapping
 
 Recommended Algorithms
 ----------------------------------------
 
 * For encryption of network traffic use TLS v1.2
-
 * Packet encryption: AES-256/GCM, AES-256/OCB, Serpent/OCB, or ChaCha20Poly1305
-
-* General hash functions: SHA-256 or SHA-384
-
-* Message authentication: HMAC with SHA-256
-
-* Public Key Encryption: RSA, 2048+ bit keys, with OAEP and SHA-256
-
-* Public Key Signatures: RSA, 2048+ bit keys with PSS and SHA-512,
-  or ECDSA with P-256/SHA-256 or P-384/SHA-384
-
-* Key Agreement: ECDH P-256 or Curve25519, with KDF2(SHA-256)
-  If you are concerned about quantum computers, combine ECC with NewHope
-
-Code coverage map
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. image:: https://codecov.io/gh/randombit/botan/graphs/tree.svg
+* General hash function: BLAKE2b, SHA-2, SHA-3, or Skein-512
+* Message authentication or PRF: HMAC with SHA-256
+* Key derivation function: KDF2 or HKDF
+* Public Key Encryption: RSA, 2048+ bit keys, with OAEP/SHA-256
+* Public Key Signatures: RSA, 2048+ bit keys with PSS/SHA-512,
+  or ECDSA using P-256/SHA-256 or P-521/SHA-512
+* Key Agreement: ECDH using P-256 or X25519. If you are concerned
+  about quantum computers, combine ECC with NewHope.

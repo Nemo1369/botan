@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MODE_CBC_H__
-#define BOTAN_MODE_CBC_H__
+#ifndef BOTAN_MODE_CBC_H_
+#define BOTAN_MODE_CBC_H_
 
 #include <botan/cipher_mode.h>
 #include <botan/block_cipher.h>
@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * CBC Mode
 */
-class BOTAN_DLL CBC_Mode : public Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) CBC_Mode : public Cipher_Mode
    {
    public:
       std::string name() const override;
@@ -46,24 +46,26 @@ class BOTAN_DLL CBC_Mode : public Cipher_Mode
          return *m_padding;
          }
 
-      secure_vector<byte>& state() { return m_state; }
+      secure_vector<uint8_t>& state() { return m_state; }
 
-      byte* state_ptr() { return m_state.data(); }
+      size_t block_size() const { return m_state.size(); }
+
+      uint8_t* state_ptr() { return m_state.data(); }
 
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override;
 
-      void key_schedule(const byte key[], size_t length) override;
+      void key_schedule(const uint8_t key[], size_t length) override;
 
       std::unique_ptr<BlockCipher> m_cipher;
       std::unique_ptr<BlockCipherModePaddingMethod> m_padding;
-      secure_vector<byte> m_state;
+      secure_vector<uint8_t> m_state;
    };
 
 /**
 * CBC Encryption
 */
-class BOTAN_DLL CBC_Encryption : public CBC_Mode
+class BOTAN_PUBLIC_API(2,0) CBC_Encryption : public CBC_Mode
    {
    public:
       /**
@@ -75,7 +77,7 @@ class BOTAN_DLL CBC_Encryption : public CBC_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override;
 
@@ -85,7 +87,7 @@ class BOTAN_DLL CBC_Encryption : public CBC_Mode
 /**
 * CBC Encryption with ciphertext stealing (CBC-CS3 variant)
 */
-class BOTAN_DLL CTS_Encryption final : public CBC_Encryption
+class BOTAN_PUBLIC_API(2,0) CTS_Encryption final : public CBC_Encryption
    {
    public:
       /**
@@ -95,7 +97,7 @@ class BOTAN_DLL CTS_Encryption final : public CBC_Encryption
 
       size_t output_length(size_t input_length) const override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t minimum_final_size() const override;
 
@@ -105,7 +107,7 @@ class BOTAN_DLL CTS_Encryption final : public CBC_Encryption
 /**
 * CBC Decryption
 */
-class BOTAN_DLL CBC_Decryption : public CBC_Mode
+class BOTAN_PUBLIC_API(2,0) CBC_Decryption : public CBC_Mode
    {
    public:
       /**
@@ -117,7 +119,7 @@ class BOTAN_DLL CBC_Decryption : public CBC_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override;
 
@@ -126,13 +128,13 @@ class BOTAN_DLL CBC_Decryption : public CBC_Mode
       void reset() override;
 
    private:
-      secure_vector<byte> m_tempbuf;
+      secure_vector<uint8_t> m_tempbuf;
    };
 
 /**
 * CBC Decryption with ciphertext stealing (CBC-CS3 variant)
 */
-class BOTAN_DLL CTS_Decryption final : public CBC_Decryption
+class BOTAN_PUBLIC_API(2,0) CTS_Decryption final : public CBC_Decryption
    {
    public:
       /**
@@ -140,7 +142,7 @@ class BOTAN_DLL CTS_Decryption final : public CBC_Decryption
       */
       explicit CTS_Decryption(BlockCipher* cipher) : CBC_Decryption(cipher, nullptr) {}
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t minimum_final_size() const override;
 

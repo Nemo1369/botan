@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MISTY1_H__
-#define BOTAN_MISTY1_H__
+#ifndef BOTAN_MISTY1_H_
+#define BOTAN_MISTY1_H_
 
 #include <botan/block_cipher.h>
 
@@ -15,19 +15,19 @@ namespace Botan {
 /**
 * MISTY1 with 8 rounds
 */
-class BOTAN_DLL MISTY1 final : public Block_Cipher_Fixed_Params<8, 16>
+class BOTAN_PUBLIC_API(2,0) MISTY1 final : public Block_Cipher_Fixed_Params<8, 16>
    {
    public:
-      void encrypt_n(const byte in[], byte out[], size_t blocks) const override;
-      void decrypt_n(const byte in[], byte out[], size_t blocks) const override;
+      void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
+      void decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
 
       void clear() override;
       std::string name() const override { return "MISTY1"; }
       BlockCipher* clone() const override { return new MISTY1; }
    private:
-      void key_schedule(const byte[], size_t) override;
+      void key_schedule(const uint8_t[], size_t) override;
 
-      secure_vector<u16bit> m_EK, m_DK;
+      secure_vector<uint16_t> m_EK, m_DK;
    };
 
 }

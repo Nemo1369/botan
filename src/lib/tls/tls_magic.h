@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_PROTOCOL_MAGIC_H__
-#define BOTAN_TLS_PROTOCOL_MAGIC_H__
+#ifndef BOTAN_TLS_PROTOCOL_MAGIC_H_
+#define BOTAN_TLS_PROTOCOL_MAGIC_H_
 
 namespace Botan {
 
@@ -57,11 +57,6 @@ enum Handshake_Type {
 };
 
 const char* handshake_type_to_string(Handshake_Type t);
-
-enum Compression_Method {
-   NO_COMPRESSION       = 0x00,
-   DEFLATE_COMPRESSION  = 0x01
-};
 
 }
 

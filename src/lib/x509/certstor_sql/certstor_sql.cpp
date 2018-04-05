@@ -6,13 +6,11 @@
 */
 
 #include <botan/certstor_sql.h>
+#include <botan/pk_keys.h>
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
-#include <botan/internal/filesystem.h>
 #include <botan/pkcs8.h>
 #include <botan/data_src.h>
-#include <botan/hash.h>
-#include <botan/hex.h>
 
 namespace Botan {
 
@@ -46,7 +44,7 @@ Certificate_Store_In_SQL::Certificate_Store_In_SQL(std::shared_ptr<SQL_Database>
 
 // Certificate handling
 std::shared_ptr<const X509_Certificate>
-Certificate_Store_In_SQL::find_cert(const X509_DN& subject_dn, const std::vector<byte>& key_id) const
+Certificate_Store_In_SQL::find_cert(const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const
    {
    DER_Encoder enc;
    std::shared_ptr<SQL_Database::Statement> stmt;
@@ -71,11 +69,57 @@ Certificate_Store_In_SQL::find_cert(const X509_DN& subject_dn, const std::vector
       {
       auto blob = stmt->get_blob(0);
       cert = std::make_shared<X509_Certificate>(
-            std::vector<byte>(blob.first,blob.first + blob.second));
+            std::vector<uint8_t>(blob.first,blob.first + blob.second));
 
       }
 
    return cert;
+   }
+
+std::vector<std::shared_ptr<const X509_Certificate>>
+Certificate_Store_In_SQL::find_all_certs(const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const
+   {
+   std::vector<std::shared_ptr<const X509_Certificate>> certs;
+
+   DER_Encoder enc;
+   std::shared_ptr<SQL_Database::Statement> stmt;
+
+   subject_dn.encode_into(enc);
+
+   if(key_id.empty())
+      {
+      stmt = m_database->new_statement("SELECT certificate FROM " + m_prefix + "certificates WHERE subject_dn == ?1");
+      stmt->bind(1,enc.get_contents_unlocked());
+      }
+   else
+      {
+      stmt = m_database->new_statement("SELECT certificate FROM " + m_prefix + "certificates WHERE\
+                                        subject_dn == ?1 AND (key_id == NULL OR key_id == ?2)");
+      stmt->bind(1,enc.get_contents_unlocked());
+      stmt->bind(2,key_id);
+      }
+
+   std::shared_ptr<const X509_Certificate> cert;
+   while(stmt->step())
+      {
+      auto blob = stmt->get_blob(0);
+      certs.push_back(std::make_shared<X509_Certificate>(
+            std::vector<uint8_t>(blob.first,blob.first + blob.second)));
+      }
+
+   return certs;
+   }
+
+std::shared_ptr<const X509_Certificate>
+Certificate_Store_In_SQL::find_cert_by_pubkey_sha1(const std::vector<uint8_t>& /*key_hash*/) const
+   {
+   throw Not_Implemented("TODO!");
+   }
+
+std::shared_ptr<const X509_Certificate>
+Certificate_Store_In_SQL::find_cert_by_raw_subject_dn_sha256(const std::vector<uint8_t>& /*subject_hash*/) const
+   {
+   throw Not_Implemented("TODO!");
    }
 
 std::shared_ptr<const X509_CRL>
@@ -113,9 +157,6 @@ std::vector<X509_DN> Certificate_Store_In_SQL::all_subjects() const
 
 bool Certificate_Store_In_SQL::insert_cert(const X509_Certificate& cert)
    {
-   if(find_cert(cert.subject_dn(),cert.subject_key_id()))
-      return false;
-
    DER_Encoder enc;
    auto stmt = m_database->new_statement("INSERT OR REPLACE INTO " +
                                      m_prefix + "certificates (\
@@ -130,7 +171,7 @@ bool Certificate_Store_In_SQL::insert_cert(const X509_Certificate& cert)
    cert.subject_dn().encode_into(enc);
    stmt->bind(2,enc.get_contents_unlocked());
    stmt->bind(3,cert.subject_key_id());
-   stmt->bind(4,std::vector<byte>());
+   stmt->bind(4,std::vector<uint8_t>());
    enc = DER_Encoder();
    cert.encode_into(enc);
    stmt->bind(5,enc.get_contents_unlocked());
@@ -176,7 +217,7 @@ std::shared_ptr<const Private_Key> Certificate_Store_In_SQL::find_key(const X509
 std::vector<std::shared_ptr<const X509_Certificate>>
 Certificate_Store_In_SQL::find_certs_for_key(const Private_Key& key) const
    {
-   auto fpr = key.fingerprint("SHA-256");
+   auto fpr = key.fingerprint_private("SHA-256");
    auto stmt = m_database->new_statement("SELECT certificate FROM " + m_prefix + "certificates WHERE priv_fingerprint == ?1");
 
    stmt->bind(1,fpr);
@@ -186,7 +227,7 @@ Certificate_Store_In_SQL::find_certs_for_key(const Private_Key& key) const
       {
       auto blob = stmt->get_blob(0);
       certs.push_back(std::make_shared<X509_Certificate>(
-            std::vector<byte>(blob.first,blob.first + blob.second)));
+            std::vector<uint8_t>(blob.first,blob.first + blob.second)));
       }
 
    return certs;
@@ -199,7 +240,7 @@ bool Certificate_Store_In_SQL::insert_key(const X509_Certificate& cert, const Pr
       return false;
 
    auto pkcs8 = PKCS8::BER_encode(key, m_rng, m_password);
-   auto fpr = key.fingerprint("SHA-256");
+   auto fpr = key.fingerprint_private("SHA-256");
 
    auto stmt1 = m_database->new_statement(
          "INSERT OR REPLACE INTO " + m_prefix + "keys ( fingerprint, key ) VALUES ( ?1, ?2 )");
@@ -220,7 +261,7 @@ bool Certificate_Store_In_SQL::insert_key(const X509_Certificate& cert, const Pr
 
 void Certificate_Store_In_SQL::remove_key(const Private_Key& key)
    {
-   auto fpr = key.fingerprint("SHA-256");
+   auto fpr = key.fingerprint_private("SHA-256");
    auto stmt = m_database->new_statement("DELETE FROM " + m_prefix + "keys WHERE fingerprint == ?1");
 
    stmt->bind(1,fpr);
@@ -272,7 +313,7 @@ std::vector<X509_CRL> Certificate_Store_In_SQL::generate_crls() const
       {
       auto blob = stmt->get_blob(0);
       auto cert = X509_Certificate(
-            std::vector<byte>(blob.first,blob.first + blob.second));
+            std::vector<uint8_t>(blob.first,blob.first + blob.second));
       auto code = static_cast<CRL_Code>(stmt->get_size_t(1));
       auto ent = CRL_Entry(cert,code);
 

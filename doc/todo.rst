@@ -17,48 +17,66 @@ Ciphers, Hashes, PBKDF
 * Serpent using AVX2 or SSSE3/pshufb
 * ChaCha20 using AVX2, NEON
 * XSalsa20-Poly1305 AEAD compatible with NaCl
-* ARIA block cipher (RFCs 5794 and 6209)
 * ASCON 1.2 (CAESAR)
 * NORX-64 3.0 (CAESAR)
 * scrypt PBKDF
 * Argon2 PBKDF (draft-irtf-cfrg-argon2)
 * bcrypt PBKDF
 * Skein-MAC
+* PMAC
 * Extend Cascade_Cipher to support arbitrary number of ciphers
+* EME* tweakable block cipher (https://eprint.iacr.org/2004/125.pdf)
+* FFX format preserving encryption (NIST 800-38G)
 
 Public Key Crypto, Math
 ----------------------------------------
 
+* Curves for pairings (BN-256 is widely implemented)
+* Identity based encryption
+* BBS group signatures
+* Paillier homomorphic cryptosystem
+* Hashing onto an elliptic curve
 * SPHINCS-256
-* EdDSA (GH #283)
-* Ed448-Goldilocks
+* X448 and Ed448
 * FHMQV
-* Support mixed hashes and non-empty param strings in OAEP
+* Use GLV decomposition to speed up secp256k1 operations
+* Optimize ECC point doubling for a=-3 and a=0 curves
 * wNAF ECC point multiply
 * Recover ECDSA public key from signature/message pair (GH #664)
-* Fast new implementations/algorithms for ECC point operations,
-  Montgomery multiplication, multi-exponentiation, ...
-* Some PK operations, especially RSA, have extensive computations per
-  operation setup but many of the computed values depend only on the
-  key and could be shared across operation objects.
+
+Utility Functions
+------------------
+
+* base58 and base32 encoding
+
+Multiparty Protocols
+----------------------
+
+* Distributed key generation for DL, RSA
+* Threshold signing, decryption
+* Socialist Millionaires Protocol
 
 External Providers, Hardware Support
 ----------------------------------------
 
 * Access to system certificate stores (Windows, OS X)
 * Extend OpenSSL provider (DH, HMAC, CMAC, GCM)
+* Support using BoringSSL instead of OpenSSL or LibreSSL
 * /dev/crypto provider (ciphers, hashes)
 * Windows CryptoAPI provider (ciphers, hashes, RSA)
 * Apple CommonCrypto
-* ARMv8-A crypto extensions (AES, SHA-2)
-* POWER8 crypto extensions (AES, SHA-2)
+* POWER8 crypto extensions (SHA-2, GCM)
 * Better TPM support: NVRAM, PCR measurements, sealing
+* Intel SGX support
 
 TLS
 ----------------------------------------
 
 * Make DTLS support optional at build time
+* Improve/optimize DTLS defragmentation and retransmission
+* Implement logging callbacks for TLS
 * Make TLS v1.0 and v1.1 optional at build time
+* Make RSA optional at build time
 * Make finite field DH optional at build time
 * TLS OCSP stapling (RFC 6066)
 * Authentication using TOFU (sqlite3 storage)
@@ -73,6 +91,7 @@ TLS
 PKIX
 ----------------------------------------
 
+* Further tests of validation API (see GH #785)
 * Test suite for validation of 'real world' cert chains (GH #611)
 * Improve output of X509_Certificate::to_string
   This is a free-form string for human consumption so the only constraints
@@ -80,11 +99,14 @@ PKIX
 * X.509 policy constraints
 * OCSP responder logic
 * X.509 attribute certificates (RFC 5755)
-* Roughtime client
+* Support generating/verifying XMSS certificates
 
 New Protocols / Formats
 ----------------------------------------
 
+* Roughtime client (https://roughtime.googlesource.com/roughtime/)
+* PKCS7 / Cryptographic Message Syntax
+* PKCS12 / PFX
 * NaCl compatible cryptobox functions
 * Off-The-Record v3 https://otr.cypherpunks.ca/
 * Some useful subset of OpenPGP
@@ -98,6 +120,11 @@ New Protocols / Formats
   - Subset #2: Process OpenPGP public keys
   - Subset #3: Verification of OpenPGP signatures
 
+Cleanups
+-----------
+
+* Split test_ffi.cpp into multiple files
+
 Compat Headers
 ----------------
 
@@ -106,10 +133,13 @@ Compat Headers
   since the OpenSSL API handles both crypto and IO. Use Asio, since it
   is expected to be the base of future C++ standard network library.
 
+* Write a module exposing a NaCl/libsodium compatible API header.
+
 FFI and Bindings
 ----------------------------------------
 
-* Expose certificates
+* Expose compression
+* Expose more of X.509 (CRLs, OCSP, cert signing, etc)
 * Expose TLS
 * Write a CLI or HTTPS client in Python
 
@@ -123,9 +153,15 @@ Library Infrastructure
 Build/Test
 ----------------------------------------
 
+* Create Docker image for Travis that runs 16.04 and has all
+  the tools we need pre-installed.
+* Build/export Windows installer exe on AppVeyor
 * Code signing for Windows installers
 * Test runner python script that captures backtraces and other
   debug info during CI
+* Run the TPM tests against an emulator
+  (https://github.com/PeterHuewe/tpm-emulator)
+* Add clang-tidy, clang-analyzer, cppcheck to CI
 
 FIPS 140 Build
 ---------------------------------------
@@ -136,25 +172,19 @@ FIPS 140 Build
   library in FIPS 140 validated form (since there is no 'crypto' anymore from
   Botan, just the ASN.1 parser, TLS library, PKI etc all of which FIPS 140 does
   not care about) without the enourmous hassle and expense of actually having to
-  maintain a FIPS validation on Botan.
+  maintain a FIPS validation on Botan. Email Jack if you are interested in this.
 
 CLI
 ----------------------------------------
 
-* Rewrite `tls_client` and `tls_server` to use asio. See `tls_proxy`
-  for an example
+* Change `tls_server` to be a tty<->socket app, like `tls_client` is,
+  instead of a bogus echo server.
 * `encrypt` / `decrypt` tools providing password and/or public key
   based file encryption
-* Make help output more helpful
-* More microbenchmarks in `speed`: modular exponentiation, ECC point
-  multiplication, other BigInt operations
-* Compute cycles/byte estimates for benchmark output
 
 Documentation
 ----------------------------------------
 
-* TPM (no docs)
-* PKCS #11 (no docs)
 * X.509 certs, path validation
 * Specific docs covering one major topic (RSA, ECDSA, AES/GCM, ...)
 * Some howto style docs (setting up CA, ...)

@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_FILTER_H__
-#define BOTAN_FILTER_H__
+#ifndef BOTAN_FILTER_H_
+#define BOTAN_FILTER_H_
 
 #include <botan/secmem.h>
 #include <vector>
@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * This class represents general abstract filter objects.
 */
-class BOTAN_DLL Filter
+class BOTAN_PUBLIC_API(2,0) Filter
    {
    public:
       /**
@@ -31,19 +31,19 @@ class BOTAN_DLL Filter
       * @param input the input as a byte array
       * @param length the length of the byte array input
       */
-      virtual void write(const byte input[], size_t length) = 0;
+      virtual void write(const uint8_t input[], size_t length) = 0;
 
       /**
       * Start a new message. Must be closed by end_msg() before another
       * message can be started.
       */
-      virtual void start_msg() {}
+      virtual void start_msg() { /* default empty */ }
 
       /**
       * Notify that the current message is finished; flush buffers and
       * do end-of-message processing (if any).
       */
-      virtual void end_msg() {}
+      virtual void end_msg() { /* default empty */ }
 
       /**
       * Check whether this filter is an attachable filter.
@@ -51,34 +51,34 @@ class BOTAN_DLL Filter
       */
       virtual bool attachable() { return true; }
 
-      virtual ~Filter() {}
+      virtual ~Filter() = default;
    protected:
       /**
       * @param in some input for the filter
       * @param length the length of in
       */
-      virtual void send(const byte in[], size_t length);
+      virtual void send(const uint8_t in[], size_t length);
 
       /**
       * @param in some input for the filter
       */
-      void send(byte in) { send(&in, 1); }
+      void send(uint8_t in) { send(&in, 1); }
 
       /**
       * @param in some input for the filter
       */
-      void send(const secure_vector<byte>& in) { send(in.data(), in.size()); }
+      void send(const secure_vector<uint8_t>& in) { send(in.data(), in.size()); }
 
       /**
       * @param in some input for the filter
       */
-      void send(const std::vector<byte>& in) { send(in.data(), in.size()); }
+      void send(const std::vector<uint8_t>& in) { send(in.data(), in.size()); }
 
       /**
       * @param in some input for the filter
       * @param length the number of bytes of in to send
       */
-      void send(const secure_vector<byte>& in, size_t length)
+      void send(const secure_vector<uint8_t>& in, size_t length)
          {
          send(in.data(), length);
          }
@@ -87,7 +87,7 @@ class BOTAN_DLL Filter
       * @param in some input for the filter
       * @param length the number of bytes of in to send
       */
-      void send(const std::vector<byte>& in, size_t length)
+      void send(const std::vector<uint8_t>& in, size_t length)
          {
          send(in.data(), length);
          }
@@ -138,8 +138,8 @@ class BOTAN_DLL Filter
       void set_next(Filter* filters[], size_t count);
       Filter* get_next() const;
 
-      secure_vector<byte> m_write_queue;
-      std::vector<Filter*> m_next;
+      secure_vector<uint8_t> m_write_queue;
+      std::vector<Filter*> m_next; // not owned
       size_t m_port_num, m_filter_owns;
 
       // true if filter belongs to a pipe --> prohibit filter sharing!
@@ -149,7 +149,7 @@ class BOTAN_DLL Filter
 /**
 * This is the abstract Fanout_Filter base class.
 **/
-class BOTAN_DLL Fanout_Filter : public Filter
+class BOTAN_PUBLIC_API(2,0) Fanout_Filter : public Filter
    {
    protected:
       /**

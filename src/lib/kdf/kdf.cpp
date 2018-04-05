@@ -6,6 +6,8 @@
 */
 
 #include <botan/kdf.h>
+#include <botan/mac.h>
+#include <botan/hash.h>
 #include <botan/scan_name.h>
 #include <botan/exceptn.h>
 
@@ -25,11 +27,7 @@
 #include <botan/kdf1_iso18033.h>
 #endif
 
-#if defined(BOTAN_HAS_TLS_V10_PRF)
-#include <botan/prf_tls.h>
-#endif
-
-#if defined(BOTAN_HAS_TLS_V12_PRF)
+#if defined(BOTAN_HAS_TLS_V10_PRF) || defined(BOTAN_HAS_TLS_V12_PRF)
 #include <botan/prf_tls.h>
 #endif
 
@@ -39,6 +37,10 @@
 
 #if defined(BOTAN_HAS_SP800_108)
 #include <botan/sp800_108.h>
+#endif
+
+#if defined(BOTAN_HAS_SP800_56A)
+#include <botan/sp800_56a.h>
 #endif
 
 #if defined(BOTAN_HAS_SP800_56C)
@@ -184,6 +186,16 @@ std::unique_ptr<KDF> KDF::create(const std::string& algo_spec,
       }
 #endif
 
+#if defined(BOTAN_HAS_SP800_56A)
+   if(req.algo_name() == "SP800-56A" && req.arg_count() == 1)
+      {
+      if(auto hash = HashFunction::create(req.arg(0)))
+         return std::unique_ptr<KDF>(new SP800_56A_Hash(hash.release()));
+      if(auto mac = MessageAuthenticationCode::create(req.arg(0)))
+         return std::unique_ptr<KDF>(new SP800_56A_HMAC(mac.release()));
+      }
+#endif
+
 #if defined(BOTAN_HAS_SP800_56C)
    if(req.algo_name() == "SP800-56C" && req.arg_count() == 1)
       {
@@ -199,6 +211,9 @@ std::unique_ptr<KDF> KDF::create(const std::string& algo_spec,
       }
 #endif
 
+   BOTAN_UNUSED(req);
+   BOTAN_UNUSED(provider);
+
    return nullptr;
    }
 
@@ -207,9 +222,9 @@ std::unique_ptr<KDF>
 KDF::create_or_throw(const std::string& algo,
                              const std::string& provider)
    {
-   if(auto bc = KDF::create(algo, provider))
+   if(auto kdf = KDF::create(algo, provider))
       {
-      return bc;
+      return kdf;
       }
    throw Lookup_Error("KDF", algo, provider);
    }

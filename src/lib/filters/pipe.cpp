@@ -8,7 +8,6 @@
 #include <botan/pipe.h>
 #include <botan/internal/out_buf.h>
 #include <botan/secqueue.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 
@@ -17,10 +16,10 @@ namespace {
 /*
 * A Filter that does nothing
 */
-class Null_Filter : public Filter
+class Null_Filter final : public Filter
    {
    public:
-      void write(const byte input[], size_t length) override
+      void write(const uint8_t input[], size_t length) override
          { send(input, length); }
 
       std::string name() const override { return "Null"; }
@@ -31,13 +30,9 @@ class Null_Filter : public Filter
 /*
 * Pipe Constructor
 */
-Pipe::Pipe(Filter* f1, Filter* f2, Filter* f3, Filter* f4)
+Pipe::Pipe(Filter* f1, Filter* f2, Filter* f3, Filter* f4) :
+   Pipe({f1,f2,f3,f4})
    {
-   init();
-   append(f1);
-   append(f2);
-   append(f3);
-   append(f4);
    }
 
 /*
@@ -45,10 +40,13 @@ Pipe::Pipe(Filter* f1, Filter* f2, Filter* f3, Filter* f4)
 */
 Pipe::Pipe(std::initializer_list<Filter*> args)
    {
-   init();
+   m_outputs.reset(new Output_Buffers);
+   m_pipe = nullptr;
+   m_default_read = 0;
+   m_inside_msg = false;
 
    for(auto i = args.begin(); i != args.end(); ++i)
-      append(*i);
+      do_append(*i);
    }
 
 /*
@@ -57,18 +55,6 @@ Pipe::Pipe(std::initializer_list<Filter*> args)
 Pipe::~Pipe()
    {
    destruct(m_pipe);
-   delete m_outputs;
-   }
-
-/*
-* Initialize the Pipe
-*/
-void Pipe::init()
-   {
-   m_outputs = new Output_Buffers;
-   m_pipe = nullptr;
-   m_default_read = 0;
-   m_inside_msg = false;
    }
 
 /*
@@ -114,7 +100,7 @@ void Pipe::set_default_msg(message_id msg)
 /*
 * Process a full message at once
 */
-void Pipe::process_msg(const byte input[], size_t length)
+void Pipe::process_msg(const uint8_t input[], size_t length)
    {
    start_msg();
    write(input, length);
@@ -124,12 +110,12 @@ void Pipe::process_msg(const byte input[], size_t length)
 /*
 * Process a full message at once
 */
-void Pipe::process_msg(const secure_vector<byte>& input)
+void Pipe::process_msg(const secure_vector<uint8_t>& input)
    {
    process_msg(input.data(), input.size());
    }
 
-void Pipe::process_msg(const std::vector<byte>& input)
+void Pipe::process_msg(const std::vector<uint8_t>& input)
    {
    process_msg(input.data(), input.size());
    }
@@ -139,7 +125,7 @@ void Pipe::process_msg(const std::vector<byte>& input)
 */
 void Pipe::process_msg(const std::string& input)
    {
-   process_msg(reinterpret_cast<const byte*>(input.data()), input.length());
+   process_msg(cast_char_ptr_to_uint8(input.data()), input.length());
    }
 
 /*
@@ -215,19 +201,46 @@ void Pipe::clear_endpoints(Filter* f)
       }
    }
 
+void Pipe::append(Filter* filter)
+   {
+   do_append(filter);
+   }
+
+void Pipe::append_filter(Filter* filter)
+   {
+   if(m_outputs->message_count() != 0)
+      throw Invalid_State("Cannot call Pipe::append_filter after start_msg");
+
+   do_append(filter);
+   }
+
+void Pipe::prepend(Filter* filter)
+   {
+   do_prepend(filter);
+   }
+
+void Pipe::prepend_filter(Filter* filter)
+   {
+   if(m_outputs->message_count() != 0)
+      throw Invalid_State("Cannot call Pipe::prepend_filter after start_msg");
+
+   do_prepend(filter);
+   }
+
 /*
 * Append a Filter to the Pipe
 */
-void Pipe::append(Filter* filter)
+void Pipe::do_append(Filter* filter)
    {
-   if(m_inside_msg)
-      throw Invalid_State("Cannot append to a Pipe while it is processing");
    if(!filter)
       return;
    if(dynamic_cast<SecureQueue*>(filter))
       throw Invalid_Argument("Pipe::append: SecureQueue cannot be used");
    if(filter->m_owned)
       throw Invalid_Argument("Filters cannot be shared among multiple Pipes");
+
+   if(m_inside_msg)
+      throw Invalid_State("Cannot append to a Pipe while it is processing");
 
    filter->m_owned = true;
 
@@ -238,7 +251,7 @@ void Pipe::append(Filter* filter)
 /*
 * Prepend a Filter to the Pipe
 */
-void Pipe::prepend(Filter* filter)
+void Pipe::do_prepend(Filter* filter)
    {
    if(m_inside_msg)
       throw Invalid_State("Cannot prepend to a Pipe while it is processing");
@@ -269,16 +282,12 @@ void Pipe::pop()
    if(m_pipe->total_ports() > 1)
       throw Invalid_State("Cannot pop off a Filter with multiple ports");
 
-   Filter* f = m_pipe;
-   size_t owns = f->owns();
-   m_pipe = m_pipe->m_next[0];
-   delete f;
+   size_t to_remove = m_pipe->owns() + 1;
 
-   while(owns--)
+   while(to_remove--)
       {
-      f = m_pipe;
+      std::unique_ptr<Filter> to_destroy(m_pipe);
       m_pipe = m_pipe->m_next[0];
-      delete f;
       }
    }
 

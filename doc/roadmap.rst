@@ -2,64 +2,101 @@
 Botan Development Roadmap
 ========================================
 
-Branch Structure
+Near Term Plans
 ----------------------------------------
 
-Stability of branches is indicated by even or odd minor version numbers. The
-minor number of master is always odd, and devel releases come from it. Every
-once in a while a new even-numbered branch is forked. All development continues
-on the main trunk, with fixes and API compatible features backported to the
-stable branch. Stability of API and ABI is very important in the stable
-branches, whereas in master ABI changes happen with no warning, and API changes
-are made whenever it would serve the ends of justice.
+Here is an outline for the development plans over the next 12-18 months, as of
+November 2017.
 
-Current Status
+TLS Hardening/Testing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Leverage TLS-Attacker better, for example using custom workflows. Add tests
+using BoringSSL's hacked Go TLS stack. Add interop testing with OpenSSL as part
+of CI. Improve fuzzer coverage.
+
+Expose TLS to C89 and Python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Exposing TLS to C would allow for many new applications to make use of Botan.
+
+Interface to PSK and SRP databases
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Adding support for databases storing encrypted PSKs and SRP credentials.
+(PSK database support was added in 2.4.0)
+
+ECC Refactoring
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Refactoring how elliptic curve groups are stored, sharing representation and
+allowing better precomputations (eg precomputing base point multiples).
+
+Performance Improvements
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The eventual goal would be performance parity with OpenSSL, but initial
+target is probably more like "no worse than 30% slower for any algorithm".
+
+Elliptic Curve Pairings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These are useful in many interesting protocols. Initially BN curves are the main
+target (particularly BN-256 for compatability with Go's bn256 module) but likely
+we'll also want BLS curves.
+
+TLS 1.3
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The RFC process seems to be approaching consensus so hopefully there will be a
+final spec soon. The handshake differences are quite substantial, it's an open
+question how to implement that without overly complicating the existing TLS
+v1.0-v1.2 handshake code. There will also be some API extensions required to
+support 0-RTT data.
+
+Initial work is focused on features which are included in TLS v1.3 but also
+available for TLS v1.2 (such as PSS signatures and FFDHE) as well as
+refactorings which will make the eventual implementation of v1.3 simpler.
+Assuming no source of dedicated funding appears, a full v1.3 implementation will
+likely not available until late in 2018.
+
+ASN.1 Redesign
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. note::
+
+   This project has been deferred to 3.x as constexpr will likely make it
+   much easier to implement.
+
+The current ASN.1 library (DER_Encoder/BER_Decoder) does make it
+roughly possible to write C++ code matching the ASN.1 structures. But
+it is not flexible enough for all cases and makes many unnecessary
+copies (and thus memory allocations) of the data as it works.
+
+It would be better to have a system that used (a simple subset of) ASN.1 to
+define the types as well as encoding/decoding logic. Then new types could be
+easily defined. This could also obviate the current code for handling OIDs, and
+allow representing the OIDs using the natural OID tree syntax of ASN.1.
+
+Another important feature will be supporting copy-free streaming decoding. That
+is, given a (ptr,len) range the decoding operation either returns an error
+(throws exception) or else the decoded object plus the number of bytes after ptr
+that contain the object, and it does so without making any allocations or
+copies.
+
+It will probably be easier to be consistently allocation free in machine
+generated code, so the two goals of the redesign seem to reinforce each other.
+
+Longer View (Future Major Release)
 ----------------------------------------
 
-Currently (as of 2016-11-03) git master is approaching feature freeze for a
-stable 2.0 branch by the end of December 2016.
+Eventually (currently estimated for summer 2019), Botan 3.x will be
+released. This schedule allows some substantial time with Botan 2.x and 3.x
+supported simultaneously, to allow for application switch over.
 
-At some point between the final release candidate and the 2.0.0 release, a new
-release-2.0 branch will be created off of master. Development will continue on
-master (renumbered as 2.1.0), with chosen changes backported to release-2.0
-branch.
+This version will adopt C++17 and use new std types such as string_view,
+optional, and any, along with adopting memory span and guarded integer
+types. Likely C++17 constexpr will also be leveraged.
 
-Theoretically a new development release could be created at any time after this.
-But it is likely that for at least several months after branching, most
-development will be oriented towards being applied also to 2.0, and so there
-will not be any interesting diff between 2.1 and 2.0. At some point when the
-divergence grows enough to be 'interesting' a new development release will be
-created. These early development releases would only be for experimenters, with
-2.0 recommended for general use.
-
-Support Lifetimes
-----------------------------------------
-
-Botan 2.0.x will be supported for at least 24 months from the date of 2.0.0
-(probably longer)
-
-Botan 1.10.x is supported (for security patches only) through 2017-12-31
-
-All prior versions are no longer supported in any way.
-
-Supported Targets
-----------------------------------------
-
-The primary supported targets, which are tested with every commit by
-continuous integration, are GCC and Clang on Linux/x86-64, Clang on
-OSX/x86-64, and MSVC 2015 on Windows/x86-64. We also test arm, arm64,
-and ppc64 builds via GCC cross compilation and qemu emulation, and for
-iOS cross-compilation is checked (but the tests are not run).
-
-Other processors and OSes, like MIPS and OpenBSD, are occasionally
-tested on an ad-hoc basis, but breakage is somewhat more likely.
-
-As a policy we do not support any OS which is not supported by its
-original vendor. So for example no consideration whatsoever is given
-to supporting such EOLed systems as Windows 2000 or Solaris 2.6.
-
-Ongoing Issues
-----------------------------------------
-
-Documentation could always use help. Many things are completely undocumented,
-few things are documented well.
+In this future 3.x release, all deprecated features/APIs of 2.x will be removed.
+However outside of that, breaking API changes should be relatively minimal.

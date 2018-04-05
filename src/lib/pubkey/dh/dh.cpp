@@ -25,7 +25,7 @@ DH_PublicKey::DH_PublicKey(const DL_Group& grp, const BigInt& y1)
 /*
 * Return the public value for key agreement
 */
-std::vector<byte> DH_PublicKey::public_value() const
+std::vector<uint8_t> DH_PublicKey::public_value() const
    {
    return unlock(BigInt::encode_1363(m_y, group_p().bytes()));
    }
@@ -49,9 +49,9 @@ DH_PrivateKey::DH_PrivateKey(RandomNumberGenerator& rng,
       m_x = x_arg;
       }
 
-   if(m_y == 0)
+   if(m_y.is_zero())
       {
-      m_y = power_mod(group_g(), m_x, group_p());
+      m_y = m_group.power_g_p(m_x);
       }
    }
 
@@ -59,17 +59,19 @@ DH_PrivateKey::DH_PrivateKey(RandomNumberGenerator& rng,
 * Load a DH private key
 */
 DH_PrivateKey::DH_PrivateKey(const AlgorithmIdentifier& alg_id,
-                             const secure_vector<byte>& key_bits) :
+                             const secure_vector<uint8_t>& key_bits) :
    DL_Scheme_PrivateKey(alg_id, key_bits, DL_Group::ANSI_X9_42)
    {
-   if(m_y == 0)
-      m_y = power_mod(group_g(), m_x, group_p());
+   if(m_y.is_zero())
+      {
+      m_y = m_group.power_g_p(m_x);
+      }
    }
 
 /*
 * Return the public value for key agreement
 */
-std::vector<byte> DH_PrivateKey::public_value() const
+std::vector<uint8_t> DH_PrivateKey::public_value() const
    {
    return DH_PublicKey::public_value();
    }
@@ -79,7 +81,7 @@ namespace {
 /**
 * DH operation
 */
-class DH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
+class DH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
 
@@ -93,7 +95,7 @@ class DH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
                    [this](const BigInt& k) { return m_powermod_x_p(inverse_mod(k, m_p)); })
          {}
 
-      secure_vector<byte> raw_agree(const byte w[], size_t w_len) override;
+      secure_vector<uint8_t> raw_agree(const uint8_t w[], size_t w_len) override;
    private:
       const BigInt& m_p;
 
@@ -101,16 +103,18 @@ class DH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
       Blinder m_blinder;
    };
 
-secure_vector<byte> DH_KA_Operation::raw_agree(const byte w[], size_t w_len)
+secure_vector<uint8_t> DH_KA_Operation::raw_agree(const uint8_t w[], size_t w_len)
    {
-   BigInt input = BigInt::decode(w, w_len);
+   BigInt x = BigInt::decode(w, w_len);
 
-   if(input <= 1 || input >= m_p - 1)
+   if(x <= 1 || x >= m_p - 1)
       throw Invalid_Argument("DH agreement - invalid key provided");
 
-   BigInt r = m_blinder.unblind(m_powermod_x_p(m_blinder.blind(input)));
+   x = m_blinder.blind(x);
+   x = m_powermod_x_p(x);
+   x = m_blinder.unblind(x);
 
-   return BigInt::encode_1363(r, m_p.bytes());
+   return BigInt::encode_1363(x, m_p.bytes());
    }
 
 }

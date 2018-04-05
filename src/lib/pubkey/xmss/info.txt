@@ -1,19 +1,6 @@
-define XMSS 20161008
-
-<source>
-xmss_common_ops.cpp
-xmss_hash.cpp
-xmss_index_registry.cpp
-xmss_parameters.cpp
-xmss_privatekey.cpp
-xmss_publickey.cpp
-xmss_signature.cpp
-xmss_signature_operation.cpp
-xmss_verification_operation.cpp
-xmss_wots_parameters.cpp
-xmss_wots_privatekey.cpp
-xmss_wots_publickey.cpp
-</source>
+<defines>
+XMSS -> 20161008
+</defines>
 
 <header:public>
 atomic.h
@@ -33,6 +20,8 @@ xmss_wots_publickey.h
 </header:public>
 
 <header:internal>
+xmss_wots_addressed_privatekey.h
+xmss_wots_addressed_publickey.h
 xmss_signature.h
 xmss_signature_operation.h
 xmss_verification_operation.h
@@ -42,4 +31,5 @@ xmss_verification_operation.h
 asn1
 rng
 hash
+sha2_32
 </requires>

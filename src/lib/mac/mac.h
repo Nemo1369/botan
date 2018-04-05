@@ -5,19 +5,20 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MESSAGE_AUTH_CODE_BASE_H__
-#define BOTAN_MESSAGE_AUTH_CODE_BASE_H__
+#ifndef BOTAN_MESSAGE_AUTH_CODE_BASE_H_
+#define BOTAN_MESSAGE_AUTH_CODE_BASE_H_
 
 #include <botan/buf_comp.h>
 #include <botan/sym_algo.h>
 #include <string>
+#include <memory>
 
 namespace Botan {
 
 /**
 * This class represents Message Authentication Code (MAC) objects.
 */
-class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
+class BOTAN_PUBLIC_API(2,0) MessageAuthenticationCode : public Buffered_Computation,
                                             public SymmetricAlgorithm
    {
    public:
@@ -48,7 +49,7 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       */
       static std::vector<std::string> providers(const std::string& algo_spec);
 
-      virtual ~MessageAuthenticationCode() {}
+      virtual ~MessageAuthenticationCode() = default;
 
       /**
       * Prepare for processing a message under the specified nonce
@@ -63,7 +64,7 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       * Default implementation simply rejects all non-empty nonces
       * since most hash/MAC algorithms do not support randomization
       */
-      virtual void start_msg(const byte nonce[], size_t nonce_len)
+      virtual void start_msg(const uint8_t nonce[], size_t nonce_len)
          {
          BOTAN_UNUSED(nonce);
          if(nonce_len > 0)
@@ -76,7 +77,7 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       * @param nonce the per message nonce
       */
       template<typename Alloc>
-      void start(const std::vector<byte, Alloc>& nonce)
+      void start(const std::vector<uint8_t, Alloc>& nonce)
          {
          start_msg(nonce.data(), nonce.size());
          }
@@ -86,7 +87,7 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       * @param nonce the per message nonce
       * @param nonce_len length of nonce
       */
-      void start(const byte nonce[], size_t nonce_len)
+      void start(const uint8_t nonce[], size_t nonce_len)
          {
          start_msg(nonce, nonce_len);
          }
@@ -105,14 +106,14 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       * @param length the length of param in
       * @return true if the MAC is valid, false otherwise
       */
-      virtual bool verify_mac(const byte in[], size_t length);
+      virtual bool verify_mac(const uint8_t in[], size_t length);
 
       /**
       * Verify a MAC.
       * @param in the MAC to verify as a byte array
       * @return true if the MAC is valid, false otherwise
       */
-      virtual bool verify_mac(const std::vector<byte>& in)
+      virtual bool verify_mac(const std::vector<uint8_t>& in)
          {
          return verify_mac(in.data(), in.size());
          }
@@ -122,7 +123,7 @@ class BOTAN_DLL MessageAuthenticationCode : public Buffered_Computation,
       * @param in the MAC to verify as a byte array
       * @return true if the MAC is valid, false otherwise
       */
-      virtual bool verify_mac(const secure_vector<byte>& in)
+      virtual bool verify_mac(const secure_vector<uint8_t>& in)
          {
          return verify_mac(in.data(), in.size());
          }

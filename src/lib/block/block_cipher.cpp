@@ -12,6 +12,10 @@
   #include <botan/aes.h>
 #endif
 
+#if defined(BOTAN_HAS_ARIA)
+  #include <botan/aria.h>
+#endif
+
 #if defined(BOTAN_HAS_BLOWFISH)
   #include <botan/blowfish.h>
 #endif
@@ -20,8 +24,11 @@
   #include <botan/camellia.h>
 #endif
 
-#if defined(BOTAN_HAS_CAST)
+#if defined(BOTAN_HAS_CAST_128)
   #include <botan/cast128.h>
+#endif
+
+#if defined(BOTAN_HAS_CAST_256)
   #include <botan/cast256.h>
 #endif
 
@@ -66,12 +73,20 @@
   #include <botan/serpent.h>
 #endif
 
+#if defined(BOTAN_HAS_SHACAL2)
+  #include <botan/shacal2.h>
+#endif
+
+#if defined(BOTAN_HAS_SM4)
+  #include <botan/sm4.h>
+#endif
+
 #if defined(BOTAN_HAS_TWOFISH)
   #include <botan/twofish.h>
 #endif
 
 #if defined(BOTAN_HAS_THREEFISH_512)
-  #include <botan/threefish.h>
+  #include <botan/threefish_512.h>
 #endif
 
 #if defined(BOTAN_HAS_XTEA)
@@ -124,10 +139,34 @@ BlockCipher::create(const std::string& algo,
       }
 #endif
 
+#if defined(BOTAN_HAS_ARIA)
+   if(algo == "ARIA-128")
+      {
+      return std::unique_ptr<BlockCipher>(new ARIA_128);
+      }
+
+   if(algo == "ARIA-192")
+      {
+      return std::unique_ptr<BlockCipher>(new ARIA_192);
+      }
+
+   if(algo == "ARIA-256")
+      {
+      return std::unique_ptr<BlockCipher>(new ARIA_256);
+      }
+#endif
+
 #if defined(BOTAN_HAS_SERPENT)
    if(algo == "Serpent")
       {
       return std::unique_ptr<BlockCipher>(new Serpent);
+      }
+#endif
+
+#if defined(BOTAN_HAS_SHACAL2)
+   if(algo == "SHACAL2")
+      {
+      return std::unique_ptr<BlockCipher>(new SHACAL2);
       }
 #endif
 
@@ -193,12 +232,14 @@ BlockCipher::create(const std::string& algo,
       }
 #endif
 
-#if defined(BOTAN_HAS_CAST)
+#if defined(BOTAN_HAS_CAST_128)
    if(algo == "CAST-128" || algo == "CAST5")
       {
       return std::unique_ptr<BlockCipher>(new CAST_128);
       }
+#endif
 
+#if defined(BOTAN_HAS_CAST_256)
    if(algo == "CAST-256")
       {
       return std::unique_ptr<BlockCipher>(new CAST_256);
@@ -230,6 +271,13 @@ BlockCipher::create(const std::string& algo,
    if(algo == "SEED")
       {
       return std::unique_ptr<BlockCipher>(new SEED);
+      }
+#endif
+
+#if defined(BOTAN_HAS_SM4)
+   if(algo == "SM4")
+      {
+      return std::unique_ptr<BlockCipher>(new SM4);
       }
 #endif
 
@@ -273,6 +321,9 @@ BlockCipher::create(const std::string& algo,
          }
       }
 #endif
+
+   BOTAN_UNUSED(req);
+   BOTAN_UNUSED(provider);
 
    return nullptr;
    }

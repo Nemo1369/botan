@@ -36,7 +36,7 @@ Starting in 1.11.31, the application callbacks are encapsulated as the class
 mandatory for using TLS, all others are optional and provide additional
 information about the connection.
 
- .. cpp:function:: void tls_emit_data(const byte data[], size_t data_len)
+ .. cpp:function:: void tls_emit_data(const uint8_t data[], size_t data_len)
 
     Mandatory. The TLS stack requests that all bytes of *data* be queued up to send to the
     counterparty. After this function returns, the buffer containing *data* will
@@ -50,7 +50,7 @@ information about the connection.
     For TLS all writes must occur *in the order requested*.
     For DTLS this ordering is not strictly required, but is still recommended.
 
- .. cpp:function:: void tls_record_received(uint64_t rec_no, const byte data[], size_t data_len)
+ .. cpp:function:: void tls_record_received(uint64_t rec_no, const uint8_t data[], size_t data_len)
 
     Mandatory. Called once for each application_data record which is received, with the
     matching (TLS level) record sequence number.
@@ -66,12 +66,12 @@ information about the connection.
      For DTLS, it is possible to receive records with the `rec_no` field out of
      order, or with gaps, cooresponding to reordered or lost datagrams.
 
- .. cpp:function:: void tls_alert(Alert alert) 
+ .. cpp:function:: void tls_alert(Alert alert)
 
      Mandatory. Called when an alert is received from the peer. Note that alerts
      received before the handshake is complete are not authenticated and
      could have been inserted by a MITM attacker.
-     
+
  .. cpp:function:: bool tls_session_established(const TLS::Session& session)
 
      Mandatory. Called whenever a negotiation completes. This can happen more
@@ -85,6 +85,46 @@ information about the connection.
      exception which will send a close message to the counterparty and
      reset the connection state.
 
+ .. cpp::function:: void tls_verify_cert_chain(const std::vector<X509_Certificate>& cert_chain, \
+                   const std::vector<std::shared_ptr<const OCSP::Response>>& ocsp_responses, \
+                   const std::vector<Certificate_Store*>& trusted_roots, \
+                   Usage_Type usage, \
+                   const std::string& hostname, \
+                   const Policy& policy)
+
+     Optional - default implementation should work for many users.
+     It can be overrided for implementing extra validation routines
+     such as public key pinning.
+
+     Verifies the certificate chain in *cert_chain*, assuming the leaf
+     certificate is the first element. Throws an exception if any
+     error makes this certificate chain unacceptable.
+
+     If usage is `Usage_Type::TLS_SERVER_AUTH`, then *hostname* should
+     match the information in the server certificate. If usage is
+     `TLS_CLIENT_AUTH`, then *hostname* specifies the host the client
+     is authenticating against (from SNI); the callback can use this for
+     any special site specific auth logic.
+
+     The `ocsp_responses` is a possibly empty list of OCSP responses provided by
+     the server. In the current implementation of TLS OCSP stapling, only a
+     single OCSP response can be returned. A existing TLS extension allows the
+     server to send multiple OCSP responses, this extension may be supported in
+     the future in which case more than one OCSP response may be given during
+     this callback.
+
+     The `trusted_roots` parameter was returned by a call from the associated
+     `Credentials_Manager`.
+
+     The `policy` provided is the policy for the TLS session which is
+     being authenticated using this certificate chain. It can be consulted
+     for values such as allowable signature methods and key sizes.
+
+ .. cpp::function:: std::chrono::milliseconds tls_verify_cert_chain_ocsp_timeout() const
+
+     Called by default `tls_verify_cert_chain` to set timeout for online OCSP requests
+     on the certificate chain. Return 0 to disable OCSP. Current default is 0.
+
  .. cpp:function:: std::string tls_server_choose_app_protocol(const std::vector<std::string>& client_protos)
 
      Optional. Called by the server when a client includes a list of protocols in the ALPN extension.
@@ -97,6 +137,17 @@ information about the connection.
      This callback is optional, and can be used to inspect all handshake messages
      while the session establishment occurs.
 
+ .. cpp:function:: void tls_modify_extensions(Extensions& extn, Connection_Side which_side)
+
+     This callback is optional, and can be used to modify extensions before they
+     are sent to the peer. For example this enables adding a custom extension,
+     or replacing or removing an extension set by the library.
+
+ .. cpp:function:: void tls_examine_extensions(const Extensions& extn, Connection_Side which_side)
+
+     This callback is optional, and can be used to examine extensions sent by
+     the peer.
+
  .. cpp:function:: void tls_log_error(const char* msg)
 
      Optional logging for an error message. (Not currently used)
@@ -108,6 +159,16 @@ information about the connection.
  .. cpp:function:: void tls_log_debug_bin(const char* descr, const uint8_t val[], size_t len)
 
      Optional logging for an debug value. (Not currently used)
+
+ .. cpp:function:: std::string tls_decode_group_param(TLS::Group_Params group_param)
+
+     Optional. Called by the server when a client hello includes a list of supported groups in the
+     supported_groups extension and by the client when decoding the server key exchange including the selected curve identifier.
+     The function should return the name of the DH group or elliptic curve the passed
+     TLS group identifier should be mapped to. Therefore this callback enables the use of custom 
+     elliptic curves or DH groups in TLS, if both client and server map the custom identifiers correctly.
+     Please note that it is required to allow the group TLS identifier in
+     in the used :cpp:class:`TLS::Policy`.
 
 Versions from 1.11.0 to 1.11.30 did not have ``TLS::Callbacks`` and instead
 used independent std::functions to pass the various callback functions.
@@ -125,8 +186,8 @@ available:
 
 .. cpp:class:: TLS::Channel
 
-   .. cpp:function:: size_t received_data(const byte buf[], size_t buf_size)
-   .. cpp:function:: size_t received_data(const std::vector<byte>& buf)
+   .. cpp:function:: size_t received_data(const uint8_t buf[], size_t buf_size)
+   .. cpp:function:: size_t received_data(const std::vector<uint8_t>& buf)
 
      This function is used to provide data sent by the counterparty
      (eg data that you read off the socket layer). Depending on the
@@ -139,9 +200,9 @@ available:
      the data fell exactly on a message boundary, in which case it
      will return 0 instead.
 
-   .. cpp:function:: void send(const byte buf[], size_t buf_size)
+   .. cpp:function:: void send(const uint8_t buf[], size_t buf_size)
    .. cpp:function:: void send(const std::string& str)
-   .. cpp:function:: void send(const std::vector<byte>& vec)
+   .. cpp:function:: void send(const std::vector<uint8_t>& vec)
 
      Create one or more new TLS application records containing the
      provided data and send them. This will eventually result in at
@@ -262,6 +323,10 @@ TLS Clients
    the server select what certificate to use and helps the client
    validate the connection.
 
+   Note that the server name indicator name must be a FQDN.  IP
+   addresses are not allowed by RFC 6066 and may lead to interoperability
+   problems.
+
    Use the optional *offer_version* to control the version of TLS you
    wish the client to offer. Normally, you'll want to offer the most
    recent version of (D)TLS that is available, however some broken
@@ -288,7 +353,120 @@ TLS Clients
    resized as needed to process inputs). Otherwise some reasonable
    default is used.
 
-Code for a TLS client using BSD sockets is in `src/cli/tls_client.cpp`
+Code Example
+^^^^^^^^^^^^
+A minimal example of a TLS client is provided below.
+The full code for a TLS client using BSD sockets is in `src/cli/tls_client.cpp`
+
+.. code-block:: cpp
+
+    #include <botan/tls_client.h>
+    #include <botan/tls_callbacks.h>
+    #include <botan/tls_session_manager.h>
+    #include <botan/tls_policy.h>
+    #include <botan/auto_rng.h>
+    #include <botan/certstor.h>
+
+    /**
+     * @brief Callbacks invoked by TLS::Channel.
+     *
+     * Botan::TLS::Callbacks is an abstract class.
+     * For improved readability, only the functions that are mandatory
+     * to implement are listed here. See src/lib/tls/tls_callbacks.h.
+     */
+    class Callbacks : public Botan::TLS::Callbacks
+    {
+       public:
+          void tls_emit_data(const uint8_t data[], size_t size) override
+             {
+             // send data to tls server, e.g., using BSD sockets or boost asio
+             }
+
+          void tls_record_received(uint64_t seq_no, const uint8_t data[], size_t size) override
+             {
+             // process full TLS record received by tls server, e.g.,
+             // by passing it to the application
+             }
+
+          void tls_alert(Botan::TLS::Alert alert) override
+             {
+             // handle a tls alert received from the tls server
+             }
+
+          bool tls_session_established(const Botan::TLS::Session& session) override
+             {
+             // the session with the tls server was established
+             // return false to prevent the session from being cached, true to
+             // cache the session in the configured session manager
+             return false;
+             }
+    };
+
+    /**
+     * @brief Credentials storage for the tls client.
+     *
+     * It returns a list of trusted CA certificates from a local directory.
+     * TLS client authentication is disabled. See src/lib/tls/credentials_manager.h.
+     */
+    class Client_Credentials : public Botan::Credentials_Manager
+    {
+       public:
+          std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return a list of certificates of CAs we trust for tls server certificates,
+             // e.g., all the certificates in the local directory "cas"
+             return { new Botan::Certificate_Store_In_Memory("cas") };
+             }
+
+          std::vector<Botan::X509_Certificate> cert_chain(
+             const std::vector<std::string>& cert_key_types,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // when using tls client authentication (optional), return
+             // a certificate chain being sent to the tls server,
+             // else an empty list
+             return std::vector<Botan::X509_Certificate>();
+             }
+
+          Botan::Private_Key* private_key_for(const Botan::X509_Certificate& cert,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // when returning a chain in cert_chain(), return the private key
+             // associated with the leaf certificate here
+             return nullptr;
+             }
+    };
+
+    int main()
+       {
+       // prepare all the parameters
+       Callbacks callbacks;
+       Botan::AutoSeeded_RNG rng;
+       Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+       Botan::Client_Credentials creds;
+       Botan::TLS::Strict_Policy policy;
+
+       // open the tls connection
+       Botan::TLS::Client client(callbacks,
+                                 session_mgr,
+                                 creds,
+                                 policy,
+                                 rng,
+                                 Botan::TLS::Server_Information("botan.randombit.net", 443),
+                                 Botan::TLS::Protocol_Version::TLS_V12);
+
+       while(!client.is_closed())
+          {
+          // read data received from the tls server, e.g., using BSD sockets or boost asio
+          // ...
+
+          // send data to the tls server using client.send_data()
+          }
+       }
 
 TLS Servers
 ----------------------------------------
@@ -321,7 +499,129 @@ server; unlike clients, which know what type of protocol (TLS vs DTLS)
 they are negotiating from the start via the *offer_version*, servers
 would not until they actually received a client hello.
 
-Code for a TLS server using asio is in `src/cli/tls_proxy.cpp`.
+Code Example
+^^^^^^^^^^^^
+A minimal example of a TLS server is provided below.
+The full code for a TLS server using asio is in `src/cli/tls_proxy.cpp`.
+
+.. code-block:: cpp
+
+    #include <botan/tls_client.h>
+    #include <botan/tls_callbacks.h>
+    #include <botan/tls_session_manager.h>
+    #include <botan/tls_policy.h>
+    #include <botan/auto_rng.h>
+    #include <botan/certstor.h>
+    #include <botan/pk_keys.h>
+
+    #include <memory>
+
+    /**
+     * @brief Callbacks invoked by TLS::Channel.
+     *
+     * Botan::TLS::Callbacks is an abstract class.
+     * For improved readability, only the functions that are mandatory
+     * to implement are listed here. See src/lib/tls/tls_callbacks.h.
+     */
+    class Callbacks : public Botan::TLS::Callbacks
+    {
+       public:
+          void tls_emit_data(const uint8_t data[], size_t size) override
+             {
+             // send data to tls client, e.g., using BSD sockets or boost asio
+             }
+
+          void tls_record_received(uint64_t seq_no, const uint8_t data[], size_t size) override
+             {
+             // process full TLS record received by tls client, e.g.,
+             // by passing it to the application
+             }
+
+          void tls_alert(Botan::TLS::Alert alert) override
+             {
+             // handle a tls alert received from the tls server
+             }
+
+          bool tls_session_established(const Botan::TLS::Session& session) override
+             {
+             // the session with the tls client was established
+             // return false to prevent the session from being cached, true to
+             // cache the session in the configured session manager
+             return false;
+             }
+    };
+
+    /**
+     * @brief Credentials storage for the tls server.
+     *
+     * It returns a certificate and the associated private key to
+     * authenticate the tls server to the client.
+     * TLS client authentication is not requested.
+     * See src/lib/tls/credentials_manager.h.
+     */
+    class Server_Credentials : public Botan::Credentials_Manager
+    {
+       public:
+	  Server_Credentials() : m_key(Botan::PKCS8::load_key("botan.randombit.net.key"))
+             {
+             }
+
+          std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(
+             const std::string& type,
+             const std::string& context) override
+             {
+             // if client authentication is required, this function
+             // shall return a list of certificates of CAs we trust
+             // for tls client certificates, otherwise return an empty list
+             return std::vector<Certificate_Store*>();
+             }
+
+          std::vector<Botan::X509_Certificate> cert_chain(
+             const std::vector<std::string>& cert_key_types,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return the certificate chain being sent to the tls client
+             // e.g., the certificate file "botan.randombit.net.crt"
+             return { Botan::X509_Certificate("botan.randombit.net.crt") };
+             }
+
+          Botan::Private_Key* private_key_for(const Botan::X509_Certificate& cert,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return the private key associated with the leaf certificate,
+             // in this case the one associated with "botan.randombit.net.crt"
+             return &m_key;
+             }
+
+          private:
+             std::unique_ptr<Botan::Private_Key> m_key;
+    };
+
+    int main()
+       {
+       // prepare all the parameters
+       Callbacks callbacks;
+       Botan::AutoSeeded_RNG rng;
+       Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+       Botan::Client_Credentials creds;
+       Botan::TLS::Strict_Policy policy;
+
+       // accept tls connection from client
+       Botan::TLS::Server server(callbacks,
+                                 session_mgr,
+                                 creds,
+                                 policy,
+                                 rng);
+
+       // read data received from the tls client, e.g., using BSD sockets or boost asio
+       // and pass it to server.received_data().
+       // ...
+
+       // send data to the tls client using server.send_data()
+       // ...
+       }
 
 .. _tls_sessions:
 
@@ -371,7 +671,7 @@ information about that session:
       Returns ``true`` if the connection was negotiated with the
       correct extensions to prevent the renegotiation attack.
 
-   .. cpp:function:: std::vector<byte> encrypt(const SymmetricKey& key, \
+   .. cpp:function:: std::vector<uint8_t> encrypt(const SymmetricKey& key, \
                                                RandomNumberGenerator& rng)
 
       Encrypts a session using a symmetric key *key* and returns a raw
@@ -381,14 +681,14 @@ information about that session:
       Currently the implementation encrypts the session using AES-256
       in GCM mode with a random nonce.
 
-   .. cpp:function:: static Session decrypt(const byte ciphertext[], \
+   .. cpp:function:: static Session decrypt(const uint8_t ciphertext[], \
                                             size_t length, \
                                             const SymmetricKey& key)
 
       Decrypts a session that was encrypted previously with ``encrypt`` and
       ``key``, or throws an exception if decryption fails.
 
-   .. cpp:function:: secure_vector<byte> DER_encode() const
+   .. cpp:function:: secure_vector<uint8_t> DER_encode() const
 
        Returns a serialized version of the session.
 
@@ -414,12 +714,12 @@ implementation to the ``TLS::Client`` or ``TLS::Server`` constructor.
      ID will replicate a session ID already stored, in which case the
      new session information should overwrite the previous information.
 
- .. cpp:function:: void remove_entry(const std::vector<byte>& session_id)
+ .. cpp:function:: void remove_entry(const std::vector<uint8_t>& session_id)
 
       Remove the session identified by *session_id*. Future attempts
       at resumption should fail for this session.
 
- .. cpp:function:: bool load_from_session_id(const std::vector<byte>& session_id, \
+ .. cpp:function:: bool load_from_session_id(const std::vector<uint8_t>& session_id, \
                                              Session& session)
 
       Attempt to resume a session identified by *session_id*. If
@@ -522,11 +822,12 @@ policy settings from a file.
 
      Cipher names without an explicit mode refers to CBC+HMAC ciphersuites.
 
-     Default value: "AES-256/GCM", "AES-128/GCM", "ChaCha20Poly1305",
+     Default value: "ChaCha20Poly1305", "AES-256/GCM", "AES-128/GCM",
      "AES-256/CCM", "AES-128/CCM", "AES-256", "AES-128"
 
      Also allowed: "AES-256/CCM(8)", "AES-128/CCM(8)",
-     "Camellia-256/GCM", "Camellia-128/GCM", "Camellia-256", "Camellia-128"
+     "Camellia-256/GCM", "Camellia-128/GCM", "ARIA-256/GCM", "ARIA-128/GCM",
+     "Camellia-256", "Camellia-128"
 
      Also allowed (though currently experimental): "AES-128/OCB(12)",
      "AES-256/OCB(12)"
@@ -567,7 +868,23 @@ policy settings from a file.
      Returns the list of key exchange methods we are willing to use,
      in order of preference.
 
-     Default: "ECDH", "DH"
+     Default: "CECPQ1", "ECDH", "DH"
+
+     .. note::
+
+        CECPQ1 key exchange provides post-quantum security to the key exchange
+        by combining NewHope with a standard x25519 ECDH exchange. This prevents
+        an attacker, even one with a quantum computer, from later decrypting the
+        contents of a recorded TLS transcript. The NewHope algorithm is very
+        fast, but adds roughly 4 KiB of additional data transfer to every TLS
+        handshake. And even if NewHope ends up completely broken, the 'extra'
+        x25519 exchange secures the handshake.
+
+        For applications where the additional data transfer size is unacceptable,
+        simply allow only ECDH key exchange in the application policy. DH
+        exchange also often involves transferring several additional Kb (without
+        the benefit of post quantum security) so if CECPQ1 is being disabled for
+        traffic overhread reasons, DH should also be avoid.
 
      Also allowed: "RSA", "SRP_SHA", "ECDHE_PSK", "DHE_PSK", "PSK"
 
@@ -604,12 +921,18 @@ policy settings from a file.
 
         DSA authentication is deprecated and will be removed in a future release.
 
- .. cpp:function:: std::vector<std::string> allowed_ecc_curves() const
+ .. cpp:function:: std::vector<Group_Params> key_exchange_groups() const
 
-     Return a list of ECC curves we are willing to use, in order of preference.
+     Return a list of ECC curve and DH group TLS identifiers we are willing to use, in order of preference.
+     The default ordering puts the best performing ECC first.
 
-     Default: "brainpool512r1", "secp521r1", "brainpool384r1",
-     "secp384r1", "brainpool256r1", "secp256r1", "x25519"
+     Default:
+     Group_Params::X25519, Group_Params::SECP256R1,
+     Group_Params::SECP521R1, Group_Params::SECP384R1,
+     Group_Params::BRAINPOOL256R1, Group_Params::BRAINPOOL384R1,
+     Group_Params::BRAINPOOL512R1, Group_Params::FFDHE_2048, 
+     Group_Params::FFDHE_3072, Group_Params::FFDHE_4096,
+     Group_Params::FFDHE_6144, Group_Params::FFDHE_8192
 
      No other values are currently defined.
 
@@ -625,15 +948,6 @@ policy settings from a file.
      party's preference.
 
      Default: false
-
- .. cpp:function:: std::vector<byte> compression() const
-
-     Return the list of compression methods we are willing to use, in order of
-     preference. Default is null compression only.
-
-     .. note::
-
-        TLS data compression is not currently supported.
 
  .. cpp:function:: bool acceptable_protocol_version(Protocol_Version version)
 
@@ -661,6 +975,14 @@ policy settings from a file.
 
      Default: false
 
+ .. cpp:function:: bool allow_client_initiated_renegotiation() const
+
+     If this function returns true, a server will accept a
+     client-initiated renegotiation attempt. Otherwise it will send
+     the client a non-fatal ``no_renegotiation`` alert.
+
+     Default: true
+
  .. cpp:function:: bool allow_server_initiated_renegotiation() const
 
      If this function returns true, a client will accept a
@@ -678,10 +1000,30 @@ policy settings from a file.
 
      Default: false
 
- .. cpp:function:: std::string dh_group() const
+ .. cpp:function:: size_t minimum_signature_strength() const
+
+     Return the minimum strength (as ``n``, representing ``2**n`` work)
+     we will accept for a signature algorithm on any certificate.
+
+     Use 80 to enable RSA-1024 (*not recommended*), or 128 to require
+     either ECC or large (~3000 bit) RSA keys.
+
+     Default: 110 (allowing 2048 bit RSA)
+
+ .. cpp:function:: bool require_cert_revocation_info() const
+
+     If this function returns true, and a ciphersuite using certificates was
+     negotiated, then we must have access to a valid CRL or OCSP response in
+     order to trust the certificate.
+
+     .. warning:: Returning false here could expose you to attacks
+
+     Default: true
+
+ .. cpp:function:: Group_Params default_dh_group() const
 
      For ephemeral Diffie-Hellman key exchange, the server sends a
-     group parameter. Return a string specifying the group parameter a
+     group parameter. Return the 2 Byte TLS group identifier specifying the group parameter a
      server should use.
 
      Default: 2048 bit IETF IPsec group ("modp/ietf/2048")
@@ -694,7 +1036,7 @@ policy settings from a file.
      fatal alert then attempt to reconnect after disabling ephemeral
      Diffie-Hellman.
 
-     Default: 1024 bits
+     Default: 2048 bits
 
 .. cpp:function:: size_t minimum_rsa_bits() const
 
@@ -748,7 +1090,7 @@ TLS Ciphersuites
 
 .. cpp:class:: TLS::Ciphersuite
 
- .. cpp:function:: u16bit ciphersuite_code() const
+ .. cpp:function:: uint16_t ciphersuite_code() const
 
      Return the numerical code for this ciphersuite
 
@@ -816,11 +1158,11 @@ The ``TLS::Protocol_Version`` class represents a specific version:
 
       Create a specific version
 
- .. cpp:function:: byte major_version() const
+ .. cpp:function:: uint8_t major_version() const
 
       Returns major number of the protocol version
 
- .. cpp:function:: byte minor_version() const
+ .. cpp:function:: uint8_t minor_version() const
 
       Returns minor number of the protocol version
 
@@ -838,3 +1180,378 @@ The ``TLS::Protocol_Version`` class represents a specific version:
 
       Returns the latest version of the DTLS protocol known to the
       library (currently DTLS v1.2)
+
+TLS Custom Curves
+----------------------------------------
+
+The supported_groups TLS extension is used in the client hello to advertise a list of supported elliptic curves
+and DH groups. The server subsequently selects one of the groups, which is supported by both endpoints.
+The groups are represented by their TLS identifier. This 2 Byte identifier is standardized for commonly used groups and curves.
+In addition, the standard reserves the identifiers 0xFE00 to 0xFEFF for custom groups or curves.
+
+Using non standardized custom curves is however not recommended and can be a serious risk if an
+insecure curve is used. Still, it might be desired in some scenarios to use custom curves or groups in the TLS handshake.
+
+To use custom curves with the Botan :cpp:class:`TLS::Client` or :cpp:class:`TLS::Server` the following additional adjustments have to be implemented
+as shown in the following code examples.
+
+1. Registration of the custom curve
+2. Implementation TLS callback ``tls_decode_group_param``
+3. Adjustment of the TLS policy by allowing the custom curve
+
+Client Code Example
+^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: cpp
+
+    #include <botan/tls_client.h>
+    #include <botan/tls_callbacks.h>
+    #include <botan/tls_session_manager.h>
+    #include <botan/tls_policy.h>
+    #include <botan/auto_rng.h>
+    #include <botan/certstor.h>
+
+    #include <botan/ec_group.h>
+    #include <botan/oids.h>
+
+
+    /**
+     * @brief Callbacks invoked by TLS::Channel.
+     *
+     * Botan::TLS::Callbacks is an abstract class.
+     * For improved readability, only the functions that are mandatory
+     * to implement are listed here. See src/lib/tls/tls_callbacks.h.
+     */
+    class Callbacks : public Botan::TLS::Callbacks
+    {
+       public:
+          void tls_emit_data(const uint8_t data[], size_t size) override
+             {
+             // send data to tls server, e.g., using BSD sockets or boost asio
+             }
+
+          void tls_record_received(uint64_t seq_no, const uint8_t data[], size_t size) override
+             {
+             // process full TLS record received by tls server, e.g.,
+             // by passing it to the application
+             }
+
+          void tls_alert(Botan::TLS::Alert alert) override
+             {
+             // handle a tls alert received from the tls server
+             }
+
+          bool tls_session_established(const Botan::TLS::Session& session) override
+             {
+             // the session with the tls server was established
+             // return false to prevent the session from being cached, true to
+             // cache the session in the configured session manager
+             return false;
+             }
+          std::string tls_decode_group_param(Botan::TLS::Group_Params group_param) override
+              {
+              // handle TLS group identifier decoding and return name as string
+              // return empty string to indicate decoding failure
+
+              switch(static_cast<uint16_t>(group_param))
+                 {
+                 case 0xFE00:
+                    return "testcurve1102";
+                 default:
+                    //decode non-custom groups
+                    return Botan::TLS::Callbacks::tls_decode_group_param(group_param);
+                 }
+              }
+    };
+
+    /**
+     * @brief Credentials storage for the tls client.
+     *
+     * It returns a list of trusted CA certificates from a local directory.
+     * TLS client authentication is disabled. See src/lib/tls/credentials_manager.h.
+     */
+    class Client_Credentials : public Botan::Credentials_Manager
+    {
+       public:
+          std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return a list of certificates of CAs we trust for tls server certificates,
+             // e.g., all the certificates in the local directory "cas"
+             return { new Botan::Certificate_Store_In_Memory("cas") };
+             }
+
+          std::vector<Botan::X509_Certificate> cert_chain(
+             const std::vector<std::string>& cert_key_types,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // when using tls client authentication (optional), return
+             // a certificate chain being sent to the tls server,
+             // else an empty list
+             return std::vector<Botan::X509_Certificate>();
+             }
+
+          Botan::Private_Key* private_key_for(const Botan::X509_Certificate& cert,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // when returning a chain in cert_chain(), return the private key
+             // associated with the leaf certificate here
+             return nullptr;
+             }
+    };
+
+    class Client_Policy : public Botan::TLS::Strict_Policy
+    {
+       public:
+          std::vector<Botan::TLS::Group_Params> key_exchange_groups() const override
+             {
+             // modified strict policy to allow our custom curves
+             return
+                {
+                static_cast<Botan::TLS::Group_Params>(0xFE00)
+                };    
+             }
+    };
+
+    int main()
+       {
+       // prepare rng
+       Botan::AutoSeeded_RNG rng;
+
+       // prepare custom curve
+
+       // prepare curve parameters
+       const Botan::BigInt p("0x92309a3e88b94312f36891a2055725bb35ab51af96b3a651d39321b7bbb8c51575a76768c9b6b323");
+       const Botan::BigInt a("0x4f30b8e311f6b2dce62078d70b35dacb96aa84b758ab5a8dff0c9f7a2a1ff466c19988aa0acdde69");
+       const Botan::BigInt b("0x9045A513CFFF9AE1F1CC84039D852D240344A1D5C9DB203C844089F855C387823EB6FCDDF49C909C");
+
+       const Botan::BigInt x("0x9120f3779a31296cefcb5a5a08831f1a6d438ad5a3f2ce60585ac19c74eebdc65cadb96bb92622c7");
+       const Botan::BigInt y("0x836db8251c152dfee071b72c6b06c5387d82f1b5c30c5a5b65ee9429aa2687e8426d5d61276a4ede");
+       const Botan::BigInt order("0x248c268fa22e50c4bcda24688155c96ecd6ad46be5c82d7a6be6e7068cb5d1ca72b2e07e8b90d853");
+
+       const Botan::BigInt cofactor(4);
+
+       const Botan::OID oid("1.2.3.1");
+
+       // create EC_Group object to register the curve
+       Botan::EC_Group testcurve1102(p, a, b, x, y, order, cofactor, oid);
+
+       if(!testcurve1102.verify_group(rng))
+          {
+          // Warning: if verify_group returns false the curve parameters are insecure
+          }
+
+       // register name to specified oid
+       Botan::OIDS::add_oid(oid, "testcurve1102"); 
+
+       // prepare all the parameters
+       Callbacks callbacks;
+       Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+       Client_Credentials creds;
+       Client_Policy policy;
+
+       // open the tls connection
+       Botan::TLS::Client client(callbacks,
+                                 session_mgr,
+                                 creds,
+                                 policy,
+                                 rng,
+                                 Botan::TLS::Server_Information("botan.randombit.net", 443),
+                                 Botan::TLS::Protocol_Version::TLS_V12);
+
+
+       while(!client.is_closed())
+          {
+          // read data received from the tls server, e.g., using BSD sockets or boost asio
+          // ...
+
+          // send data to the tls server using client.send_data()
+
+           }
+       }
+
+Server Code Example
+^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: cpp
+
+    #include <botan/tls_server.h>
+    #include <botan/tls_callbacks.h>
+    #include <botan/tls_session_manager.h>
+    #include <botan/tls_policy.h>
+    #include <botan/auto_rng.h>
+    #include <botan/certstor.h>
+    #include <botan/pk_keys.h>
+    #include <botan/pkcs8.h>
+
+    #include <botan/ec_group.h>
+    #include <botan/oids.h>
+
+    #include <memory>
+
+    /**
+     * @brief Callbacks invoked by TLS::Channel.
+     *
+     * Botan::TLS::Callbacks is an abstract class.
+     * For improved readability, only the functions that are mandatory
+     * to implement are listed here. See src/lib/tls/tls_callbacks.h.
+     */
+    class Callbacks : public Botan::TLS::Callbacks
+    {
+       public:
+          void tls_emit_data(const uint8_t data[], size_t size) override
+             {
+             // send data to tls client, e.g., using BSD sockets or boost asio
+             }
+
+          void tls_record_received(uint64_t seq_no, const uint8_t data[], size_t size) override
+             {
+             // process full TLS record received by tls client, e.g.,
+             // by passing it to the application
+             }
+
+          void tls_alert(Botan::TLS::Alert alert) override
+             {
+             // handle a tls alert received from the tls server
+             }
+
+          bool tls_session_established(const Botan::TLS::Session& session) override
+             {
+             // the session with the tls client was established
+             // return false to prevent the session from being cached, true to
+             // cache the session in the configured session manager
+             return false;
+             }
+
+          std::string tls_decode_group_param(Botan::TLS::Group_Params group_param) override
+             {
+             // handle TLS group identifier decoding and return name as string
+             // return empty string to indicate decoding failure
+
+             switch(static_cast<uint16_t>(group_param))
+                {
+                case 0xFE00:
+                   return "testcurve1102";
+                default:
+                   //decode non-custom groups
+                   return Botan::TLS::Callbacks::tls_decode_group_param(group_param);
+                }
+             }
+    };
+
+    /**
+     * @brief Credentials storage for the tls server.
+     *
+     * It returns a certificate and the associated private key to
+     * authenticate the tls server to the client.
+     * TLS client authentication is not requested.
+     * See src/lib/tls/credentials_manager.h.
+     */
+    class Server_Credentials : public Botan::Credentials_Manager
+    {
+       public:
+          Server_Credentials() : m_key(Botan::PKCS8::load_key("botan.randombit.net.key")
+             {
+             }
+
+          std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(
+             const std::string& type,
+             const std::string& context) override
+             {
+             // if client authentication is required, this function
+             // shall return a list of certificates of CAs we trust
+             // for tls client certificates, otherwise return an empty list
+             return std::vector<Botan::Certificate_Store*>();
+             }
+
+          std::vector<Botan::X509_Certificate> cert_chain(
+             const std::vector<std::string>& cert_key_types,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return the certificate chain being sent to the tls client
+             // e.g., the certificate file "botan.randombit.net.crt"
+             return { Botan::X509_Certificate("botan.randombit.net.crt") };
+             }
+
+          Botan::Private_Key* private_key_for(const Botan::X509_Certificate& cert,
+             const std::string& type,
+             const std::string& context) override
+             {
+             // return the private key associated with the leaf certificate,
+             // in this case the one associated with "botan.randombit.net.crt"
+             return m_key.get();
+             }
+
+          private:
+             std::unique_ptr<Botan::Private_Key> m_key;
+    };
+
+    class Server_Policy : public Botan::TLS::Strict_Policy
+    {
+       public:
+          std::vector<Botan::TLS::Group_Params> key_exchange_groups() const override
+             {
+             // modified strict policy to allow our custom curves
+             return
+                {
+                static_cast<Botan::TLS::Group_Params>(0xFE00)
+                };    
+             }
+    };
+
+    int main()
+       {
+
+       // prepare rng
+       Botan::AutoSeeded_RNG rng;
+
+       // prepare custom curve
+
+       // prepare curve parameters
+       const Botan::BigInt p("0x92309a3e88b94312f36891a2055725bb35ab51af96b3a651d39321b7bbb8c51575a76768c9b6b323");
+       const Botan::BigInt a("0x4f30b8e311f6b2dce62078d70b35dacb96aa84b758ab5a8dff0c9f7a2a1ff466c19988aa0acdde69");
+       const Botan::BigInt b("0x9045A513CFFF9AE1F1CC84039D852D240344A1D5C9DB203C844089F855C387823EB6FCDDF49C909C");
+
+       const Botan::BigInt x("0x9120f3779a31296cefcb5a5a08831f1a6d438ad5a3f2ce60585ac19c74eebdc65cadb96bb92622c7");
+       const Botan::BigInt y("0x836db8251c152dfee071b72c6b06c5387d82f1b5c30c5a5b65ee9429aa2687e8426d5d61276a4ede");
+       const Botan::BigInt order("0x248c268fa22e50c4bcda24688155c96ecd6ad46be5c82d7a6be6e7068cb5d1ca72b2e07e8b90d853");
+
+       const Botan::BigInt cofactor(4);
+
+       const Botan::OID oid("1.2.3.1");
+
+       // create EC_Group object to register the curve
+       Botan::EC_Group testcurve1102(p, a, b, x, y, order, cofactor, oid);
+
+       if(!testcurve1102.verify_group(rng))
+          {
+          // Warning: if verify_group returns false the curve parameters are insecure
+          }
+
+       // register name to specified oid
+       Botan::OIDS::add_oid(oid, "testcurve1102");
+
+       // prepare all the parameters
+       Callbacks callbacks;
+       Botan::TLS::Session_Manager_In_Memory session_mgr(rng);
+       Server_Credentials creds;
+       Server_Policy policy;
+
+       // accept tls connection from client
+       Botan::TLS::Server server(callbacks,
+                                 session_mgr,
+                                 creds,
+                                 policy,
+                                 rng);
+
+       // read data received from the tls client, e.g., using BSD sockets or boost asio
+       // and pass it to server.received_data().
+       // ...
+
+       // send data to the tls client using server.send_data()
+       // ...
+       }

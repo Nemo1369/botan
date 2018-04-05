@@ -16,12 +16,7 @@ namespace Botan {
 #define NOK_SIMD_THETA(A0, A1, A2, A3, K0, K1, K2, K3)  \
    do {                                                 \
       SIMD_32 T = A0 ^ A2;                              \
-      SIMD_32 T_l8 = T;                                 \
-      SIMD_32 T_r8 = T;                                 \
-      T_l8.rotate_left(8);                              \
-      T_r8.rotate_right(8);                             \
-      T ^= T_l8;                                        \
-      T ^= T_r8;                                        \
+      T ^= T.rotl<8>() ^ T.rotr<8>();                   \
       A1 ^= T;                                          \
       A3 ^= T;                                          \
                                                         \
@@ -31,12 +26,7 @@ namespace Botan {
       A3 ^= K3;                                         \
                                                         \
       T = A1 ^ A3;                                      \
-      T_l8 = T;                                         \
-      T_r8 = T;                                         \
-      T_l8.rotate_left(8);                              \
-      T_r8.rotate_right(8);                             \
-      T ^= T_l8;                                        \
-      T ^= T_r8;                                        \
+      T ^= T.rotl<8>() ^ T.rotr<8>();                   \
       A0 ^= T;                                          \
       A2 ^= T;                                          \
       } while(0)
@@ -63,12 +53,12 @@ namespace Botan {
 /*
 * Noekeon Encryption
 */
-void Noekeon::simd_encrypt_4(const byte in[], byte out[]) const
+void Noekeon::simd_encrypt_4(const uint8_t in[], uint8_t out[]) const
    {
-   const SIMD_32 K0 = SIMD_32(m_EK[0]);
-   const SIMD_32 K1 = SIMD_32(m_EK[1]);
-   const SIMD_32 K2 = SIMD_32(m_EK[2]);
-   const SIMD_32 K3 = SIMD_32(m_EK[3]);
+   const SIMD_32 K0 = SIMD_32::splat(m_EK[0]);
+   const SIMD_32 K1 = SIMD_32::splat(m_EK[1]);
+   const SIMD_32 K2 = SIMD_32::splat(m_EK[2]);
+   const SIMD_32 K3 = SIMD_32::splat(m_EK[3]);
 
    SIMD_32 A0 = SIMD_32::load_be(in     );
    SIMD_32 A1 = SIMD_32::load_be(in + 16);
@@ -79,22 +69,22 @@ void Noekeon::simd_encrypt_4(const byte in[], byte out[]) const
 
    for(size_t i = 0; i != 16; ++i)
       {
-      A0 ^= SIMD_32(RC[i]);
+      A0 ^= SIMD_32::splat(RC[i]);
 
       NOK_SIMD_THETA(A0, A1, A2, A3, K0, K1, K2, K3);
 
-      A1.rotate_left(1);
-      A2.rotate_left(5);
-      A3.rotate_left(2);
+      A1 = A1.rotl<1>();
+      A2 = A2.rotl<5>();
+      A3 = A3.rotl<2>();
 
       NOK_SIMD_GAMMA(A0, A1, A2, A3);
 
-      A1.rotate_right(1);
-      A2.rotate_right(5);
-      A3.rotate_right(2);
+      A1 = A1.rotr<1>();
+      A2 = A2.rotr<5>();
+      A3 = A3.rotr<2>();
       }
 
-   A0 ^= SIMD_32(RC[16]);
+   A0 ^= SIMD_32::splat(RC[16]);
    NOK_SIMD_THETA(A0, A1, A2, A3, K0, K1, K2, K3);
 
    SIMD_32::transpose(A0, A1, A2, A3);
@@ -108,12 +98,12 @@ void Noekeon::simd_encrypt_4(const byte in[], byte out[]) const
 /*
 * Noekeon Encryption
 */
-void Noekeon::simd_decrypt_4(const byte in[], byte out[]) const
+void Noekeon::simd_decrypt_4(const uint8_t in[], uint8_t out[]) const
    {
-   const SIMD_32 K0 = SIMD_32(m_DK[0]);
-   const SIMD_32 K1 = SIMD_32(m_DK[1]);
-   const SIMD_32 K2 = SIMD_32(m_DK[2]);
-   const SIMD_32 K3 = SIMD_32(m_DK[3]);
+   const SIMD_32 K0 = SIMD_32::splat(m_DK[0]);
+   const SIMD_32 K1 = SIMD_32::splat(m_DK[1]);
+   const SIMD_32 K2 = SIMD_32::splat(m_DK[2]);
+   const SIMD_32 K3 = SIMD_32::splat(m_DK[3]);
 
    SIMD_32 A0 = SIMD_32::load_be(in     );
    SIMD_32 A1 = SIMD_32::load_be(in + 16);
@@ -126,21 +116,21 @@ void Noekeon::simd_decrypt_4(const byte in[], byte out[]) const
       {
       NOK_SIMD_THETA(A0, A1, A2, A3, K0, K1, K2, K3);
 
-      A0 ^= SIMD_32(RC[16-i]);
+      A0 ^= SIMD_32::splat(RC[16-i]);
 
-      A1.rotate_left(1);
-      A2.rotate_left(5);
-      A3.rotate_left(2);
+      A1 = A1.rotl<1>();
+      A2 = A2.rotl<5>();
+      A3 = A3.rotl<2>();
 
       NOK_SIMD_GAMMA(A0, A1, A2, A3);
 
-      A1.rotate_right(1);
-      A2.rotate_right(5);
-      A3.rotate_right(2);
+      A1 = A1.rotr<1>();
+      A2 = A2.rotr<5>();
+      A3 = A3.rotr<2>();
       }
 
    NOK_SIMD_THETA(A0, A1, A2, A3, K0, K1, K2, K3);
-   A0 ^= SIMD_32(RC[0]);
+   A0 ^= SIMD_32::splat(RC[0]);
 
    SIMD_32::transpose(A0, A1, A2, A3);
 

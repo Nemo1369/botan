@@ -7,6 +7,7 @@
 
 #include <botan/pk_algs.h>
 #include <botan/oids.h>
+#include <botan/parsing.h>
 
 #if defined(BOTAN_HAS_RSA)
   #include <botan/rsa.h>
@@ -16,8 +17,16 @@
   #include <botan/dsa.h>
 #endif
 
+#if defined(BOTAN_HAS_DL_GROUP)
+  #include <botan/dl_group.h>
+#endif
+
 #if defined(BOTAN_HAS_DIFFIE_HELLMAN)
   #include <botan/dh.h>
+#endif
+
+#if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO)
+  #include <botan/ecc_key.h>
 #endif
 
 #if defined(BOTAN_HAS_ECDSA)
@@ -30,6 +39,10 @@
 
 #if defined(BOTAN_HAS_ECKCDSA)
   #include <botan/eckcdsa.h>
+#endif
+
+#if defined(BOTAN_HAS_ED25519)
+  #include <botan/ed25519.h>
 #endif
 
 #if defined(BOTAN_HAS_GOST_34_10_2001)
@@ -56,15 +69,27 @@
   #include <botan/xmss.h>
 #endif
 
+#if defined(BOTAN_HAS_SM2)
+  #include <botan/sm2.h>
+  #include <botan/sm2_enc.h>
+#endif
+
+#if defined(BOTAN_HAS_OPENSSL)
+  #include <botan/internal/openssl.h>
+#endif
+
 namespace Botan {
 
 std::unique_ptr<Public_Key>
 load_public_key(const AlgorithmIdentifier& alg_id,
-                const secure_vector<byte>& key_bits)
+                const std::vector<uint8_t>& key_bits)
    {
-   const std::string alg_name = OIDS::lookup(alg_id.oid);
-   if(alg_name == "")
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.oid.as_string());
+   const std::vector<std::string> alg_info = split_on(OIDS::lookup(alg_id.get_oid()), '/');
+
+   if(alg_info.empty())
+      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().as_string());
+
+   const std::string alg_name = alg_info[0];
 
 #if defined(BOTAN_HAS_RSA)
    if(alg_name == "RSA")
@@ -78,7 +103,7 @@ load_public_key(const AlgorithmIdentifier& alg_id,
 
 #if defined(BOTAN_HAS_MCELIECE)
    if(alg_name == "McEliece")
-      return std::unique_ptr<Public_Key>(new McEliece_PublicKey(unlock(key_bits)));
+      return std::unique_ptr<Public_Key>(new McEliece_PublicKey(key_bits));
 #endif
 
 #if defined(BOTAN_HAS_ECDSA)
@@ -116,9 +141,21 @@ load_public_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Public_Key>(new ECKCDSA_PublicKey(alg_id, key_bits));
 #endif
 
+#if defined(BOTAN_HAS_ED25519)
+   if(alg_name == "Ed25519")
+      return std::unique_ptr<Public_Key>(new Ed25519_PublicKey(alg_id, key_bits));
+#endif
+
 #if defined(BOTAN_HAS_GOST_34_10_2001)
    if(alg_name == "GOST-34.10")
       return std::unique_ptr<Public_Key>(new GOST_3410_PublicKey(alg_id, key_bits));
+#endif
+
+#if defined(BOTAN_HAS_SM2)
+   if(alg_name == "SM2_Sig")
+      return std::unique_ptr<Public_Key>(new SM2_Signature_PublicKey(alg_id, key_bits));
+   if(alg_name == "SM2_Enc")
+      return std::unique_ptr<Public_Key>(new SM2_Encryption_PublicKey(alg_id, key_bits));
 #endif
 
 #if defined(BOTAN_HAS_XMSS)
@@ -131,11 +168,11 @@ load_public_key(const AlgorithmIdentifier& alg_id,
 
 std::unique_ptr<Private_Key>
 load_private_key(const AlgorithmIdentifier& alg_id,
-                 const secure_vector<byte>& key_bits)
+                 const secure_vector<uint8_t>& key_bits)
    {
-   const std::string alg_name = OIDS::lookup(alg_id.oid);
+   const std::string alg_name = OIDS::lookup(alg_id.get_oid());
    if(alg_name == "")
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.oid.as_string());
+      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().as_string());
 
 #if defined(BOTAN_HAS_RSA)
    if(alg_name == "RSA")
@@ -182,9 +219,21 @@ load_private_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Private_Key>(new ECKCDSA_PrivateKey(alg_id, key_bits));
 #endif
 
+#if defined(BOTAN_HAS_ED25519)
+   if(alg_name == "Ed25519")
+      return std::unique_ptr<Private_Key>(new Ed25519_PrivateKey(alg_id, key_bits));
+#endif
+
 #if defined(BOTAN_HAS_GOST_34_10_2001)
    if(alg_name == "GOST-34.10")
       return std::unique_ptr<Private_Key>(new GOST_3410_PrivateKey(alg_id, key_bits));
+#endif
+
+#if defined(BOTAN_HAS_SM2)
+   if(alg_name == "SM2_Sig")
+      return std::unique_ptr<Private_Key>(new SM2_Signature_PrivateKey(alg_id, key_bits));
+   if(alg_name == "SM2_Enc")
+      return std::unique_ptr<Private_Key>(new SM2_Encryption_PrivateKey(alg_id, key_bits));
 #endif
 
 #if defined(BOTAN_HAS_ELGAMAL)
@@ -200,10 +249,31 @@ load_private_key(const AlgorithmIdentifier& alg_id,
    throw Decoding_Error("Unhandled PK algorithm " + alg_name);
    }
 
+#if defined(BOTAN_HAS_ECC_GROUP)
+
+namespace {
+
+std::string default_ec_group_for(const std::string& alg_name)
+   {
+   if(alg_name == "SM2_Enc" || alg_name == "SM2_Sig")
+      return "sm2p256v1";
+   if(alg_name == "GOST-34.10")
+      return "gost_256A";
+   if(alg_name == "ECGDSA")
+      return "brainpool256r1";
+   return "secp256r1";
+
+   }
+
+}
+
+#endif
+
 std::unique_ptr<Private_Key>
 create_private_key(const std::string& alg_name,
                    RandomNumberGenerator& rng,
-                   const std::string& params)
+                   const std::string& params,
+                   const std::string& provider)
    {
    /*
    * Default paramaters are chosen for work factor > 2**128 where possible
@@ -218,6 +288,17 @@ create_private_key(const std::string& alg_name,
    if(alg_name == "RSA")
       {
       const size_t rsa_bits = (params.empty() ? 3072 : to_u32bit(params));
+#if defined(BOTAN_HAS_OPENSSL)
+      if(provider.empty() || provider == "openssl")
+         {
+         std::unique_ptr<Botan::Private_Key> pk;
+         if((pk = make_openssl_rsa_private_key(rng, rsa_bits)))
+            return pk;
+
+         if(!provider.empty())
+            return nullptr;
+         }
+#endif
       return std::unique_ptr<Private_Key>(new RSA_PrivateKey(rng, rsa_bits));
       }
 #endif
@@ -242,7 +323,14 @@ create_private_key(const std::string& alg_name,
    if(alg_name == "XMSS")
       {
       return std::unique_ptr<Private_Key>(
-         new XMSS_PrivateKey(XMSS_Parameters(params).oid(), rng));
+         new XMSS_PrivateKey(XMSS_Parameters(params.empty() ? "XMSS_SHA2-512_W16_H10" : params).oid(), rng));
+      }
+#endif
+
+#if defined(BOTAN_HAS_ED25519)
+   if(alg_name == "Ed25519")
+      {
+      return std::unique_ptr<Private_Key>(new Ed25519_PrivateKey(rng));
       }
 #endif
 
@@ -253,9 +341,11 @@ create_private_key(const std::string& alg_name,
       alg_name == "ECDH" ||
       alg_name == "ECKCDSA" ||
       alg_name == "ECGDSA" ||
+      alg_name == "SM2_Sig" ||
+      alg_name == "SM2_Enc" ||
       alg_name == "GOST-34.10")
       {
-      const EC_Group ec_group(params.empty() ? "secp256r1" : params);
+      const EC_Group ec_group(params.empty() ? default_ec_group_for(alg_name) : params);
 
 #if defined(BOTAN_HAS_ECDSA)
       if(alg_name == "ECDSA")
@@ -275,6 +365,13 @@ create_private_key(const std::string& alg_name,
 #if defined(BOTAN_HAS_GOST_34_10_2001)
       if(alg_name == "GOST-34.10")
          return std::unique_ptr<Private_Key>(new GOST_3410_PrivateKey(rng, ec_group));
+#endif
+
+#if defined(BOTAN_HAS_SM2)
+      if(alg_name == "SM2_Sig")
+         return std::unique_ptr<Private_Key>(new SM2_Signature_PrivateKey(rng, ec_group));
+      if(alg_name == "SM2_Enc")
+         return std::unique_ptr<Private_Key>(new SM2_Encryption_PrivateKey(rng, ec_group));
 #endif
 
 #if defined(BOTAN_HAS_ECGDSA)
@@ -308,7 +405,30 @@ create_private_key(const std::string& alg_name,
       }
 #endif
 
+   BOTAN_UNUSED(alg_name, rng, params, provider);
+
    return std::unique_ptr<Private_Key>();
    }
 
+std::vector<std::string>
+probe_provider_private_key(const std::string& alg_name,
+                           const std::vector<std::string> possible)
+   {
+   std::vector<std::string> providers;
+   for(auto&& prov : possible)
+      {
+      if(prov == "base" ||
+#if defined(BOTAN_HAS_OPENSSL)
+         (prov == "openssl" && alg_name == "RSA") ||
+#endif
+         0)
+         {
+         providers.push_back(prov); // available
+         }
+      }
+
+   BOTAN_UNUSED(alg_name);
+
+   return providers;
+   }
 }

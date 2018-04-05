@@ -1,17 +1,16 @@
-define ENTROPY_SRC_DARWIN_SECRANDOM 20150925
-
-<source>
-darwin_secrandom.cpp
-</source>
+<defines>
+ENTROPY_SRC_DARWIN_SECRANDOM -> 20150925
+</defines>
 
 <header:internal>
 darwin_secrandom.h
 </header:internal>
 
-<os>
-darwin
-</os>
+<os_features>
+security_framework
+</os_features>
 
 <frameworks>
 darwin -> Security
+ios -> Security
 </frameworks>

@@ -5,12 +5,15 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PASSHASH9_H__
-#define BOTAN_PASSHASH9_H__
+#ifndef BOTAN_PASSHASH9_H_
+#define BOTAN_PASSHASH9_H_
 
-#include <botan/rng.h>
+#include <botan/types.h>
+#include <string>
 
 namespace Botan {
+
+class RandomNumberGenerator;
 
 /**
 * Create a password hash using PBKDF2
@@ -25,18 +28,24 @@ namespace Botan {
 *        4 is HMAC(SHA-512)
 *        all other values are currently undefined
 */
-std::string BOTAN_DLL generate_passhash9(const std::string& password,
+std::string BOTAN_PUBLIC_API(2,0) generate_passhash9(const std::string& password,
                                          RandomNumberGenerator& rng,
-                                         u16bit work_factor = 10,
-                                         byte alg_id = 1);
+                                         uint16_t work_factor = 10,
+                                         uint8_t alg_id = 1);
 
 /**
 * Check a previously created password hash
 * @param password the password to check against
 * @param hash the stored hash to check against
 */
-bool BOTAN_DLL check_passhash9(const std::string& password,
+bool BOTAN_PUBLIC_API(2,0) check_passhash9(const std::string& password,
                                const std::string& hash);
+
+/**
+* Check if the PRF used with PBKDF2 is supported
+* @param alg_id alg_id used in generate_passhash9()
+*/
+bool BOTAN_PUBLIC_API(2,3) is_passhash9_alg_supported(uint8_t alg_id);
 
 }
 

@@ -1,20 +1,20 @@
-/**
+/*
  * XMSS WOTS Public Key
- * (C) 2016 Matthias Gierlings
+ * (C) 2016,2017 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_WOTS_PUBLICKEY_H__
-#define BOTAN_XMSS_WOTS_PUBLICKEY_H__
+#ifndef BOTAN_XMSS_WOTS_PUBLICKEY_H_
+#define BOTAN_XMSS_WOTS_PUBLICKEY_H_
 
 #include <cstddef>
 #include <string>
 #include <vector>
-#include <botan/auto_rng.h>
 #include <botan/alg_id.h>
+#include <botan/rng.h>
 #include <botan/asn1_oid.h>
-#include <botan/assert.h>
+#include <botan/exceptn.h>
 #include <botan/pk_keys.h>
 #include <botan/types.h>
 #include <botan/xmss_wots_parameters.h>
@@ -23,20 +23,19 @@
 
 namespace Botan {
 
-typedef std::vector<secure_vector<byte>> wots_keysig_t;
+typedef std::vector<secure_vector<uint8_t>> wots_keysig_t;
 
 /**
  * A Winternitz One Time Signature public key for use with Extended Hash-Based
  * Signatures.
  **/
-class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
+class XMSS_WOTS_PublicKey : virtual public Public_Key
    {
    public:
-      class TreeSignature
+      class TreeSignature final
          {
          public:
-            TreeSignature()
-               : m_ots_sig(), m_auth_path() {}
+            TreeSignature() = default;
 
             TreeSignature(const wots_keysig_t& ots_sig,
                           const wots_keysig_t& auth_path)
@@ -109,7 +108,7 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param public_seed A precomputed public seed of n-bytes length.
        **/
       XMSS_WOTS_PublicKey(XMSS_WOTS_Parameters::ots_algorithm_t oid,
-                          secure_vector<byte> public_seed)
+                          secure_vector<uint8_t> public_seed)
          : m_wots_params(oid),
            m_hash(m_wots_params.hash_function_name()),
            m_public_seed(public_seed) {}
@@ -125,7 +124,7 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param key Precomputed raw key data of the XMSS_WOTS_PublicKey.
        **/
       XMSS_WOTS_PublicKey(XMSS_WOTS_Parameters::ots_algorithm_t oid,
-                          secure_vector<byte>&& public_seed,
+                          secure_vector<uint8_t>&& public_seed,
                           wots_keysig_t&& key)
          : m_wots_params(oid),
            m_hash(m_wots_params.hash_function_name()),
@@ -144,7 +143,7 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param key Precomputed raw key data of the XMSS_WOTS_PublicKey.
        **/
       XMSS_WOTS_PublicKey(XMSS_WOTS_Parameters::ots_algorithm_t oid,
-                          const secure_vector<byte>& public_seed,
+                          const secure_vector<uint8_t>& public_seed,
                           const wots_keysig_t& key)
          : m_wots_params(oid),
            m_hash(m_wots_params.hash_function_name()),
@@ -164,10 +163,10 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param public_seed The public public_seed.
        **/
       XMSS_WOTS_PublicKey(XMSS_WOTS_Parameters::ots_algorithm_t oid,
-                          const secure_vector<byte>& msg,
+                          const secure_vector<uint8_t>& msg,
                           const wots_keysig_t& sig,
                           XMSS_Address& adrs,
-                          const secure_vector<byte>& public_seed)
+                          const secure_vector<uint8_t>& public_seed)
          : m_wots_params(oid),
            m_hash(m_wots_params.hash_function_name()),
            m_key(pub_key_from_signature(msg,
@@ -184,14 +183,14 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param i index of the element.
        * @returns n-byte element addressed by i.
        **/
-      const secure_vector<byte>& operator[](size_t i) const { return m_key[i]; }
-      secure_vector<byte>& operator[](size_t i) { return m_key[i]; }
+      const secure_vector<uint8_t>& operator[](size_t i) const { return m_key[i]; }
+      secure_vector<uint8_t>& operator[](size_t i) { return m_key[i]; }
 
       /**
        * Convert the key into the raw key data. The key becomes a length
        * len vector of n-byte elements.
        **/
-      operator const wots_keysig_t& () const { return m_key; };
+      operator const wots_keysig_t& () const { return m_key; }
 
       /**
        * Convert the key into the raw key data. The key becomes a length
@@ -199,23 +198,29 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        **/
       operator wots_keysig_t& () { return m_key; }
 
-      const secure_vector<byte>& public_seed() const { return m_public_seed; }
-      secure_vector<byte>& public_seed() { return m_public_seed; }
-      void set_public_seed(const secure_vector<byte>& public_seed)
+      const secure_vector<uint8_t>& public_seed() const { return m_public_seed; }
+
+      secure_vector<uint8_t>& public_seed() { return m_public_seed; }
+
+      void set_public_seed(const secure_vector<uint8_t>& public_seed)
          {
          m_public_seed = public_seed;
          }
-      void set_public_seed(secure_vector<byte>&& public_seed)
+
+      void set_public_seed(secure_vector<uint8_t>&& public_seed)
          {
          m_public_seed = std::move(public_seed);
          }
 
       const wots_keysig_t& key_data() const { return m_key; }
+
       wots_keysig_t& key_data() { return m_key; }
+
       void set_key_data(const wots_keysig_t& key_data)
          {
          m_key = key_data;
          }
+
       void set_key_data(wots_keysig_t&& key_data)
          {
          m_key = std::move(key_data);
@@ -226,51 +231,34 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
          return m_wots_params;
          }
 
-      virtual std::string algo_name() const override
+      std::string algo_name() const override
          {
          return m_wots_params.name();
          }
 
-      virtual AlgorithmIdentifier algorithm_identifier() const override
+      AlgorithmIdentifier algorithm_identifier() const override
          {
-         BOTAN_ASSERT(false, "No AlgorithmIdentifier available for XMSS-WOTS.");
+         throw Not_Implemented("No AlgorithmIdentifier available for XMSS-WOTS.");
          }
 
-      virtual bool check_key(RandomNumberGenerator&, bool) const override
+      bool check_key(RandomNumberGenerator&, bool) const override
          {
-         BOTAN_ASSERT(false, "No key strength check implemented for XMSS-WOTS.");
+         return true;
          }
 
-      virtual std::unique_ptr<PK_Ops::Verification>
-         create_verification_op(const std::string&,
-                                const std::string&) const override
-         {
-         BOTAN_ASSERT(false, "XMSS_WOTS_Verification_Operation not available.");
-         }
-
-      virtual size_t estimated_strength() const override
+      size_t estimated_strength() const override
          {
          return m_wots_params.estimated_strength();
          }
 
-      virtual size_t key_length() const override
+      size_t key_length() const override
          {
          return m_wots_params.estimated_strength();
          }
 
-      virtual size_t message_part_size() const override
+      std::vector<uint8_t> public_key_bits() const override
          {
-         return m_wots_params.element_size();
-         }
-
-      virtual size_t message_parts() const override
-         {
-         return 1;
-         }
-
-      virtual std::vector<byte> x509_subject_public_key() const override
-         {
-         BOTAN_ASSERT(false, "No x509 key format defined for XMSS-WOTS.");
+         throw Not_Implemented("No key format defined for XMSS-WOTS");
          }
 
       bool operator==(const XMSS_WOTS_PublicKey& key)
@@ -291,6 +279,9 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * result iterating the cryptographic hash function "F" steps times on
        * the input x using the outputs of the PRNG "G".
        *
+       * This overload is used in multithreaded scenarios, where it is
+       * required to provide seperate instances of XMSS_Hash to each
+       * thread.
        *
        * @param[out] x An n-byte input string, that will be transformed into
        *               the chaining function result.
@@ -298,19 +289,43 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @param steps A number of steps.
        * @param adrs An OTS Hash Address.
        * @param public_seed A public seed.
-       *
+       * @param hash Instance of XMSS_Hash, that may only by the thead
+       *        executing chain.
        **/
-      void chain(secure_vector<byte>& x,
+      void chain(secure_vector<uint8_t>& x,
                  size_t start_idx,
                  size_t steps,
                  XMSS_Address& adrs,
-                 const secure_vector<byte>& public_seed);
+                 const secure_vector<uint8_t>& public_seed,
+                 XMSS_Hash& hash);
+
+      /**
+       * Algorithm 2: Chaining Function.
+       *
+       * Takes an n-byte input string and transforms it into a the function
+       * result iterating the cryptographic hash function "F" steps times on
+       * the input x using the outputs of the PRNG "G".
+       *
+       * @param[out] x An n-byte input string, that will be transformed into
+       *               the chaining function result.
+       * @param start_idx The start index.
+       * @param steps A number of steps.
+       * @param adrs An OTS Hash Address.
+       * @param public_seed A public seed.
+       **/
+      inline void chain(secure_vector<uint8_t>& x,
+                        size_t start_idx,
+                        size_t steps,
+                        XMSS_Address& adrs,
+                        const secure_vector<uint8_t>& public_seed)
+         {
+         chain(x, start_idx, steps, adrs, public_seed, m_hash);
+         }
 
       XMSS_WOTS_Parameters m_wots_params;
       XMSS_Hash m_hash;
-
       wots_keysig_t m_key;
-      secure_vector<byte> m_public_seed;
+      secure_vector<uint8_t> m_public_seed;
 
    private:
       /**
@@ -326,10 +341,10 @@ class BOTAN_DLL XMSS_WOTS_PublicKey : virtual public Public_Key
        * @return Temporary WOTS+ public key.
        **/
       wots_keysig_t pub_key_from_signature(
-         const secure_vector<byte>& msg,
+         const secure_vector<uint8_t>& msg,
          const wots_keysig_t& sig,
          XMSS_Address& adrs,
-         const secure_vector<byte>& public_seed);
+         const secure_vector<uint8_t>& public_seed);
    };
 
 }

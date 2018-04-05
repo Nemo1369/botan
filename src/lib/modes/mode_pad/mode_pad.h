@@ -1,13 +1,13 @@
 /*
-* ECB/CBC Padding Methods
+* CBC Padding Methods
 * (C) 1999-2008,2013 Jack Lloyd
 * (C) 2016 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MODE_PADDING_H__
-#define BOTAN_MODE_PADDING_H__
+#ifndef BOTAN_MODE_PADDING_H_
+#define BOTAN_MODE_PADDING_H_
 
 #include <botan/secmem.h>
 #include <string>
@@ -23,7 +23,7 @@ namespace Botan {
 * a padding mode for CBC, which happens to consume the last
 * two block (and requires use of the block cipher).
 */
-class BOTAN_DLL BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) BlockCipherModePaddingMethod
    {
    public:
       /**
@@ -32,7 +32,7 @@ class BOTAN_DLL BlockCipherModePaddingMethod
       * @param final_block_bytes size of the final block in bytes
       * @param block_size size of each block in bytes
       */
-      virtual void add_padding(secure_vector<byte>& buffer,
+      virtual void add_padding(secure_vector<uint8_t>& buffer,
                                size_t final_block_bytes,
                                size_t block_size) const = 0;
 
@@ -42,7 +42,7 @@ class BOTAN_DLL BlockCipherModePaddingMethod
       * @param size the size of the block in bytes
       * @return number of padding bytes
       */
-      virtual size_t unpad(const byte block[],
+      virtual size_t unpad(const uint8_t block[],
                            size_t size) const = 0;
 
       /**
@@ -59,20 +59,20 @@ class BOTAN_DLL BlockCipherModePaddingMethod
       /**
       * virtual destructor
       */
-      virtual ~BlockCipherModePaddingMethod() {}
+      virtual ~BlockCipherModePaddingMethod() = default;
    };
 
 /**
 * PKCS#7 Padding
 */
-class BOTAN_DLL PKCS7_Padding final : public BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) PKCS7_Padding final : public BlockCipherModePaddingMethod
    {
    public:
-      void add_padding(secure_vector<byte>& buffer,
+      void add_padding(secure_vector<uint8_t>& buffer,
                        size_t final_block_bytes,
                        size_t block_size) const override;
 
-      size_t unpad(const byte[], size_t) const override;
+      size_t unpad(const uint8_t[], size_t) const override;
 
       bool valid_blocksize(size_t bs) const override { return (bs > 0 && bs < 256); }
 
@@ -82,14 +82,14 @@ class BOTAN_DLL PKCS7_Padding final : public BlockCipherModePaddingMethod
 /**
 * ANSI X9.23 Padding
 */
-class BOTAN_DLL ANSI_X923_Padding final : public BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) ANSI_X923_Padding final : public BlockCipherModePaddingMethod
    {
    public:
-      void add_padding(secure_vector<byte>& buffer,
+      void add_padding(secure_vector<uint8_t>& buffer,
                        size_t final_block_bytes,
                        size_t block_size) const override;
 
-      size_t unpad(const byte[], size_t) const override;
+      size_t unpad(const uint8_t[], size_t) const override;
 
       bool valid_blocksize(size_t bs) const override { return (bs > 0 && bs < 256); }
 
@@ -99,14 +99,14 @@ class BOTAN_DLL ANSI_X923_Padding final : public BlockCipherModePaddingMethod
 /**
 * One And Zeros Padding (ISO/IEC 9797-1, padding method 2)
 */
-class BOTAN_DLL OneAndZeros_Padding final : public BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) OneAndZeros_Padding final : public BlockCipherModePaddingMethod
    {
    public:
-      void add_padding(secure_vector<byte>& buffer,
+      void add_padding(secure_vector<uint8_t>& buffer,
                        size_t final_block_bytes,
                        size_t block_size) const override;
 
-      size_t unpad(const byte[], size_t) const override;
+      size_t unpad(const uint8_t[], size_t) const override;
 
       bool valid_blocksize(size_t bs) const override { return (bs > 0); }
 
@@ -116,14 +116,14 @@ class BOTAN_DLL OneAndZeros_Padding final : public BlockCipherModePaddingMethod
 /**
 * ESP Padding (RFC 4304)
 */
-class BOTAN_DLL ESP_Padding final : public BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) ESP_Padding final : public BlockCipherModePaddingMethod
    {
    public:
-      void add_padding(secure_vector<byte>& buffer,
+      void add_padding(secure_vector<uint8_t>& buffer,
                        size_t final_block_bytes,
                        size_t block_size) const override;
 
-      size_t unpad(const byte[], size_t) const override;
+      size_t unpad(const uint8_t[], size_t) const override;
 
       bool valid_blocksize(size_t bs) const override { return (bs > 0); }
 
@@ -133,12 +133,15 @@ class BOTAN_DLL ESP_Padding final : public BlockCipherModePaddingMethod
 /**
 * Null Padding
 */
-class BOTAN_DLL Null_Padding final : public BlockCipherModePaddingMethod
+class BOTAN_PUBLIC_API(2,0) Null_Padding final : public BlockCipherModePaddingMethod
    {
    public:
-      void add_padding(secure_vector<byte>&, size_t, size_t) const override {}
+      void add_padding(secure_vector<uint8_t>&, size_t, size_t) const override
+         {
+         /* no padding */
+         }
 
-      size_t unpad(const byte[], size_t size) const override { return size; }
+      size_t unpad(const uint8_t[], size_t size) const override { return size; }
 
       bool valid_blocksize(size_t) const override { return true; }
 
@@ -149,7 +152,7 @@ class BOTAN_DLL Null_Padding final : public BlockCipherModePaddingMethod
 * Get a block cipher padding mode by name (eg "NoPadding" or "PKCS7")
 * @param algo_spec block cipher padding mode name
 */
-BOTAN_DLL BlockCipherModePaddingMethod* get_bc_pad(const std::string& algo_spec);
+BOTAN_PUBLIC_API(2,0) BlockCipherModePaddingMethod* get_bc_pad(const std::string& algo_spec);
 
 }
 

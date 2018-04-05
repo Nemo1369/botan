@@ -6,20 +6,21 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_AEAD_SIV_H__
-#define BOTAN_AEAD_SIV_H__
+#ifndef BOTAN_AEAD_SIV_H_
+#define BOTAN_AEAD_SIV_H_
 
 #include <botan/aead.h>
-#include <botan/block_cipher.h>
 #include <botan/stream_cipher.h>
-#include <botan/mac.h>
 
 namespace Botan {
+
+class BlockCipher;
+class MessageAuthenticationCode;
 
 /**
 * Base class for SIV encryption and decryption (@see RFC 5297)
 */
-class BOTAN_DLL SIV_Mode : public AEAD_Mode
+class BOTAN_PUBLIC_API(2,0) SIV_Mode : public AEAD_Mode
    {
    public:
       size_t process(uint8_t buf[], size_t size) override;
@@ -30,9 +31,9 @@ class BOTAN_DLL SIV_Mode : public AEAD_Mode
       * @param ad associated data
       * @param ad_len length of associated data in bytes
       */
-      void set_associated_data_n(size_t n, const byte ad[], size_t ad_len);
+      void set_associated_data_n(size_t n, const uint8_t ad[], size_t ad_len);
 
-      void set_associated_data(const byte ad[], size_t ad_len) override
+      void set_associated_data(const uint8_t ad[], size_t ad_len) override
          {
          set_associated_data_n(0, ad, ad_len);
          }
@@ -51,32 +52,37 @@ class BOTAN_DLL SIV_Mode : public AEAD_Mode
 
       size_t tag_size() const override { return 16; }
 
+      ~SIV_Mode();
+
    protected:
       explicit SIV_Mode(BlockCipher* cipher);
 
+      size_t block_size() const { return m_bs; }
+
       StreamCipher& ctr() { return *m_ctr; }
 
-      void set_ctr_iv(secure_vector<byte> V);
+      void set_ctr_iv(secure_vector<uint8_t> V);
 
-      secure_vector<byte>& msg_buf() { return m_msg_buf; }
+      secure_vector<uint8_t>& msg_buf() { return m_msg_buf; }
 
-      secure_vector<byte> S2V(const byte text[], size_t text_len);
+      secure_vector<uint8_t> S2V(const uint8_t text[], size_t text_len);
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override;
 
-      void key_schedule(const byte key[], size_t length) override;
+      void key_schedule(const uint8_t key[], size_t length) override;
 
       const std::string m_name;
       std::unique_ptr<StreamCipher> m_ctr;
-      std::unique_ptr<MessageAuthenticationCode> m_cmac;
-      secure_vector<byte> m_nonce, m_msg_buf;
-      std::vector<secure_vector<byte>> m_ad_macs;
+      std::unique_ptr<MessageAuthenticationCode> m_mac;
+      secure_vector<uint8_t> m_nonce, m_msg_buf;
+      std::vector<secure_vector<uint8_t>> m_ad_macs;
+      const size_t m_bs;
    };
 
 /**
 * SIV Encryption
 */
-class BOTAN_DLL SIV_Encryption final : public SIV_Mode
+class BOTAN_PUBLIC_API(2,0) SIV_Encryption final : public SIV_Mode
    {
    public:
       /**
@@ -84,7 +90,7 @@ class BOTAN_DLL SIV_Encryption final : public SIV_Mode
       */
       explicit SIV_Encryption(BlockCipher* cipher) : SIV_Mode(cipher) {}
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override
          { return input_length + tag_size(); }
@@ -95,7 +101,7 @@ class BOTAN_DLL SIV_Encryption final : public SIV_Mode
 /**
 * SIV Decryption
 */
-class BOTAN_DLL SIV_Decryption final : public SIV_Mode
+class BOTAN_PUBLIC_API(2,0) SIV_Decryption final : public SIV_Mode
    {
    public:
       /**
@@ -103,11 +109,11 @@ class BOTAN_DLL SIV_Decryption final : public SIV_Mode
       */
       explicit SIV_Decryption(BlockCipher* cipher) : SIV_Mode(cipher) {}
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override
          {
-         BOTAN_ASSERT(input_length > tag_size(), "Sufficient input");
+         BOTAN_ASSERT(input_length >= tag_size(), "Sufficient input");
          return input_length - tag_size();
          }
 

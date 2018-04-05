@@ -1,4 +1,6 @@
-define UTIL_FUNCTIONS 20150919
+<defines>
+UTIL_FUNCTIONS -> 20171003
+</defines>
 
 load_on always
 
@@ -7,7 +9,7 @@ assert.h
 bswap.h
 calendar.h
 charset.h
-cpuid.h
+compiler.h
 data_src.h
 database.h
 exceptn.h
@@ -19,10 +21,10 @@ parsing.h
 rotate.h
 types.h
 version.h
+stl_compatibility.h
 </header:public>
 
 <header:internal>
-barrier.h
 bit_ops.h
 ct_utils.h
 donna128.h
@@ -30,10 +32,10 @@ filesystem.h
 os_utils.h
 prefetch.h
 rounding.h
-semaphore.h
+safeint.h
 stl_util.h
 </header:internal>
 
-<libs>
-linux -> rt
-</libs>
+<requires>
+cpuid
+</requires>

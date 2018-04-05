@@ -8,7 +8,6 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_ECIES)
-   #include "test_pubkey.h"
    #include <botan/ecies.h>
    #include <botan/ecdh.h>
 #endif
@@ -19,7 +18,6 @@ namespace {
 
 #if defined(BOTAN_HAS_ECIES)
 
-using byte = Botan::byte;
 using Flags = Botan::ECIES_Flags;
 
 Botan::PointGFp::Compression_Type get_compression_type(const std::string& format)
@@ -51,7 +49,7 @@ void check_encrypt_decrypt(Test::Result& result, const Botan::ECDH_PrivateKey& p
                            const Botan::ECDH_PrivateKey& other_private_key,
                            const Botan::ECIES_System_Params& ecies_params,
                            const Botan::InitializationVector& iv, const std::string& label,
-                           const std::vector<byte>& plaintext, const std::vector<byte>& ciphertext)
+                           const std::vector<uint8_t>& plaintext, const std::vector<uint8_t>& ciphertext)
    {
    Botan::ECIES_Encryptor ecies_enc(private_key, ecies_params, Test::rng());
    ecies_enc.set_other_key(other_private_key.public_point());
@@ -69,16 +67,16 @@ void check_encrypt_decrypt(Test::Result& result, const Botan::ECDH_PrivateKey& p
 
    try
       {
-      const std::vector<byte> encrypted = ecies_enc.encrypt(plaintext, Test::rng());
+      const std::vector<uint8_t> encrypted = ecies_enc.encrypt(plaintext, Test::rng());
       if(!ciphertext.empty())
          {
          result.test_eq("encrypted data", encrypted, ciphertext);
          }
-      const Botan::secure_vector<byte> decrypted = ecies_dec.decrypt(encrypted);
+      const Botan::secure_vector<uint8_t> decrypted = ecies_dec.decrypt(encrypted);
       result.test_eq("decrypted data equals plaintext", decrypted, plaintext);
 
-      std::vector<byte> invalid_encrypted = encrypted;
-      byte& last_byte = invalid_encrypted[invalid_encrypted.size() - 1];
+      std::vector<uint8_t> invalid_encrypted = encrypted;
+      uint8_t& last_byte = invalid_encrypted[invalid_encrypted.size() - 1];
       last_byte = ~last_byte;
       result.test_throws("throw on invalid ciphertext", [&ecies_dec, &invalid_encrypted]
          {
@@ -95,21 +93,19 @@ void check_encrypt_decrypt(Test::Result& result, const Botan::ECDH_PrivateKey& p
                            const Botan::ECDH_PrivateKey& other_private_key,
                            const Botan::ECIES_System_Params& ecies_params, size_t iv_length = 0)
    {
-   const std::vector<byte> plaintext { 1, 2, 3 };
-   check_encrypt_decrypt(result, private_key, other_private_key, ecies_params, std::vector<byte>(iv_length, 0), "",
-                         plaintext, std::vector<byte>());
+   const std::vector<uint8_t> plaintext { 1, 2, 3 };
+   check_encrypt_decrypt(result, private_key, other_private_key, ecies_params, std::vector<uint8_t>(iv_length, 0), "",
+                         plaintext, std::vector<uint8_t>());
    }
 
 #if defined(BOTAN_HAS_KDF1_18033) && defined(BOTAN_HAS_SHA1)
 
-class ECIES_ISO_Tests : public Text_Based_Test
+class ECIES_ISO_Tests final : public Text_Based_Test
    {
    public:
       ECIES_ISO_Tests() : Text_Based_Test(
             "pubkey/ecies-18033.vec",
-         { "format", "p", "a", "b", "mu", "nu", "gx", "gy", "hx", "hy", "x", "r", "C0", "K" })
-         {
-         }
+            "format,p,a,b,mu,nu,gx,gy,hx,hy,x,r,C0,K") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -128,22 +124,20 @@ class ECIES_ISO_Tests : public Text_Based_Test
          const Botan::BigInt hy = get_req_bn(vars, "hy");   // y of public point of bob
          const Botan::BigInt x = get_req_bn(vars, "x");   // private key of bob
          const Botan::BigInt r = get_req_bn(vars, "r");   // (ephemeral) private key of alice
-         const std::vector<byte> c0 = get_req_bin(vars, "C0");   // expected encoded (ephemeral) public key
-         const std::vector<byte> k = get_req_bin(vars, "K");   // expected derived secret
+         const std::vector<uint8_t> c0 = get_req_bin(vars, "C0");   // expected encoded (ephemeral) public key
+         const std::vector<uint8_t> k = get_req_bin(vars, "K");   // expected derived secret
 
-         const Botan::CurveGFp curve(p, a, b);
-         const Botan::EC_Group domain(curve, Botan::PointGFp(curve, gx, gy), mu, nu);
+         const Botan::EC_Group domain(p, a, b, gx, gy, mu, nu);
 
          // keys of bob
          const Botan::ECDH_PrivateKey other_private_key(Test::rng(), domain, x);
-         const Botan::PointGFp other_public_key_point(curve, hx, hy);
+         const Botan::PointGFp other_public_key_point = domain.point(hx, hy);
          const Botan::ECDH_PublicKey other_public_key(domain, other_public_key_point);
 
          // (ephemeral) keys of alice
          const Botan::ECDH_PrivateKey eph_private_key(Test::rng(), domain, r);
          const Botan::PointGFp eph_public_key_point = eph_private_key.public_point();
-         const std::vector<byte> eph_public_key_bin = Botan::unlock(
-            Botan::EC2OSP(eph_public_key_point, compression_type));
+         const std::vector<uint8_t> eph_public_key_bin = eph_public_key_point.encode(compression_type);
          result.test_eq("encoded (ephemeral) public key", eph_public_key_bin, c0);
 
          // test secret derivation: ISO 18033 test vectors use KDF1 from ISO 18033
@@ -154,37 +148,33 @@ class ECIES_ISO_Tests : public Text_Based_Test
          result.test_eq("derived secret key", secret_key.bits_of(), k);
 
          // test encryption / decryption
-         for(int i_cofactor_mode = 0; i_cofactor_mode < 2; ++i_cofactor_mode)
-            {
-            for(int i_single_hash_mode = 0; i_single_hash_mode < 2; ++i_single_hash_mode)
-               {
-               for(int i_old_cofactor_mode = 0; i_old_cofactor_mode < 2; ++i_old_cofactor_mode)
-                  {
-                  for(int i_check_mode = 0; i_check_mode < 2; ++i_check_mode)
-                     {
-                     for(int i_compression_type = 0; i_compression_type < 3; ++i_compression_type)
-                        {
-                        const bool cofactor_mode = i_cofactor_mode != 0;
-                        const bool single_hash_mode = i_single_hash_mode != 0;
-                        const bool old_cofactor_mode = i_old_cofactor_mode != 0;
-                        const bool check_mode = i_check_mode != 0;
-                        const Botan::PointGFp::Compression_Type gen_compression_type =
-                           static_cast<Botan::PointGFp::Compression_Type>(i_compression_type);
 
+         for(auto comp_type : { Botan::PointGFp::UNCOMPRESSED, Botan::PointGFp::COMPRESSED, Botan::PointGFp::HYBRID })
+            {
+            for(bool cofactor_mode : { true, false })
+               {
+               for(bool single_hash_mode : { true, false })
+                  {
+                  for(bool old_cofactor_mode : { true, false })
+                     {
+                     for(bool check_mode : { true, false })
+                        {
                         Flags flags = ecies_flags(cofactor_mode, old_cofactor_mode, check_mode, single_hash_mode);
 
-                        if(cofactor_mode + check_mode + old_cofactor_mode > 1)
+                        if(size_t(cofactor_mode) + size_t(check_mode) + size_t(old_cofactor_mode) > 1)
                            {
-                           result.test_throws("throw on invalid ECIES_Flags", [&]
+                           auto onThrow =  [&]()
                               {
-                              Botan::ECIES_System_Params(eph_private_key.domain(), "KDF2(SHA-1)", "AES-256/CBC",
-                                                         32, "HMAC(SHA-1)", 20, gen_compression_type, flags);
-                              });
+                              Botan::ECIES_System_Params(eph_private_key.domain(),
+                                 "KDF2(SHA-1)", "AES-256/CBC", 32, "HMAC(SHA-1)", 20,
+                                 comp_type, flags);
+                              };
+                           result.test_throws("throw on invalid ECIES_Flags", onThrow);
                            continue;
                            }
 
                         Botan::ECIES_System_Params ecies_params(eph_private_key.domain(), "KDF2(SHA-1)", "AES-256/CBC",
-                                                                32, "HMAC(SHA-1)", 20, gen_compression_type, flags);
+                                                                32, "HMAC(SHA-1)", 20, comp_type, flags);
                         check_encrypt_decrypt(result, eph_private_key, other_private_key, ecies_params, 16);
                         }
                      }
@@ -200,15 +190,14 @@ BOTAN_REGISTER_TEST("ecies_iso", ECIES_ISO_Tests);
 
 #endif
 
-class ECIES_Tests : public Text_Based_Test
+class ECIES_Tests final : public Text_Based_Test
    {
    public:
-      ECIES_Tests() : Text_Based_Test(
-            "pubkey/ecies.vec",
-         { "Curve", "PrivateKey", "OtherPrivateKey", "Kdf", "Dem", "DemKeyLen", "Iv", "Mac", "MacKeyLen", "Format",
-            "CofactorMode", "OldCofactorMode", "CheckMode", "SingleHashMode", "Label", "Plaintext", "Ciphertext" })
-         {
-         }
+      ECIES_Tests()
+         : Text_Based_Test(
+              "pubkey/ecies.vec",
+              "Curve,PrivateKey,OtherPrivateKey,Kdf,Dem,DemKeyLen,Iv,Mac,MacKeyLen,Format,"
+              "CofactorMode,OldCofactorMode,CheckMode,SingleHashMode,Label,Plaintext,Ciphertext") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -220,7 +209,7 @@ class ECIES_Tests : public Text_Based_Test
          const std::string kdf = get_req_str(vars, "Kdf");
          const std::string dem = get_req_str(vars, "Dem");
          const size_t dem_key_len = get_req_sz(vars, "DemKeyLen");
-         const std::vector<byte> iv = get_req_bin(vars, "Iv");
+         const std::vector<uint8_t> iv = get_req_bin(vars, "Iv");
          const std::string mac = get_req_str(vars, "Mac");
          const size_t mac_key_len = get_req_sz(vars, "MacKeyLen");
          const Botan::PointGFp::Compression_Type compression_type = get_compression_type(get_req_str(vars, "Format"));
@@ -229,8 +218,8 @@ class ECIES_Tests : public Text_Based_Test
          const bool check_mode = get_req_sz(vars, "CheckMode") != 0;
          const bool single_hash_mode = get_req_sz(vars, "SingleHashMode") != 0;
          const std::string label = get_req_str(vars, "Label");
-         const std::vector<byte> plaintext = get_req_bin(vars, "Plaintext");
-         const std::vector<byte> ciphertext = get_req_bin(vars, "Ciphertext");
+         const std::vector<uint8_t> plaintext = get_req_bin(vars, "Plaintext");
+         const std::vector<uint8_t> ciphertext = get_req_bin(vars, "Ciphertext");
 
          const Flags flags = ecies_flags(cofactor_mode, old_cofactor_mode, check_mode, single_hash_mode);
          const Botan::EC_Group domain(curve);
@@ -269,7 +258,7 @@ Test::Result test_other_key_not_set()
 
    result.test_throws("encrypt not possible without setting other public key", [ &ecies_enc ]()
       {
-      ecies_enc.encrypt(std::vector<byte>(8), Test::rng());
+      ecies_enc.encrypt(std::vector<uint8_t>(8), Test::rng());
       });
 
    return result;
@@ -294,7 +283,7 @@ Test::Result test_kdf_not_found()
 
    result.test_throws("kdf not found", [ &ecies_enc ]()
       {
-      ecies_enc.encrypt(std::vector<byte>(8), Test::rng());
+      ecies_enc.encrypt(std::vector<uint8_t>(8), Test::rng());
       });
 
    return result;
@@ -319,7 +308,7 @@ Test::Result test_mac_not_found()
 
    result.test_throws("mac not found", [ &ecies_enc ]()
       {
-      ecies_enc.encrypt(std::vector<byte>(8), Test::rng());
+      ecies_enc.encrypt(std::vector<uint8_t>(8), Test::rng());
       });
 
    return result;
@@ -344,7 +333,7 @@ Test::Result test_cipher_not_found()
 
    result.test_throws("cipher not found", [ &ecies_enc ]()
       {
-      ecies_enc.encrypt(std::vector<byte>(8), Test::rng());
+      ecies_enc.encrypt(std::vector<uint8_t>(8), Test::rng());
       });
 
    return result;
@@ -372,17 +361,17 @@ Test::Result test_system_params_short_ctor()
    const Botan::InitializationVector iv("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
    const std::string label = "Test";
 
-   const std::vector<byte> plaintext = Botan::hex_decode("000102030405060708090A0B0C0D0E0F");
+   const std::vector<uint8_t> plaintext = Botan::hex_decode("000102030405060708090A0B0C0D0E0F");
 
    // generated with botan
-   const std::vector<byte> ciphertext = Botan::hex_decode("0401519EAA0489FF9D51E98E4C22349463E2001CD06F8CE47D81D4007A"
-                                        "79ACF98E92C814686477CEA666EFC277DC84E15FC95E38AFF8E16D478A"
-                                        "44CD5C5F1517F8B1F300000591317F261C3D04A7207F01EAE3EC70F2360"
-                                        "0F82C53CC0B85BE7AC9F6CE79EF2AB416E5934D61BA9D346385D7545C57F"
-                                        "77C7EA7C58E18C70CBFB0A24AE1B9943EC5A8D0657522CCDF30BA95674D81"
-                                        "B397635D215178CD13BD9504AE957A9888F4128FFC0F0D3F1CEC646AEC8CE"
-                                        "3F2463D233B22A7A12B679F4C06501F584D4DEFF6D26592A8D873398BD892"
-                                        "B477B3468813C053DA43C4F3D49009F7A12D6EF7");
+   const std::vector<uint8_t> ciphertext = Botan::hex_decode("0401519EAA0489FF9D51E98E4C22349463E2001CD06F8CE47D81D4007A"
+                                           "79ACF98E92C814686477CEA666EFC277DC84E15FC95E38AFF8E16D478A"
+                                           "44CD5C5F1517F8B1F300000591317F261C3D04A7207F01EAE3EC70F2360"
+                                           "0F82C53CC0B85BE7AC9F6CE79EF2AB416E5934D61BA9D346385D7545C57F"
+                                           "77C7EA7C58E18C70CBFB0A24AE1B9943EC5A8D0657522CCDF30BA95674D81"
+                                           "B397635D215178CD13BD9504AE957A9888F4128FFC0F0D3F1CEC646AEC8CE"
+                                           "3F2463D233B22A7A12B679F4C06501F584D4DEFF6D26592A8D873398BD892"
+                                           "B477B3468813C053DA43C4F3D49009F7A12D6EF7");
 
    check_encrypt_decrypt(result, private_key, other_private_key, ecies_params, iv, label, plaintext, ciphertext);
 
@@ -418,7 +407,7 @@ Test::Result test_ciphertext_too_short()
    return result;
    }
 
-class ECIES_Unit_Tests : public Test
+class ECIES_Unit_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override

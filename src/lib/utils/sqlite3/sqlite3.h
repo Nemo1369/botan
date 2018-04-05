@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_UTILS_SQLITE3_H__
-#define BOTAN_UTILS_SQLITE3_H__
+#ifndef BOTAN_UTILS_SQLITE3_H_
+#define BOTAN_UTILS_SQLITE3_H_
 
 #include <botan/database.h>
 
@@ -15,7 +15,7 @@ class sqlite3_stmt;
 
 namespace Botan {
 
-class BOTAN_DLL Sqlite3_Database  : public SQL_Database
+class BOTAN_PUBLIC_API(2,0) Sqlite3_Database final : public SQL_Database
    {
    public:
       Sqlite3_Database(const std::string& file);
@@ -28,16 +28,17 @@ class BOTAN_DLL Sqlite3_Database  : public SQL_Database
 
       std::shared_ptr<Statement> new_statement(const std::string& sql) const override;
    private:
-      class Sqlite3_Statement : public Statement
+      class Sqlite3_Statement final : public Statement
          {
          public:
             void bind(int column, const std::string& val) override;
             void bind(int column, size_t val) override;
             void bind(int column, std::chrono::system_clock::time_point time) override;
-            void bind(int column, const std::vector<byte>& val) override;
-            void bind(int column, const byte* data, size_t len) override;
+            void bind(int column, const std::vector<uint8_t>& val) override;
+            void bind(int column, const uint8_t* data, size_t len) override;
 
-            std::pair<const byte*, size_t> get_blob(int column) override;
+            std::pair<const uint8_t*, size_t> get_blob(int column) override;
+            std::string get_str(int column) override;
             size_t get_size_t(int column) override;
 
             size_t spin() override;

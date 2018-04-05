@@ -7,10 +7,14 @@
 
 #include <botan/keccak.h>
 #include <botan/sha3.h>
-#include <botan/parsing.h>
 #include <botan/exceptn.h>
 
 namespace Botan {
+
+std::unique_ptr<HashFunction> Keccak_1600::copy_state() const
+   {
+   return std::unique_ptr<HashFunction>(new Keccak_1600(*this));
+   }
 
 Keccak_1600::Keccak_1600(size_t output_bits) :
    m_output_bits(output_bits),
@@ -42,26 +46,20 @@ void Keccak_1600::clear()
    m_S_pos = 0;
    }
 
-void Keccak_1600::add_data(const byte input[], size_t length)
+void Keccak_1600::add_data(const uint8_t input[], size_t length)
    {
    m_S_pos = SHA_3::absorb(m_bitrate, m_S, m_S_pos, input, length);
    }
 
-void Keccak_1600::final_result(byte output[])
+void Keccak_1600::final_result(uint8_t output[])
    {
-   std::vector<byte> padding(m_bitrate / 8 - m_S_pos);
-
-   padding[0] = 0x01;
-   padding[padding.size()-1] |= 0x80;
-
-   add_data(padding.data(), padding.size());
+   SHA_3::finish(m_bitrate, m_S, m_S_pos, 0x01, 0x80);
 
    /*
    * We never have to run the permutation again because we only support
    * limited output lengths
    */
-   for(size_t i = 0; i != m_output_bits/8; ++i)
-      output[i] = get_byte(7 - (i % 8), m_S[i/8]);
+   copy_out_vec_le(output, m_output_bits/8, m_S);
 
    clear();
    }

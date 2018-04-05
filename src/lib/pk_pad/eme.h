@@ -5,18 +5,19 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PUBKEY_EME_ENCRYPTION_PAD_H__
-#define BOTAN_PUBKEY_EME_ENCRYPTION_PAD_H__
+#ifndef BOTAN_PUBKEY_EME_ENCRYPTION_PAD_H_
+#define BOTAN_PUBKEY_EME_ENCRYPTION_PAD_H_
 
 #include <botan/secmem.h>
-#include <botan/rng.h>
 
 namespace Botan {
+
+class RandomNumberGenerator;
 
 /**
 * Encoding Method for Encryption
 */
-class BOTAN_DLL EME
+class BOTAN_PUBLIC_API(2,0) EME
    {
    public:
       virtual ~EME() = default;
@@ -36,7 +37,7 @@ class BOTAN_DLL EME
       * @param rng a random number generator
       * @return encoded plaintext
       */
-      secure_vector<byte> encode(const byte in[],
+      secure_vector<uint8_t> encode(const uint8_t in[],
                                  size_t in_length,
                                  size_t key_length,
                                  RandomNumberGenerator& rng) const;
@@ -48,7 +49,7 @@ class BOTAN_DLL EME
       * @param rng a random number generator
       * @return encoded plaintext
       */
-      secure_vector<byte> encode(const secure_vector<byte>& in,
+      secure_vector<uint8_t> encode(const secure_vector<uint8_t>& in,
                                  size_t key_length,
                                  RandomNumberGenerator& rng) const;
 
@@ -60,8 +61,8 @@ class BOTAN_DLL EME
       * @return bytes of out[] written to along with
       *         validity mask (0xFF if valid, else 0x00)
       */
-      virtual secure_vector<byte> unpad(byte& valid_mask,
-                                        const byte in[],
+      virtual secure_vector<uint8_t> unpad(uint8_t& valid_mask,
+                                        const uint8_t in[],
                                         size_t in_len) const = 0;
 
       /**
@@ -72,7 +73,7 @@ class BOTAN_DLL EME
       * @param rng a random number generator
       * @return encoded plaintext
       */
-      virtual secure_vector<byte> pad(const byte in[],
+      virtual secure_vector<uint8_t> pad(const uint8_t in[],
                                       size_t in_length,
                                       size_t key_length,
                                       RandomNumberGenerator& rng) const = 0;
@@ -83,7 +84,7 @@ class BOTAN_DLL EME
 * @param algo_spec the name of the EME to create
 * @return pointer to newly allocated object of that type
 */
-BOTAN_DLL EME*  get_eme(const std::string& algo_spec);
+BOTAN_PUBLIC_API(2,0) EME*  get_eme(const std::string& algo_spec);
 
 }
 

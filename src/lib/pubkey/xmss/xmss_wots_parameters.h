@@ -1,24 +1,17 @@
-/**
+/*
  * XMSS WOTS Parameters
  * (C) 2016 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_WOTS_PARAMETERS_H__
-#define BOTAN_XMSS_WOTS_PARAMETERS_H__
+#ifndef BOTAN_XMSS_WOTS_PARAMETERS_H_
+#define BOTAN_XMSS_WOTS_PARAMETERS_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
+#include <botan/xmss_tools.h>
+#include <botan/secmem.h>
 #include <map>
 #include <string>
-#include <math.h>
-#include <botan/assert.h>
-#include <botan/types.h>
-#include <botan/secmem.h>
-#include <botan/exceptn.h>
-#include <botan/xmss_tools.h>
 
 namespace Botan {
 
@@ -31,20 +24,21 @@ namespace Botan {
  *     https://datatracker.ietf.org/doc/
  *     draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
  **/
-class XMSS_WOTS_Parameters
+class XMSS_WOTS_Parameters final
    {
    public:
       enum ots_algorithm_t
          {
          WOTSP_SHA2_256_W16 = 0x01000001,
          WOTSP_SHA2_512_W16 = 0x02000002,
-// FIXME: Uncomment once SHAKE128/256 implementation is available in Botan.
-//         WOTSP_SHAKE128_W16 = 0x03000003,
-//         WOTSP_SHAKE256_W16 = 0x04000004
+         WOTSP_SHAKE128_W16 = 0x03000003,
+         WOTSP_SHAKE256_W16 = 0x04000004
          };
 
       XMSS_WOTS_Parameters(const std::string& algo_name);
       XMSS_WOTS_Parameters(ots_algorithm_t ots_spec);
+
+      static ots_algorithm_t xmss_wots_id_from_string(const std::string& param_set);
 
       /**
        * Algorithm 1: convert input string to base.
@@ -54,11 +48,11 @@ class XMSS_WOTS_Parameters
        *
        * @return Input string converted to the given base.
        **/
-      secure_vector<byte> base_w(const secure_vector<byte>& msg, size_t out_size) const;
+      secure_vector<uint8_t> base_w(const secure_vector<uint8_t>& msg, size_t out_size) const;
 
-      secure_vector<byte> base_w(size_t value) const;
+      secure_vector<uint8_t> base_w(size_t value) const;
 
-      void append_checksum(secure_vector<byte>& data);
+      void append_checksum(secure_vector<uint8_t>& data);
 
       /**
        * @return XMSS WOTS registry name for the chosen parameter set.

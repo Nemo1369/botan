@@ -1,9 +1,9 @@
-/**
+/*
  * XMSS WOTS Public Key
  * A Winternitz One Time Signature public key for use with Extended Hash-Based
  * Signatures.
  *
- * (C) 2016 Matthias Gierlings
+ * (C) 2016,2017 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
@@ -13,11 +13,12 @@
 namespace Botan {
 
 void
-XMSS_WOTS_PublicKey::chain(secure_vector<byte>& result,
+XMSS_WOTS_PublicKey::chain(secure_vector<uint8_t>& result,
                            size_t start_idx,
                            size_t steps,
                            XMSS_Address& adrs,
-                           const secure_vector<byte>& seed)
+                           const secure_vector<uint8_t>& seed,
+                           XMSS_Hash& hash)
    {
    for(size_t i = start_idx;
          i < (start_idx + steps) && i < m_wots_params.wots_parameter();
@@ -27,23 +28,23 @@ XMSS_WOTS_PublicKey::chain(secure_vector<byte>& result,
 
       //Calculate tmp XOR bitmask
       adrs.set_key_mask_mode(XMSS_Address::Key_Mask::Mask_Mode);
-      xor_buf(result, m_hash.prf(seed, adrs.bytes()), result.size());
+      xor_buf(result, hash.prf(seed, adrs.bytes()), result.size());
 
       // Calculate key
       adrs.set_key_mask_mode(XMSS_Address::Key_Mask::Key_Mode);
 
       //Calculate f(key, tmp XOR bitmask)
-      m_hash.f(result, m_hash.prf(seed, adrs.bytes()), result);
+      hash.f(result, hash.prf(seed, adrs.bytes()), result);
       }
    }
 
 wots_keysig_t
-XMSS_WOTS_PublicKey::pub_key_from_signature(const secure_vector<byte>& msg,
-      const wots_keysig_t& sig,
-      XMSS_Address& adrs,
-      const secure_vector<byte>& seed)
+XMSS_WOTS_PublicKey::pub_key_from_signature(const secure_vector<uint8_t>& msg,
+                                            const wots_keysig_t& sig,
+                                            XMSS_Address& adrs,
+                                            const secure_vector<uint8_t>& seed)
    {
-   secure_vector<byte> msg_digest
+   secure_vector<uint8_t> msg_digest
       {
       m_wots_params.base_w(msg, m_wots_params.len_1())
       };

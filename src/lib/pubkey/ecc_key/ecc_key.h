@@ -7,12 +7,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ECC_PUBLIC_KEY_BASE_H__
-#define BOTAN_ECC_PUBLIC_KEY_BASE_H__
+#ifndef BOTAN_ECC_PUBLIC_KEY_BASE_H_
+#define BOTAN_ECC_PUBLIC_KEY_BASE_H_
 
 #include <botan/ec_group.h>
 #include <botan/pk_keys.h>
-#include <botan/x509_key.h>
 
 namespace Botan {
 
@@ -26,7 +25,7 @@ namespace Botan {
 * cannot be used for verification until its domain parameters are set
 * by calling the corresponding member function.
 */
-class BOTAN_DLL EC_PublicKey : public virtual Public_Key
+class BOTAN_PUBLIC_API(2,0) EC_PublicKey : public virtual Public_Key
    {
    public:
       /**
@@ -40,10 +39,14 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
       /**
       * Load a public key.
       * @param alg_id the X.509 algorithm identifier
-      * @param key_bits PKCS #8 structure
+      * @param key_bits DER encoded public key bits
       */
       EC_PublicKey(const AlgorithmIdentifier& alg_id,
-                   const secure_vector<byte>& key_bits);
+                   const std::vector<uint8_t>& key_bits);
+
+      EC_PublicKey(const EC_PublicKey& other) = default;
+      EC_PublicKey& operator=(const EC_PublicKey& other) = default;
+      virtual ~EC_PublicKey() = default;
 
       /**
       * Get the public point of this key.
@@ -55,7 +58,7 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
 
       AlgorithmIdentifier algorithm_identifier() const override;
 
-      std::vector<byte> x509_subject_public_key() const override;
+      std::vector<uint8_t> public_key_bits() const override;
 
       bool check_key(RandomNumberGenerator& rng,
                      bool strong) const override;
@@ -75,10 +78,16 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
       void set_parameter_encoding(EC_Group_Encoding enc);
 
       /**
+      * Set the point encoding method to be used when encoding this key.
+      * @param enc the encoding to use
+      */
+      void set_point_encoding(PointGFp::Compression_Type enc);
+
+      /**
       * Return the DER encoding of this keys domain in whatever format
       * is preset for this particular key
       */
-      std::vector<byte> DER_domain() const
+      std::vector<uint8_t> DER_domain() const
          { return domain().DER_encode(domain_format()); }
 
       /**
@@ -87,6 +96,13 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
       */
       EC_Group_Encoding domain_format() const
          { return m_domain_encoding; }
+
+      /**
+      * Get the point encoding method to be used when encoding this key.
+      * @result the encoding to use
+      */
+      PointGFp::Compression_Type point_encoding() const
+         { return m_point_encoding; }
 
       size_t key_length() const override;
       size_t estimated_strength() const override;
@@ -98,12 +114,13 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
       EC_Group m_domain_params;
       PointGFp m_public_key;
       EC_Group_Encoding m_domain_encoding;
+      PointGFp::Compression_Type m_point_encoding = PointGFp::UNCOMPRESSED;
    };
 
 /**
 * This abstract class represents ECC private keys
 */
-class BOTAN_DLL EC_PrivateKey : public virtual EC_PublicKey,
+class BOTAN_PUBLIC_API(2,0) EC_PrivateKey : public virtual EC_PublicKey,
                                 public virtual Private_Key
    {
    public:
@@ -121,26 +138,31 @@ class BOTAN_DLL EC_PrivateKey : public virtual EC_PublicKey,
                     bool with_modular_inverse=false);
 
       /*
-      * Creates a new private key object from the given
-      * key_bits. If with_modular_inverse is set,
+      * Creates a new private key object from the
+      * ECPrivateKey structure given in key_bits.
+      * If with_modular_inverse is set,
       * the public key will be calculated by multiplying
       * the base point with the modular inverse of
       * x (as in ECGDSA and ECKCDSA), otherwise by
       * multiplying directly with x (as in ECDSA).
       */
       EC_PrivateKey(const AlgorithmIdentifier& alg_id,
-                    const secure_vector<byte>& key_bits,
+                    const secure_vector<uint8_t>& key_bits,
                     bool with_modular_inverse=false);
 
-      secure_vector<byte> pkcs8_private_key() const override;
+      secure_vector<uint8_t> private_key_bits() const override;
 
       /**
       * Get the private key value of this key object.
       * @result the private key value of this key object
       */
       const BigInt& private_value() const;
+
+      EC_PrivateKey(const EC_PrivateKey& other) = default;
+      EC_PrivateKey& operator=(const EC_PrivateKey& other) = default;
+      ~EC_PrivateKey() = default;
    protected:
-      EC_PrivateKey() {}
+      EC_PrivateKey() = default;
 
       BigInt m_private_key;
    };

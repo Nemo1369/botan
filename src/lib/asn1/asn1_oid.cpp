@@ -47,7 +47,7 @@ void OID::clear()
 /*
 * Return this OID as a string
 */
-std::string OID::as_string() const
+std::string OID::to_string() const
    {
    std::string oid_str;
    for(size_t i = 0; i != m_id.size(); ++i)
@@ -75,7 +75,7 @@ bool OID::operator==(const OID& oid) const
 /*
 * Append another component to the OID
 */
-OID& OID::operator+=(u32bit component)
+OID& OID::operator+=(uint32_t component)
    {
    m_id.push_back(component);
    return (*this);
@@ -84,7 +84,7 @@ OID& OID::operator+=(u32bit component)
 /*
 * Append another component to the OID
 */
-OID operator+(const OID& oid, u32bit component)
+OID operator+(const OID& oid, uint32_t component)
    {
    OID new_oid(oid);
    new_oid += component;
@@ -104,8 +104,8 @@ bool operator!=(const OID& a, const OID& b)
 */
 bool operator<(const OID& a, const OID& b)
    {
-   const std::vector<u32bit>& oid1 = a.get_id();
-   const std::vector<u32bit>& oid2 = b.get_id();
+   const std::vector<uint32_t>& oid1 = a.get_id();
+   const std::vector<uint32_t>& oid2 = b.get_id();
 
    if(oid1.size() < oid2.size())
       return true;
@@ -129,8 +129,12 @@ void OID::encode_into(DER_Encoder& der) const
    if(m_id.size() < 2)
       throw Invalid_Argument("OID::encode_into: OID is invalid");
 
-   std::vector<byte> encoding;
-   encoding.push_back(40 * m_id[0] + m_id[1]);
+   std::vector<uint8_t> encoding;
+
+   if(m_id[0] > 2 || m_id[1] >= 40)
+      throw Encoding_Error("Invalid OID prefix, cannot encode");
+
+   encoding.push_back(static_cast<uint8_t>(40 * m_id[0] + m_id[1]));
 
    for(size_t i = 2; i != m_id.size(); ++i)
       {
@@ -157,31 +161,35 @@ void OID::encode_into(DER_Encoder& der) const
 void OID::decode_from(BER_Decoder& decoder)
    {
    BER_Object obj = decoder.get_next_object();
-   if(obj.type_tag != OBJECT_ID || obj.class_tag != UNIVERSAL)
-      throw BER_Bad_Tag("Error decoding OID, unknown tag",
-                        obj.type_tag, obj.class_tag);
-   if(obj.value.size() < 2)
-      throw BER_Decoding_Error("OID encoding is too short");
+   if(obj.tagging() != OBJECT_ID)
+      throw BER_Bad_Tag("Error decoding OID, unknown tag", obj.tagging());
 
+   const size_t length = obj.length();
+   const uint8_t* bits = obj.bits();
+
+   if(length < 2 && !(length == 1 && bits[0] == 0))
+      {
+      throw BER_Decoding_Error("OID encoding is too short");
+      }
 
    clear();
-   m_id.push_back(obj.value[0] / 40);
-   m_id.push_back(obj.value[0] % 40);
+   m_id.push_back(bits[0] / 40);
+   m_id.push_back(bits[0] % 40);
 
    size_t i = 0;
-   while(i != obj.value.size() - 1)
+   while(i != length - 1)
       {
-      u32bit component = 0;
-      while(i != obj.value.size() - 1)
+      uint32_t component = 0;
+      while(i != length - 1)
          {
          ++i;
 
          if(component >> (32-7))
             throw Decoding_Error("OID component overflow");
 
-         component = (component << 7) + (obj.value[i] & 0x7F);
+         component = (component << 7) + (bits[i] & 0x7F);
 
-         if(!(obj.value[i] & 0x80))
+         if(!(bits[i] & 0x80))
             break;
          }
       m_id.push_back(component);

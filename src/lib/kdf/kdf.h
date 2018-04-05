@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_KDF_BASE_H__
-#define BOTAN_KDF_BASE_H__
+#ifndef BOTAN_KDF_BASE_H_
+#define BOTAN_KDF_BASE_H_
 
 #include <botan/secmem.h>
 #include <botan/types.h>
@@ -17,10 +17,10 @@ namespace Botan {
 /**
 * Key Derivation Function
 */
-class BOTAN_DLL KDF
+class BOTAN_PUBLIC_API(2,0) KDF
    {
    public:
-      virtual ~KDF() {}
+      virtual ~KDF() = default;
 
       /**
       * Create an instance based on a name
@@ -64,10 +64,10 @@ class BOTAN_DLL KDF
       * @param label_len size of label in bytes
       * @return the derived key
       */
-      virtual size_t kdf(byte key[], size_t key_len,
-                         const byte secret[], size_t secret_len,
-                         const byte salt[], size_t salt_len,
-                         const byte label[], size_t label_len) const = 0;
+      virtual size_t kdf(uint8_t key[], size_t key_len,
+                         const uint8_t secret[], size_t secret_len,
+                         const uint8_t salt[], size_t salt_len,
+                         const uint8_t label[], size_t label_len) const = 0;
 
       /**
       * Derive a key
@@ -80,15 +80,15 @@ class BOTAN_DLL KDF
       * @param label_len size of label in bytes
       * @return the derived key
       */
-      secure_vector<byte> derive_key(size_t key_len,
-                                    const byte secret[],
+      secure_vector<uint8_t> derive_key(size_t key_len,
+                                    const uint8_t secret[],
                                     size_t secret_len,
-                                    const byte salt[],
+                                    const uint8_t salt[],
                                     size_t salt_len,
-                                    const byte label[] = nullptr,
+                                    const uint8_t label[] = nullptr,
                                     size_t label_len = 0) const
          {
-         secure_vector<byte> key(key_len);
+         secure_vector<uint8_t> key(key_len);
          key.resize(kdf(key.data(), key.size(), secret, secret_len, salt, salt_len, label, label_len));
          return key;
          }
@@ -101,15 +101,15 @@ class BOTAN_DLL KDF
       * @param label purpose for the derived keying material
       * @return the derived key
       */
-      secure_vector<byte> derive_key(size_t key_len,
-                                    const secure_vector<byte>& secret,
+      secure_vector<uint8_t> derive_key(size_t key_len,
+                                    const secure_vector<uint8_t>& secret,
                                     const std::string& salt = "",
                                     const std::string& label = "") const
          {
          return derive_key(key_len, secret.data(), secret.size(),
-                           reinterpret_cast<const byte*>(salt.data()),
+                           cast_char_ptr_to_uint8(salt.data()),
                            salt.length(),
-                           reinterpret_cast<const byte*>(label.data()),
+                           cast_char_ptr_to_uint8(label.data()),
                            label.length());
 
          }
@@ -123,10 +123,10 @@ class BOTAN_DLL KDF
       * @return the derived key
       */
       template<typename Alloc, typename Alloc2, typename Alloc3>
-      secure_vector<byte> derive_key(size_t key_len,
-                                     const std::vector<byte, Alloc>& secret,
-                                     const std::vector<byte, Alloc2>& salt,
-                                     const std::vector<byte, Alloc3>& label) const
+      secure_vector<uint8_t> derive_key(size_t key_len,
+                                     const std::vector<uint8_t, Alloc>& secret,
+                                     const std::vector<uint8_t, Alloc2>& salt,
+                                     const std::vector<uint8_t, Alloc3>& label) const
          {
          return derive_key(key_len,
                            secret.data(), secret.size(),
@@ -143,16 +143,16 @@ class BOTAN_DLL KDF
       * @param label purpose for the derived keying material
       * @return the derived key
       */
-      secure_vector<byte> derive_key(size_t key_len,
-                                    const secure_vector<byte>& secret,
-                                    const byte salt[],
+      secure_vector<uint8_t> derive_key(size_t key_len,
+                                    const secure_vector<uint8_t>& secret,
+                                    const uint8_t salt[],
                                     size_t salt_len,
                                     const std::string& label = "") const
          {
          return derive_key(key_len,
                            secret.data(), secret.size(),
                            salt, salt_len,
-                           reinterpret_cast<const byte*>(label.data()),
+                           cast_char_ptr_to_uint8(label.data()),
                            label.size());
          }
 
@@ -165,16 +165,16 @@ class BOTAN_DLL KDF
       * @param label purpose for the derived keying material
       * @return the derived key
       */
-      secure_vector<byte> derive_key(size_t key_len,
-                                    const byte secret[],
+      secure_vector<uint8_t> derive_key(size_t key_len,
+                                    const uint8_t secret[],
                                     size_t secret_len,
                                     const std::string& salt = "",
                                     const std::string& label = "") const
          {
          return derive_key(key_len, secret, secret_len,
-                           reinterpret_cast<const byte*>(salt.data()),
+                           cast_char_ptr_to_uint8(salt.data()),
                            salt.length(),
-                           reinterpret_cast<const byte*>(label.data()),
+                           cast_char_ptr_to_uint8(label.data()),
                            label.length());
          }
 
@@ -189,7 +189,7 @@ class BOTAN_DLL KDF
 * @param algo_spec the name of the KDF to create
 * @return pointer to newly allocated object of that type
 */
-BOTAN_DLL KDF* get_kdf(const std::string& algo_spec);
+BOTAN_PUBLIC_API(2,0) KDF* get_kdf(const std::string& algo_spec);
 
 }
 

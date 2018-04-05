@@ -7,6 +7,7 @@
 
 #include <botan/sqlite3.h>
 #include <botan/exceptn.h>
+#include <botan/mem_ops.h>
 #include <sqlite3.h>
 
 namespace Botan {
@@ -92,23 +93,23 @@ void Sqlite3_Database::Sqlite3_Statement::bind(int column, std::chrono::system_c
    bind(column, timeval);
    }
 
-void Sqlite3_Database::Sqlite3_Statement::bind(int column, const std::vector<byte>& val)
+void Sqlite3_Database::Sqlite3_Statement::bind(int column, const std::vector<uint8_t>& val)
    {
    int rc = ::sqlite3_bind_blob(m_stmt, column, val.data(), val.size(), SQLITE_TRANSIENT);
    if(rc != SQLITE_OK)
       throw SQL_DB_Error("sqlite3_bind_text failed, code " + std::to_string(rc));
    }
 
-void Sqlite3_Database::Sqlite3_Statement::bind(int column, const byte* p, size_t len)
+void Sqlite3_Database::Sqlite3_Statement::bind(int column, const uint8_t* p, size_t len)
    {
    int rc = ::sqlite3_bind_blob(m_stmt, column, p, len, SQLITE_TRANSIENT);
    if(rc != SQLITE_OK)
       throw SQL_DB_Error("sqlite3_bind_text failed, code " + std::to_string(rc));
    }
 
-std::pair<const byte*, size_t> Sqlite3_Database::Sqlite3_Statement::get_blob(int column)
+std::pair<const uint8_t*, size_t> Sqlite3_Database::Sqlite3_Statement::get_blob(int column)
    {
-   BOTAN_ASSERT(::sqlite3_column_type(m_stmt, 0) == SQLITE_BLOB,
+   BOTAN_ASSERT(::sqlite3_column_type(m_stmt, column) == SQLITE_BLOB,
                 "Return value is a blob");
 
    const void* session_blob = ::sqlite3_column_blob(m_stmt, column);
@@ -116,8 +117,18 @@ std::pair<const byte*, size_t> Sqlite3_Database::Sqlite3_Statement::get_blob(int
 
    BOTAN_ASSERT(session_blob_size >= 0, "Blob size is non-negative");
 
-   return std::make_pair(static_cast<const byte*>(session_blob),
+   return std::make_pair(static_cast<const uint8_t*>(session_blob),
                          static_cast<size_t>(session_blob_size));
+   }
+
+std::string Sqlite3_Database::Sqlite3_Statement::get_str(int column)
+   {
+   BOTAN_ASSERT(::sqlite3_column_type(m_stmt, column) == SQLITE_TEXT,
+                "Return value is text");
+
+   const unsigned char* str = ::sqlite3_column_text(m_stmt, column);
+
+   return std::string(cast_uint8_ptr_to_char(str));
    }
 
 size_t Sqlite3_Database::Sqlite3_Statement::get_size_t(int column)

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PBKDF_H__
-#define BOTAN_PBKDF_H__
+#ifndef BOTAN_PBKDF_H_
+#define BOTAN_PBKDF_H_
 
 #include <botan/symkey.h>
 #include <botan/exceptn.h>
@@ -19,7 +19,7 @@ namespace Botan {
 * implementations. Converts a password into a key using a salt
 * and iterated hashing to make brute force attacks harder.
 */
-class BOTAN_DLL PBKDF
+class BOTAN_PUBLIC_API(2,0) PBKDF
    {
    public:
       /**
@@ -31,6 +31,15 @@ class BOTAN_DLL PBKDF
       */
       static std::unique_ptr<PBKDF> create(const std::string& algo_spec,
                                            const std::string& provider = "");
+
+      /**
+      * Create an instance based on a name, or throw if the
+      * algo/provider combination cannot be found. If provider is
+      * empty then best available is chosen.
+      */
+      static std::unique_ptr<PBKDF>
+         create_or_throw(const std::string& algo_spec,
+                         const std::string& provider = "");
 
       /**
       * @return list of available providers for this algorithm, empty if not available
@@ -47,7 +56,7 @@ class BOTAN_DLL PBKDF
       */
       virtual std::string name() const = 0;
 
-      virtual ~PBKDF();
+      virtual ~PBKDF() = default;
 
       /**
       * Derive a key from a passphrase for a number of iterations
@@ -64,9 +73,9 @@ class BOTAN_DLL PBKDF
       *        run until msec milliseconds has passed.
       * @return the number of iterations performed
       */
-      virtual size_t pbkdf(byte out[], size_t out_len,
+      virtual size_t pbkdf(uint8_t out[], size_t out_len,
                            const std::string& passphrase,
-                           const byte salt[], size_t salt_len,
+                           const uint8_t salt[], size_t salt_len,
                            size_t iterations,
                            std::chrono::milliseconds msec) const = 0;
 
@@ -80,9 +89,9 @@ class BOTAN_DLL PBKDF
       * @param salt_len length of salt in bytes
       * @param iterations the number of iterations to use (use 10K or more)
       */
-      void pbkdf_iterations(byte out[], size_t out_len,
+      void pbkdf_iterations(uint8_t out[], size_t out_len,
                             const std::string& passphrase,
-                            const byte salt[], size_t salt_len,
+                            const uint8_t salt[], size_t salt_len,
                             size_t iterations) const;
 
       /**
@@ -97,9 +106,9 @@ class BOTAN_DLL PBKDF
       *        run until msec milliseconds has passed.
       * @param iterations set to the number iterations executed
       */
-      void pbkdf_timed(byte out[], size_t out_len,
+      void pbkdf_timed(uint8_t out[], size_t out_len,
                          const std::string& passphrase,
-                         const byte salt[], size_t salt_len,
+                         const uint8_t salt[], size_t salt_len,
                          std::chrono::milliseconds msec,
                          size_t& iterations) const;
 
@@ -113,9 +122,9 @@ class BOTAN_DLL PBKDF
       * @param iterations the number of iterations to use (use 10K or more)
       * @return the derived key
       */
-      secure_vector<byte> pbkdf_iterations(size_t out_len,
+      secure_vector<uint8_t> pbkdf_iterations(size_t out_len,
                                            const std::string& passphrase,
-                                           const byte salt[], size_t salt_len,
+                                           const uint8_t salt[], size_t salt_len,
                                            size_t iterations) const;
 
       /**
@@ -130,9 +139,9 @@ class BOTAN_DLL PBKDF
       * @param iterations set to the number iterations executed
       * @return the derived key
       */
-      secure_vector<byte> pbkdf_timed(size_t out_len,
+      secure_vector<uint8_t> pbkdf_timed(size_t out_len,
                                       const std::string& passphrase,
-                                      const byte salt[], size_t salt_len,
+                                      const uint8_t salt[], size_t salt_len,
                                       std::chrono::milliseconds msec,
                                       size_t& iterations) const;
 
@@ -148,7 +157,7 @@ class BOTAN_DLL PBKDF
       */
       OctetString derive_key(size_t out_len,
                              const std::string& passphrase,
-                             const byte salt[], size_t salt_len,
+                             const uint8_t salt[], size_t salt_len,
                              size_t iterations) const
          {
          return pbkdf_iterations(out_len, passphrase, salt, salt_len, iterations);
@@ -164,7 +173,7 @@ class BOTAN_DLL PBKDF
       template<typename Alloc>
       OctetString derive_key(size_t out_len,
                              const std::string& passphrase,
-                             const std::vector<byte, Alloc>& salt,
+                             const std::vector<uint8_t, Alloc>& salt,
                              size_t iterations) const
          {
          return pbkdf_iterations(out_len, passphrase, salt.data(), salt.size(), iterations);
@@ -181,7 +190,7 @@ class BOTAN_DLL PBKDF
       */
       OctetString derive_key(size_t out_len,
                              const std::string& passphrase,
-                             const byte salt[], size_t salt_len,
+                             const uint8_t salt[], size_t salt_len,
                              std::chrono::milliseconds msec,
                              size_t& iterations) const
          {
@@ -199,13 +208,18 @@ class BOTAN_DLL PBKDF
       template<typename Alloc>
       OctetString derive_key(size_t out_len,
                              const std::string& passphrase,
-                             const std::vector<byte, Alloc>& salt,
+                             const std::vector<uint8_t, Alloc>& salt,
                              std::chrono::milliseconds msec,
                              size_t& iterations) const
          {
          return pbkdf_timed(out_len, passphrase, salt.data(), salt.size(), msec, iterations);
          }
    };
+
+/*
+* Compatability typedef
+*/
+typedef PBKDF S2K;
 
 /**
 * Password based key derivation function factory method
@@ -214,13 +228,19 @@ class BOTAN_DLL PBKDF
 * @return pointer to newly allocated object of that type
 */
 inline PBKDF* get_pbkdf(const std::string& algo_spec,
-                           const std::string& provider = "")
+                        const std::string& provider = "")
    {
    std::unique_ptr<PBKDF> p(PBKDF::create(algo_spec, provider));
    if(p)
       return p.release();
    throw Algorithm_Not_Found(algo_spec);
    }
+
+inline PBKDF* get_s2k(const std::string& algo_spec)
+   {
+   return get_pbkdf(algo_spec);
+   }
+
 
 }
 

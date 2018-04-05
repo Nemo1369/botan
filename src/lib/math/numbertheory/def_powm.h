@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_DEFAULT_MODEXP_H__
-#define BOTAN_DEFAULT_MODEXP_H__
+#ifndef BOTAN_DEFAULT_MODEXP_H_
+#define BOTAN_DEFAULT_MODEXP_H_
 
 #include <botan/pow_mod.h>
 #include <botan/reducer.h>
@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * Fixed Window Exponentiator
 */
-class Fixed_Window_Exponentiator : public Modular_Exponentiator
+class Fixed_Window_Exponentiator final : public Modular_Exponentiator
    {
    public:
       void set_exponent(const BigInt&) override;
@@ -36,10 +36,13 @@ class Fixed_Window_Exponentiator : public Modular_Exponentiator
       Power_Mod::Usage_Hints m_hints;
    };
 
+class Montgomery_Params;
+class Montgomery_Exponentation_State;
+
 /**
 * Montgomery Exponentiator
 */
-class Montgomery_Exponentiator : public Modular_Exponentiator
+class Montgomery_Exponentiator final : public Modular_Exponentiator
    {
    public:
       void set_exponent(const BigInt&) override;
@@ -51,11 +54,13 @@ class Montgomery_Exponentiator : public Modular_Exponentiator
 
       Montgomery_Exponentiator(const BigInt&, Power_Mod::Usage_Hints);
    private:
-      BigInt m_exp, m_modulus, m_R_mod, m_R2_mod;
-      word m_mod_prime;
-      size_t m_mod_words, m_exp_bits, m_window_bits;
+      BigInt m_p;
+      Modular_Reducer m_mod_p;
+      std::shared_ptr<const Montgomery_Params> m_monty_params;
+      std::shared_ptr<const Montgomery_Exponentation_State> m_monty;
+
+      BigInt m_e;
       Power_Mod::Usage_Hints m_hints;
-      std::vector<BigInt> m_g;
    };
 
 }

@@ -9,6 +9,7 @@
 #include <botan/data_src.h>
 #include <botan/exceptn.h>
 #include <algorithm>
+#include <istream>
 
 #if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
   #include <fstream>
@@ -19,7 +20,7 @@ namespace Botan {
 /*
 * Read a single byte from the DataSource
 */
-size_t DataSource::read_byte(byte& out)
+size_t DataSource::read_byte(uint8_t& out)
    {
    return read(&out, 1);
    }
@@ -27,7 +28,7 @@ size_t DataSource::read_byte(byte& out)
 /*
 * Peek a single byte from the DataSource
 */
-size_t DataSource::peek_byte(byte& out) const
+size_t DataSource::peek_byte(uint8_t& out) const
    {
    return peek(&out, 1, 0);
    }
@@ -37,7 +38,7 @@ size_t DataSource::peek_byte(byte& out) const
 */
 size_t DataSource::discard_next(size_t n)
    {
-   byte buf[64] = { 0 };
+   uint8_t buf[64] = { 0 };
    size_t discarded = 0;
 
    while(n)
@@ -56,7 +57,7 @@ size_t DataSource::discard_next(size_t n)
 /*
 * Read from a memory buffer
 */
-size_t DataSource_Memory::read(byte out[], size_t length)
+size_t DataSource_Memory::read(uint8_t out[], size_t length)
    {
    size_t got = std::min<size_t>(m_source.size() - m_offset, length);
    copy_mem(out, m_source.data() + m_offset, got);
@@ -72,7 +73,7 @@ bool DataSource_Memory::check_available(size_t n)
 /*
 * Peek into a memory buffer
 */
-size_t DataSource_Memory::peek(byte out[], size_t length,
+size_t DataSource_Memory::peek(uint8_t out[], size_t length,
                                size_t peek_offset) const
    {
    const size_t bytes_left = m_source.size() - m_offset;
@@ -95,24 +96,22 @@ bool DataSource_Memory::end_of_data() const
 * DataSource_Memory Constructor
 */
 DataSource_Memory::DataSource_Memory(const std::string& in) :
-   m_source(reinterpret_cast<const byte*>(in.data()),
-          reinterpret_cast<const byte*>(in.data()) + in.length()),
+   m_source(cast_char_ptr_to_uint8(in.data()),
+            cast_char_ptr_to_uint8(in.data()) + in.length()),
    m_offset(0)
    {
    }
 
-#if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
-
 /*
 * Read from a stream
 */
-size_t DataSource_Stream::read(byte out[], size_t length)
+size_t DataSource_Stream::read(uint8_t out[], size_t length)
    {
-   m_source.read(reinterpret_cast<char*>(out), length);
+   m_source.read(cast_uint8_ptr_to_char(out), length);
    if(m_source.bad())
       throw Stream_IO_Error("DataSource_Stream::read: Source failure");
 
-   size_t got = m_source.gcount();
+   const size_t got = static_cast<size_t>(m_source.gcount());
    m_total_read += got;
    return got;
    }
@@ -121,7 +120,7 @@ bool DataSource_Stream::check_available(size_t n)
    {
    const std::streampos orig_pos = m_source.tellg();
    m_source.seekg(0, std::ios::end);
-   const size_t avail = m_source.tellg() - orig_pos;
+   const size_t avail = static_cast<size_t>(m_source.tellg() - orig_pos);
    m_source.seekg(orig_pos);
    return (avail >= n);
    }
@@ -129,7 +128,7 @@ bool DataSource_Stream::check_available(size_t n)
 /*
 * Peek into a stream
 */
-size_t DataSource_Stream::peek(byte out[], size_t length, size_t offset) const
+size_t DataSource_Stream::peek(uint8_t out[], size_t length, size_t offset) const
    {
    if(end_of_data())
       throw Invalid_State("DataSource_Stream: Cannot peek when out of data");
@@ -138,19 +137,19 @@ size_t DataSource_Stream::peek(byte out[], size_t length, size_t offset) const
 
    if(offset)
       {
-      secure_vector<byte> buf(offset);
-      m_source.read(reinterpret_cast<char*>(buf.data()), buf.size());
+      secure_vector<uint8_t> buf(offset);
+      m_source.read(cast_uint8_ptr_to_char(buf.data()), buf.size());
       if(m_source.bad())
          throw Stream_IO_Error("DataSource_Stream::peek: Source failure");
-      got = m_source.gcount();
+      got = static_cast<size_t>(m_source.gcount());
       }
 
    if(got == offset)
       {
-      m_source.read(reinterpret_cast<char*>(out), length);
+      m_source.read(cast_uint8_ptr_to_char(out), length);
       if(m_source.bad())
          throw Stream_IO_Error("DataSource_Stream::peek: Source failure");
-      got = m_source.gcount();
+      got = static_cast<size_t>(m_source.gcount());
       }
 
    if(m_source.eof())
@@ -176,23 +175,25 @@ std::string DataSource_Stream::id() const
    return m_identifier;
    }
 
+#if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
+
 /*
 * DataSource_Stream Constructor
 */
 DataSource_Stream::DataSource_Stream(const std::string& path,
                                      bool use_binary) :
    m_identifier(path),
-   m_source_p(new std::ifstream(path,
-                              use_binary ? std::ios::binary : std::ios::in)),
-   m_source(*m_source_p),
+   m_source_memory(new std::ifstream(path, use_binary ? std::ios::binary : std::ios::in)),
+   m_source(*m_source_memory),
    m_total_read(0)
    {
    if(!m_source.good())
       {
-      delete m_source_p;
       throw Stream_IO_Error("DataSource: Failure opening file " + path);
       }
    }
+
+#endif
 
 /*
 * DataSource_Stream Constructor
@@ -200,20 +201,14 @@ DataSource_Stream::DataSource_Stream(const std::string& path,
 DataSource_Stream::DataSource_Stream(std::istream& in,
                                      const std::string& name) :
    m_identifier(name),
-   m_source_p(nullptr),
    m_source(in),
    m_total_read(0)
    {
    }
 
-/*
-* DataSource_Stream Destructor
-*/
 DataSource_Stream::~DataSource_Stream()
    {
-   delete m_source_p;
+   // for ~unique_ptr
    }
-
-#endif
 
 }

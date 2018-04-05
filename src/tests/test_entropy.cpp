@@ -9,14 +9,14 @@
 #include <botan/entropy_src.h>
 
 #if defined(BOTAN_HAS_COMPRESSION)
-  #include <botan/compression.h>
+   #include <botan/compression.h>
 #endif
 
 namespace Botan_Tests {
 
 namespace {
 
-class Entropy_Source_Tests : public Test
+class Entropy_Source_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -27,7 +27,7 @@ class Entropy_Source_Tests : public Test
 
          std::vector<Test::Result> results;
 
-         for(auto&& src_name : src_names)
+         for(auto const& src_name : src_names)
             {
             Test::Result result("Entropy source " + src_name);
 
@@ -66,7 +66,7 @@ class Entropy_Source_Tests : public Test
 
                         try
                            {
-                           Botan::secure_vector<byte> compressed;
+                           Botan::secure_vector<uint8_t> compressed;
                            compressed.assign(rng.seed_material().begin(), rng.seed_material().end());
                            comp->start(9);
                            comp->finish(compressed);
@@ -89,7 +89,7 @@ class Entropy_Source_Tests : public Test
 
                         try
                            {
-                           Botan::secure_vector<byte> compressed;
+                           Botan::secure_vector<uint8_t> compressed;
                            compressed.insert(compressed.end(), rng.seed_material().begin(), rng.seed_material().end());
                            compressed.insert(compressed.end(), rng2.seed_material().begin(), rng2.seed_material().end());
 
@@ -104,7 +104,7 @@ class Entropy_Source_Tests : public Test
                            size_t comp_diff = comp2_size - comp1_size;
 
                            result.test_gte(comp_algo + " diff compressed entropy better than advertised",
-                                           comp_diff*8, bits2);
+                                           comp_diff * 8, bits2);
                            }
                         catch(std::exception& e)
                            {

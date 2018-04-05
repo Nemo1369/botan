@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_GOST_28147_89_H__
-#define BOTAN_GOST_28147_89_H__
+#ifndef BOTAN_GOST_28147_89_H_
+#define BOTAN_GOST_28147_89_H_
 
 #include <botan/block_cipher.h>
 
@@ -18,7 +18,7 @@ namespace Botan {
 * considered a local configuration issue. Several different sets are
 * used.
 */
-class BOTAN_DLL GOST_28147_89_Params
+class BOTAN_PUBLIC_API(2,0) GOST_28147_89_Params final
    {
    public:
       /**
@@ -26,12 +26,18 @@ class BOTAN_DLL GOST_28147_89_Params
       * @param col the column
       * @return sbox entry at this row/column
       */
-      byte sbox_entry(size_t row, size_t col) const;
+      uint8_t sbox_entry(size_t row, size_t col) const;
 
       /**
       * @return name of this parameter set
       */
       std::string param_name() const { return m_name; }
+
+      /**
+      * Return a representation used for building larger tables
+      * For internal use
+      */
+      uint8_t sbox_pair(size_t row, size_t col) const;
 
       /**
       * Default GOST parameters are the ones given in GOST R 34.11 for
@@ -40,20 +46,20 @@ class BOTAN_DLL GOST_28147_89_Params
       * Federation
       * @param name of the parameter set
       */
-      GOST_28147_89_Params(const std::string& name = "R3411_94_TestParam");
+      explicit GOST_28147_89_Params(const std::string& name = "R3411_94_TestParam");
    private:
-      const byte* m_sboxes;
+      const uint8_t* m_sboxes;
       std::string m_name;
    };
 
 /**
 * GOST 28147-89
 */
-class BOTAN_DLL GOST_28147_89 final : public Block_Cipher_Fixed_Params<8, 32>
+class BOTAN_PUBLIC_API(2,0) GOST_28147_89 final : public Block_Cipher_Fixed_Params<8, 32>
    {
    public:
-      void encrypt_n(const byte in[], byte out[], size_t blocks) const override;
-      void decrypt_n(const byte in[], byte out[], size_t blocks) const override;
+      void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
+      void decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
 
       void clear() override;
 
@@ -64,19 +70,22 @@ class BOTAN_DLL GOST_28147_89 final : public Block_Cipher_Fixed_Params<8, 32>
       * @param params the sbox parameters to use
       */
       explicit GOST_28147_89(const GOST_28147_89_Params& params);
+
+      explicit GOST_28147_89(const std::string& param_name) :
+         GOST_28147_89(GOST_28147_89_Params(param_name)) {}
    private:
-      explicit GOST_28147_89(const std::vector<u32bit>& other_SBOX) :
+      explicit GOST_28147_89(const std::vector<uint32_t>& other_SBOX) :
          m_SBOX(other_SBOX), m_EK(8) {}
 
-      void key_schedule(const byte[], size_t) override;
+      void key_schedule(const uint8_t[], size_t) override;
 
       /*
       * The sbox is not secret, this is just a larger expansion of it
       * which we generate at runtime for faster execution
       */
-      std::vector<u32bit> m_SBOX;
+      std::vector<uint32_t> m_SBOX;
 
-      secure_vector<u32bit> m_EK;
+      secure_vector<uint32_t> m_EK;
    };
 
 }

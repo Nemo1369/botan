@@ -1,4 +1,6 @@
-define SERPENT 20131128
+<defines>
+SERPENT -> 20131128
+</defines>
 
 <header:public>
 serpent.h
@@ -7,7 +9,3 @@ serpent.h
 <header:internal>
 serpent_sbox.h
 </header:internal>
-
-<source>
-serpent.cpp
-</source>

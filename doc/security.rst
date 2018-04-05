@@ -1,7 +1,7 @@
 
 .. highlight:: none
 
-Security
+Security Advisories
 ========================================
 
 If you think you have found a security bug in Botan please contact
@@ -12,16 +12,85 @@ mail please use::
         Key fingerprint = 4E60 C735 51AF 2188 DF0A  5A62 78E9 8043 5712 3B60
         uid         Jack Lloyd <jack@randombit.net>
 
-This key can be found in the file ``pgpkey.txt`` or online at
+This key can be found in the file ``doc/pgpkey.txt`` or online at
 https://keybase.io/jacklloyd and on most PGP keyservers.
 
-Advisories
-----------------------------------------
+2018
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* 2018-03-29 (CVE-2018-9127): Invalid wildcard match
+
+  RFC 6125 wildcard matching was incorrectly implemented, so that a wildcard
+  certificate such as ``b*.domain.com`` would match any hosts ``*b*.domain.com``
+  instead of just server names beginning with ``b``. The host and certificate
+  would still have to be in the same domain name. Reported by Fabian Weißberg of
+  Rohde and Schwarz Cybersecurity.
+
+  Bug introduced in 2.2.0, fixed in 2.5.0
+
+2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* 2017-10-02 (CVE-2017-14737): Potential side channel using cache information
+
+  In the Montgomery exponentiation code, a table of precomputed values
+  is used. An attacker able to analyze which cache lines were accessed
+  (perhaps via an active attack such as Prime+Probe) could recover
+  information about the exponent. Identified in "CacheD: Identifying
+  Cache-Based Timing Channels in Production Software" by Wang, Wang,
+  Liu, Zhang, and Wu (Usenix Security 2017).
+
+  Fixed in 1.10.17 and 2.3.0, all prior versions affected.
+
+* 2017-07-16: Failure to fully zeroize memory before free
+
+  The secure_allocator type attempts to zeroize memory before freeing it. Due to
+  a error sometimes only a portion of the memory would be zeroed, because of a
+  confusion between the number of elements vs the number of bytes that those
+  elements use. So byte vectors would always be fully zeroed (since the two
+  notions result in the same value), but for example with an array of 32-bit
+  integers, only the first 1/4 of the elements would be zeroed before being
+  deallocated. This may result in information leakage, if an attacker can access
+  memory on the heap. Reported by Roman Pozlevich.
+
+  Bug introduced in 1.11.10, fixed in 2.2.0
+
+* 2017-04-04 (CVE-2017-2801): Incorrect comparison in X.509 DN strings
+
+  Botan's implementation of X.509 name comparisons had a flaw which
+  could result in an out of bound memory read while processing a
+  specially formed DN. This could potentially be exploited for
+  information disclosure or denial of service, or result in incorrect
+  validation results. Found independently by Aleksandar Nikolic of
+  Cisco Talos, and OSS-Fuzz automated fuzzing infrastructure.
+
+  Bug introduced in 1.6.0 or earlier, fixed in 2.1.0 and 1.10.16
+
+* 2017-03-23 (CVE-2017-7252): Incorrect bcrypt computation
+
+  Botan's implementation of bcrypt password hashing scheme truncated long
+  passwords at 56 characters, instead of at bcrypt's standard 72 characters
+  limit. Passwords with lengths between these two bounds could be cracked more
+  easily than should be the case due to the final password bytes being ignored.
+  Found and reported by Solar Designer.
+
+  Bug introduced in 1.11.0, fixed in 2.1.0.
 
 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* 2016-10-8871 (CVE-2016-8871) OAEP side channel
+* 2016-11-27 (CVE-2016-9132) Integer overflow in BER decoder
+
+  While decoding BER length fields, an integer overflow could occur. This could
+  occur while parsing untrusted inputs such as X.509 certificates. The overflow
+  does not seem to lead to any obviously exploitable condition, but exploitation
+  cannot be positively ruled out. Only 32-bit platforms are likely affected; to
+  cause an overflow on 64-bit the parsed data would have to be many gigabytes.
+  Bug found by Falko Strenzke, cryptosource GmbH.
+
+  Fixed in 1.10.14 and 1.11.34, all prior versions affected.
+
+* 2016-10-26 (CVE-2016-8871) OAEP side channel
 
   A side channel in OAEP decoding could be used to distinguish RSA ciphertexts
   that did or did not have a leading 0 byte. For an attacker capable of

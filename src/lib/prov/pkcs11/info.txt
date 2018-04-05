@@ -1,10 +1,11 @@
-define PKCS11 20160219
-
-load_on vendor
+<defines>
+PKCS11 -> 20160219
+</defines>
 
 <requires>
 dyn_load
 rng
+pubkey
 pk_pad
 </requires>
 
@@ -31,18 +32,3 @@ p11_session.h
 p11_slot.h
 p11_x509.h
 </header:public>
-
-<source>
-p11.cpp
-p11_ecc_key.cpp
-p11_ecdh.cpp
-p11_ecdsa.cpp
-p11_mechanism.cpp
-p11_module.cpp
-p11_object.cpp
-p11_randomgenerator.cpp
-p11_rsa.cpp
-p11_session.cpp
-p11_slot.cpp
-p11_x509.cpp
-</source>

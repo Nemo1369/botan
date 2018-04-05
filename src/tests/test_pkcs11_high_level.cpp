@@ -10,11 +10,7 @@
 
 #include <string>
 #include <vector>
-#include <functional>
 #include <memory>
-#include <array>
-#include <type_traits>
-#include <map>
 #include <numeric>
 
 #if defined(BOTAN_HAS_PKCS11)
@@ -34,26 +30,24 @@
    #include <botan/pubkey.h>
 #endif
 
-#if defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_PKCS11) 
+#if defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_PKCS11)
    #include <botan/rsa.h>
    #include <botan/p11_rsa.h>
 #endif
 
-#if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO) && defined(BOTAN_HAS_PKCS11)
-   #include <botan/ecc_key.h>
+#if defined(BOTAN_HAS_ECDSA) && defined(BOTAN_HAS_PKCS11)
    #include <botan/ecdsa.h>
-   #include <botan/ecdh.h>
-   #include <botan/p11_ecc_key.h>
-   #include <botan/p11_ecdh.h>
    #include <botan/p11_ecdsa.h>
+#endif
+
+#if defined(BOTAN_HAS_ECDH) && defined(BOTAN_HAS_PKCS11)
+   #include <botan/ecdh.h>
+   #include <botan/p11_ecdh.h>
 #endif
 
 #if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_HAS_PKCS11)
    #include <botan/p11_x509.h>
-#endif
-
-#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
-   #include <botan/auto_rng.h>
+   #include <botan/x509_dn.h>
 #endif
 
 #if defined(BOTAN_HAS_HMAC_DRBG)
@@ -83,10 +77,10 @@ class TestSession
             m_session->login(UserType::User, PIN_SECVEC);
             }
          }
-
-      inline Module& module() const { return *m_module; }
-      inline Slot& slot() const { return *m_slot; }
-      inline Session& session() const { return *m_session; }
+      inline Session& session() const
+         {
+         return *m_session;
+         }
 
    private:
       std::unique_ptr<Module> m_module = nullptr;
@@ -102,7 +96,7 @@ Test::Result test_module_ctor()
 
    result.test_throws("Module ctor fails for non existent path", []()
       {
-      Module module("/a/b/c");
+      Module failing_module("/a/b/c");
       });
 
    Module module(Test::pkcs11_lib());
@@ -151,7 +145,7 @@ Test::Result test_module_get_info()
    return result;
    }
 
-class Module_Tests : public PKCS11_Test
+class Module_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -213,6 +207,39 @@ Test::Result test_get_slot_info()
    return result;
    }
 
+SlotId get_invalid_slot_id(Module& module)
+   {
+   std::vector<SlotId> slot_vec = Slot::get_available_slots(module, false);
+
+   SlotId invalid_id = 0;
+
+   // find invalid slot id
+   while(std::find(slot_vec.begin(), slot_vec.end(), invalid_id) != slot_vec.end())
+      {
+      invalid_id++;
+      }
+
+   return invalid_id;
+   }
+
+Test::Result test_slot_invalid_id()
+   {
+   Test::Result result("Slot get_slot_info with invalid slot id");
+
+   Module module(Test::pkcs11_lib());
+
+   SlotId invalid_id = get_invalid_slot_id(module);
+
+   Slot slot(module, invalid_id);
+
+   result.test_throws("get_slot_info fails for non existent slot id", [ &slot ]()
+      {
+      slot.get_slot_info();
+      });
+
+   return result;
+   }
+
 Test::Result test_get_token_info()
    {
    Test::Result result("Slot get_token_info");
@@ -256,7 +283,7 @@ Test::Result test_get_mechanisms_info()
    return result;
    }
 
-class Slot_Tests : public PKCS11_Test
+class Slot_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -266,6 +293,7 @@ class Slot_Tests : public PKCS11_Test
             test_slot_get_available_slots,
             test_slot_ctor,
             test_get_slot_info,
+            test_slot_invalid_id,
             test_get_token_info,
             test_get_mechanism_list,
             test_get_mechanisms_info
@@ -305,6 +333,23 @@ Test::Result test_session_ctor()
       Session read_write_session(slot, false);
       result.test_success("Opened multiple sessions successfully");
       }
+
+   return result;
+   }
+
+Test::Result test_session_ctor_invalid_slot()
+   {
+   Test::Result result("Session ctor with invalid slot id");
+
+   Module module(Test::pkcs11_lib());
+
+   SlotId invalid_id = get_invalid_slot_id(module);
+   Slot slot(module, invalid_id);
+
+   result.test_throws("Session ctor with invalid slot id fails", [&slot]()
+      {
+      Session session(slot, true);
+      });
 
    return result;
    }
@@ -373,7 +418,7 @@ Test::Result test_session_info()
    return result;
    }
 
-class Session_Tests : public PKCS11_Test
+class Session_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -381,6 +426,7 @@ class Session_Tests : public PKCS11_Test
          std::vector<std::function<Test::Result()>> fns =
             {
             test_session_ctor,
+            test_session_ctor_invalid_slot,
             test_session_release,
             test_session_login_logout,
             test_session_info
@@ -404,7 +450,7 @@ Test::Result test_attribute_container()
    std::string label("test");
    attributes.add_string(AttributeType::Label, label);
 
-   std::vector<byte> bin(4);
+   std::vector<uint8_t> bin(4);
    attributes.add_binary(AttributeType::Value, bin);
 
    attributes.add_bool(AttributeType::Sensitive, true);
@@ -423,7 +469,7 @@ Test::Result test_create_destroy_data_object()
    TestSession test_session(true);
 
    std::string value_string("test data");
-   secure_vector<byte> value(value_string.begin(), value_string.end());
+   secure_vector<uint8_t> value(value_string.begin(), value_string.end());
 
    std::size_t id = 1337;
    std::string label = "Botan test data object";
@@ -453,7 +499,7 @@ Test::Result test_get_set_attribute_values()
 
    // create object
    std::string value_string("test data");
-   secure_vector<byte> value(value_string.begin(), value_string.end());
+   secure_vector<uint8_t> value(value_string.begin(), value_string.end());
 
    std::size_t id = 1337;
    std::string label = "Botan test data object";
@@ -468,13 +514,13 @@ Test::Result test_get_set_attribute_values()
    Object data_obj(test_session.session(), data_obj_props);
 
    // get attribute
-   secure_vector<byte> retrieved_label = data_obj.get_attribute_value(AttributeType::Label);
+   secure_vector<uint8_t> retrieved_label = data_obj.get_attribute_value(AttributeType::Label);
    std::string retrieved_label_string(retrieved_label.begin(), retrieved_label.end());
    result.test_eq("label was set correctly", retrieved_label_string, label);
 
    // set attribute
    std::string new_label = "Botan test modified data object label";
-   secure_vector<byte> new_label_secvec(new_label.begin(), new_label.end());
+   secure_vector<uint8_t> new_label_secvec(new_label.begin(), new_label.end());
    data_obj.set_attribute_value(AttributeType::Label, new_label_secvec);
 
    // get and check attribute
@@ -494,7 +540,7 @@ Test::Result test_object_finder()
 
    // create object
    std::string value_string("test data");
-   secure_vector<byte> value(value_string.begin(), value_string.end());
+   secure_vector<uint8_t> value(value_string.begin(), value_string.end());
 
    std::size_t id = 1337;
    std::string label = "Botan test data object";
@@ -519,7 +565,7 @@ Test::Result test_object_finder()
 
    Object obj_found(test_session.session(), search_result.at(0));
    result.test_eq("found the object just created (same application)",
-                  obj_found.get_attribute_value(AttributeType::Application) , data_obj.get_attribute_value(AttributeType::Application));
+                  obj_found.get_attribute_value(AttributeType::Application), data_obj.get_attribute_value(AttributeType::Application));
 
    auto search_result2 = Object::search<Object>(test_session.session(), search_template.attributes());
    result.test_eq("found the object just created (same label)", obj_found.get_attribute_value(AttributeType::Label),
@@ -537,7 +583,7 @@ Test::Result test_object_copy()
 
    // create object
    std::string value_string("test data");
-   secure_vector<byte> value(value_string.begin(), value_string.end());
+   secure_vector<uint8_t> value(value_string.begin(), value_string.end());
 
    std::size_t id = 1337;
    std::string label = "Botan test data object";
@@ -568,7 +614,7 @@ Test::Result test_object_copy()
    }
 #endif
 
-class Object_Tests : public PKCS11_Test
+class Object_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -577,10 +623,10 @@ class Object_Tests : public PKCS11_Test
             {
             test_attribute_container
 #if defined(BOTAN_HAS_ASN1)
-            ,test_create_destroy_data_object
-            ,test_get_set_attribute_values
-            ,test_object_finder
-            ,test_object_copy
+            , test_create_destroy_data_object
+            , test_get_set_attribute_values
+            , test_object_finder
+            , test_object_copy
 #endif
             };
 
@@ -747,12 +793,12 @@ Test::Result test_rsa_encrypt_decrypt()
    // generate key pair
    PKCS11_RSA_KeyPair keypair = generate_rsa_keypair(test_session);
 
-   auto encrypt_and_decrypt = [&keypair, &result](const std::vector<byte>& plaintext, const std::string& padding) -> void
+   auto encrypt_and_decrypt = [&keypair, &result](const std::vector<uint8_t>& plaintext, const std::string& padding)
       {
-      Botan::PK_Encryptor_EME encryptor(keypair.first, Test::rng(), padding, "pkcs11");
+      Botan::PK_Encryptor_EME encryptor(keypair.first, Test::rng(), padding);
       auto encrypted = encryptor.encrypt(plaintext, Test::rng());
 
-      Botan::PK_Decryptor_EME decryptor(keypair.second, Test::rng(), padding, "pkcs11");
+      Botan::PK_Decryptor_EME decryptor(keypair.second, Test::rng(), padding);
       auto decrypted = decryptor.decrypt(encrypted);
 
       // some token / middlewares do not remove the padding bytes
@@ -761,8 +807,8 @@ Test::Result test_rsa_encrypt_decrypt()
       result.test_eq("RSA PKCS11 encrypt and decrypt: " + padding, decrypted, plaintext);
       };
 
-   std::vector<byte> plaintext(256);
-   std::iota(std::begin(plaintext), std::end(plaintext), 0);
+   std::vector<uint8_t> plaintext(256);
+   std::iota(std::begin(plaintext), std::end(plaintext), static_cast<uint8_t>(0));
    encrypt_and_decrypt(plaintext, "Raw");
 
    plaintext = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x00 };
@@ -784,14 +830,14 @@ Test::Result test_rsa_sign_verify()
    // generate key pair
    PKCS11_RSA_KeyPair keypair = generate_rsa_keypair(test_session);
 
-   std::vector<byte> plaintext(256);
-   std::iota(std::begin(plaintext), std::end(plaintext), 0);
+   std::vector<uint8_t> plaintext(256);
+   std::iota(std::begin(plaintext), std::end(plaintext), static_cast<uint8_t>(0));
 
-   auto sign_and_verify = [&keypair, &plaintext, &result](const std::string& emsa, bool multipart) -> void
+   auto sign_and_verify = [&keypair, &plaintext, &result](std::string const& emsa, bool multipart)
       {
-      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363, "pkcs11");
-      std::vector<byte> signature;
-      if ( multipart )
+      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363);
+      std::vector<uint8_t> signature;
+      if(multipart)
          {
          signer.update(plaintext.data(), plaintext.size() / 2);
          signature = signer.sign_message(plaintext.data() + plaintext.size() / 2, plaintext.size() / 2, Test::rng());
@@ -801,13 +847,13 @@ Test::Result test_rsa_sign_verify()
          signature = signer.sign_message(plaintext, Test::rng());
          }
 
-
-      Botan::PK_Verifier verifier(keypair.first, emsa, Botan::IEEE_1363, "pkcs11");
+      Botan::PK_Verifier verifier(keypair.first, emsa, Botan::IEEE_1363);
       bool rsa_ok = false;
-      if ( multipart )
+      if(multipart)
          {
          verifier.update(plaintext.data(), plaintext.size() / 2);
-         rsa_ok = verifier.verify_message(plaintext.data() + plaintext.size() / 2, plaintext.size() / 2, signature.data(), signature.size());
+         rsa_ok = verifier.verify_message(plaintext.data() + plaintext.size() / 2, plaintext.size() / 2,
+                                          signature.data(), signature.size());
          }
       else
          {
@@ -832,7 +878,7 @@ Test::Result test_rsa_sign_verify()
    return result;
    }
 
-class PKCS11_RSA_Tests : public PKCS11_Test
+class PKCS11_RSA_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -857,7 +903,7 @@ BOTAN_REGISTER_TEST("pkcs11-rsa", PKCS11_RSA_Tests);
 
 /***************************** PKCS11 ECDSA *****************************/
 
-#if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO)
+#if defined(BOTAN_HAS_ECDSA)
 
 Test::Result test_ecdsa_privkey_import()
    {
@@ -918,7 +964,7 @@ Test::Result test_ecdsa_privkey_export()
    ECDSA_PrivateKey exported = pk.export_key();
    result.test_success("ECDSA private key export was successful");
    result.confirm("Check exported key valid", exported.check_key(Test::rng(), true));
-   result.test_eq("Check exported key contents", exported.pkcs8_private_key(), priv_key.pkcs8_private_key());
+   result.test_eq("Check exported key contents", exported.private_key_bits(), priv_key.private_key_bits());
 
    pk.destroy();
    return result;
@@ -934,9 +980,12 @@ Test::Result test_ecdsa_pubkey_import()
    ECDSA_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
+   const std::vector<uint8_t> enc_point = DER_Encoder().encode(
+      priv_key.public_point().encode(PointGFp::UNCOMPRESSED), OCTET_STRING).
+      get_contents_unlocked();
+
    // import to card
-   EC_PublicKeyImportProperties props(priv_key.DER_domain(), DER_Encoder().encode(EC2OSP(priv_key.public_point(),
-                                      PointGFp::UNCOMPRESSED), OCTET_STRING).get_contents_unlocked());
+   EC_PublicKeyImportProperties props(priv_key.DER_domain(), enc_point);
    props.set_token(true);
    props.set_verify(true);
    props.set_private(false);
@@ -962,9 +1011,12 @@ Test::Result test_ecdsa_pubkey_export()
    ECDSA_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
+   const std::vector<uint8_t> enc_point = DER_Encoder().encode(
+      priv_key.public_point().encode(PointGFp::UNCOMPRESSED), OCTET_STRING).
+      get_contents_unlocked();
+
    // import to card
-   EC_PublicKeyImportProperties props(priv_key.DER_domain(), DER_Encoder().encode(EC2OSP(priv_key.public_point(),
-                                      PointGFp::UNCOMPRESSED), OCTET_STRING).get_contents_unlocked());
+   EC_PublicKeyImportProperties props(priv_key.DER_domain(), enc_point);
    props.set_token(true);
    props.set_verify(true);
    props.set_private(false);
@@ -1046,14 +1098,14 @@ Test::Result test_ecdsa_sign_verify()
    // generate key pair
    PKCS11_ECDSA_KeyPair keypair = generate_ecdsa_keypair(test_session);
 
-   std::vector<byte> plaintext(20, 0x01);
+   std::vector<uint8_t> plaintext(20, 0x01);
 
-   auto sign_and_verify = [ &keypair, &plaintext, &result ](const std::string& emsa) -> void
+   auto sign_and_verify = [ &keypair, &plaintext, &result ](const std::string& emsa)
       {
-      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363, "pkcs11");
+      Botan::PK_Signer signer(keypair.second, Test::rng(), emsa, Botan::IEEE_1363);
       auto signature = signer.sign_message(plaintext, Test::rng());
 
-      Botan::PK_Verifier token_verifier(keypair.first, emsa, Botan::IEEE_1363, "pkcs11");
+      Botan::PK_Verifier token_verifier(keypair.first, emsa, Botan::IEEE_1363);
       bool ecdsa_ok = token_verifier.verify_message(plaintext, signature);
 
       result.test_eq("ECDSA PKCS11 sign and verify: " + emsa, ecdsa_ok, true);
@@ -1075,7 +1127,7 @@ Test::Result test_ecdsa_sign_verify()
    return result;
    }
 
-class PKCS11_ECDSA_Tests : public PKCS11_Test
+class PKCS11_ECDSA_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1096,6 +1148,10 @@ class PKCS11_ECDSA_Tests : public PKCS11_Test
    };
 
 BOTAN_REGISTER_TEST("pkcs11-ecdsa", PKCS11_ECDSA_Tests);
+
+#endif
+
+#if defined(BOTAN_HAS_ECDH)
 
 /***************************** PKCS11 ECDH *****************************/
 
@@ -1166,9 +1222,12 @@ Test::Result test_ecdh_pubkey_import()
    ECDH_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
+   const std::vector<uint8_t> enc_point = DER_Encoder().encode(
+      priv_key.public_point().encode(PointGFp::UNCOMPRESSED), OCTET_STRING).
+      get_contents_unlocked();
+
    // import to card
-   EC_PublicKeyImportProperties props(priv_key.DER_domain(), DER_Encoder().encode(EC2OSP(priv_key.public_point(),
-                                      PointGFp::UNCOMPRESSED), OCTET_STRING).get_contents_unlocked());
+   EC_PublicKeyImportProperties props(priv_key.DER_domain(), enc_point);
    props.set_token(true);
    props.set_private(false);
    props.set_derive(true);
@@ -1194,9 +1253,12 @@ Test::Result test_ecdh_pubkey_export()
    ECDH_PrivateKey priv_key(Test::rng(), EC_Group("secp256r1"));
    priv_key.set_parameter_encoding(EC_Group_Encoding::EC_DOMPAR_ENC_OID);
 
+   const std::vector<uint8_t> enc_point = DER_Encoder().encode(
+      priv_key.public_point().encode(PointGFp::UNCOMPRESSED), OCTET_STRING).
+      get_contents_unlocked();
+
    // import to card
-   EC_PublicKeyImportProperties props(priv_key.DER_domain(), DER_Encoder().encode(EC2OSP(priv_key.public_point(),
-                                      PointGFp::UNCOMPRESSED), OCTET_STRING).get_contents_unlocked());
+   EC_PublicKeyImportProperties props(priv_key.DER_domain(), enc_point);
    props.set_token(true);
    props.set_derive(true);
    props.set_private(false);
@@ -1279,12 +1341,11 @@ Test::Result test_ecdh_derive()
    PKCS11_ECDH_KeyPair keypair2 = generate_ecdh_keypair(test_session, "Botan test ECDH key2");
 
    // SoftHSMv2 only supports CKD_NULL KDF at the moment
-   Botan::PK_Key_Agreement ka(keypair.second, Test::rng(), "Raw", "pkcs11");
-   Botan::PK_Key_Agreement kb(keypair2.second, Test::rng(), "Raw", "pkcs11");
+   Botan::PK_Key_Agreement ka(keypair.second, Test::rng(), "Raw");
+   Botan::PK_Key_Agreement kb(keypair2.second, Test::rng(), "Raw");
 
-   Botan::SymmetricKey alice_key = ka.derive_key(32, unlock(EC2OSP(keypair2.first.public_point(),
-                                   PointGFp::UNCOMPRESSED)));
-   Botan::SymmetricKey bob_key = kb.derive_key(32, unlock(EC2OSP(keypair.first.public_point(), PointGFp::UNCOMPRESSED)));
+   Botan::SymmetricKey alice_key = ka.derive_key(32, keypair2.first.public_point().encode(PointGFp::UNCOMPRESSED));
+   Botan::SymmetricKey bob_key = kb.derive_key(32, keypair.first.public_point().encode(PointGFp::UNCOMPRESSED));
 
    bool eq = alice_key == bob_key;
    result.test_eq("same secret key derived", eq, true);
@@ -1297,7 +1358,7 @@ Test::Result test_ecdh_derive()
    return result;
    }
 
-class PKCS11_ECDH_Tests : public PKCS11_Test
+class PKCS11_ECDH_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1329,10 +1390,11 @@ Test::Result test_rng_generate_random()
    TestSession test_session(true);
 
    PKCS11_RNG rng(test_session.session());
+   result.confirm("RNG already seeded", rng.is_seeded());
 
-   std::vector<byte> random(20);
+   std::vector<uint8_t> random(20);
    rng.randomize(random.data(), random.size());
-   result.test_ne("random data generated", random, std::vector<byte>(20));
+   result.test_ne("random data generated", random, std::vector<uint8_t>(20));
 
    return result;
    }
@@ -1343,6 +1405,14 @@ Test::Result test_rng_add_entropy()
    TestSession test_session(true);
 
    PKCS11_RNG rng(test_session.session());
+
+   result.confirm("RNG already seeded", rng.is_seeded());
+   rng.clear();
+   result.confirm("RNG ignores call to clear", rng.is_seeded());
+
+   result.test_eq("RNG ignores calls to reseed",
+                  rng.reseed(Botan::Entropy_Sources::global_sources(), 256, std::chrono::milliseconds(300)),
+                  0);
 
    auto random = Test::rng().random_vec(20);
    rng.add_entropy(random.data(), random.size());
@@ -1363,21 +1433,21 @@ Test::Result test_pkcs11_hmac_drbg()
    // result.test_success("HMAC_DRBG(HMAC(SHA512)) instantiated with PKCS11_RNG");
 
    result.test_eq("HMAC_DRBG is not seeded yet.", drbg.is_seeded(), false);
-   secure_vector<byte> rnd = drbg.random_vec(64);
+   secure_vector<uint8_t> rnd = drbg.random_vec(64);
    result.test_eq("HMAC_DRBG is seeded now", drbg.is_seeded(), true);
 
    std::string personalization_string = "Botan PKCS#11 Tests";
-   std::vector<byte> personalization_data(personalization_string.begin(), personalization_string.end());
+   std::vector<uint8_t> personalization_data(personalization_string.begin(), personalization_string.end());
    drbg.add_entropy(personalization_data.data(), personalization_data.size());
 
    auto rnd_vec = drbg.random_vec(256);
-   result.test_ne("HMAC_DRBG generated a random vector", rnd_vec, std::vector<byte>(256));
+   result.test_ne("HMAC_DRBG generated a random vector", rnd_vec, std::vector<uint8_t>(256));
 
    return result;
    }
 #endif
 
-class PKCS11_RNG_Tests : public PKCS11_Test
+class PKCS11_RNG_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1385,9 +1455,9 @@ class PKCS11_RNG_Tests : public PKCS11_Test
          std::vector<std::function<Test::Result()>> fns =
             {
             test_rng_generate_random
-            ,test_rng_add_entropy
+            , test_rng_add_entropy
 #if defined(BOTAN_HAS_HMAC_DRBG )&& defined(BOTAN_HAS_SHA2_64)
-            ,test_pkcs11_hmac_drbg
+            , test_pkcs11_hmac_drbg
 #endif
             };
 
@@ -1464,7 +1534,7 @@ Test::Result test_change_so_pin()
    return result;
    }
 
-class PKCS11_Token_Management_Tests : public PKCS11_Test
+class PKCS11_Token_Management_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1491,9 +1561,10 @@ Test::Result test_x509_import()
    {
    Test::Result result("PKCS11 X509 cert import");
 
+#if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
    TestSession test_session(true);
 
-   X509_Certificate root(Test::data_file("nist_x509/test01/end.crt"));
+   X509_Certificate root(Test::data_file("x509/nist/test01/end.crt"));
    X509_CertificateProperties props(DER_Encoder().encode(root.subject_dn()).get_contents_unlocked(), root.BER_encode());
    props.set_label("Botan PKCS#11 test certificate");
    props.set_private(false);
@@ -1506,11 +1577,12 @@ Test::Result test_x509_import()
    result.test_eq("X509 certificate by handle", pkcs11_cert == pkcs11_cert2, true);
 
    pkcs11_cert.destroy();
+#endif
 
    return result;
    }
 
-class PKCS11_X509_Tests : public PKCS11_Test
+class PKCS11_X509_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override

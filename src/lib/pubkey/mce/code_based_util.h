@@ -1,4 +1,4 @@
-/**
+/*
  * (C) Copyright Projet SECRET, INRIA, Rocquencourt
  * (C) Bhaskar Biswas and  Nicolas Sendrier
  *
@@ -9,8 +9,8 @@
  *
  */
 
-#ifndef BOTAN_CODE_BASED_UTIL_H__
-#define BOTAN_CODE_BASED_UTIL_H__
+#ifndef BOTAN_CODE_BASED_UTIL_H_
+#define BOTAN_CODE_BASED_UTIL_H_
 
 #include <botan/gf2m_small_m.h>
 
@@ -18,13 +18,13 @@ namespace Botan {
 
 /**
 * Expand an input to a bit mask depending on it being being zero or non-zero
-* @ param tst the input
+* @param tst the input
 * @return the mask 0xFFFF if tst is non-zero and 0 otherwise
 */
 template<typename T>
-u16bit expand_mask_16bit(T tst)
+uint16_t expand_mask_16bit(T tst)
    {
-   const u16bit result = (tst != 0);
+   const uint16_t result = (tst != 0);
    return ~(result - 1);
    }
 
@@ -42,12 +42,12 @@ inline gf2m lex_to_gray(gf2m lex)
    return (lex >> 1) ^ lex;
    }
 
-inline u32bit bit_size_to_byte_size(u32bit bit_size)
+inline uint32_t bit_size_to_byte_size(uint32_t bit_size)
    {
    return (bit_size - 1) / 8 + 1;
    }
 
-inline u32bit bit_size_to_32bit_size(u32bit bit_size)
+inline uint32_t bit_size_to_32bit_size(uint32_t bit_size)
    {
    return (bit_size - 1) / 32 + 1;
    }

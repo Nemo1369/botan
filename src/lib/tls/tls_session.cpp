@@ -12,31 +12,30 @@
 #include <botan/pem.h>
 #include <botan/aead.h>
 #include <botan/mac.h>
+#include <botan/rng.h>
 
 namespace Botan {
 
 namespace TLS {
 
-Session::Session(const std::vector<byte>& session_identifier,
-                 const secure_vector<byte>& master_secret,
+Session::Session(const std::vector<uint8_t>& session_identifier,
+                 const secure_vector<uint8_t>& master_secret,
                  Protocol_Version version,
-                 u16bit ciphersuite,
-                 byte compression_method,
+                 uint16_t ciphersuite,
                  Connection_Side side,
                  bool extended_master_secret,
                  bool encrypt_then_mac,
                  const std::vector<X509_Certificate>& certs,
-                 const std::vector<byte>& ticket,
+                 const std::vector<uint8_t>& ticket,
                  const Server_Information& server_info,
                  const std::string& srp_identifier,
-                 u16bit srtp_profile) :
+                 uint16_t srtp_profile) :
    m_start_time(std::chrono::system_clock::now()),
    m_identifier(session_identifier),
    m_session_ticket(ticket),
    m_master_secret(master_secret),
    m_version(version),
    m_ciphersuite(ciphersuite),
-   m_compression_method(compression_method),
    m_connection_side(side),
    m_srtp_profile(srtp_profile),
    m_extended_master_secret(extended_master_secret),
@@ -49,14 +48,14 @@ Session::Session(const std::vector<byte>& session_identifier,
 
 Session::Session(const std::string& pem)
    {
-   secure_vector<byte> der = PEM_Code::decode_check_label(pem, "TLS SESSION");
+   secure_vector<uint8_t> der = PEM_Code::decode_check_label(pem, "TLS SESSION");
 
    *this = Session(der.data(), der.size());
    }
 
-Session::Session(const byte ber[], size_t ber_len)
+Session::Session(const uint8_t ber[], size_t ber_len)
    {
-   byte side_code = 0;
+   uint8_t side_code = 0;
 
    ASN1_String server_hostname;
    ASN1_String server_service;
@@ -64,12 +63,13 @@ Session::Session(const byte ber[], size_t ber_len)
 
    ASN1_String srp_identifier_str;
 
-   byte major_version = 0, minor_version = 0;
-   std::vector<byte> peer_cert_bits;
+   uint8_t major_version = 0, minor_version = 0;
+   std::vector<uint8_t> peer_cert_bits;
 
    size_t start_time = 0;
    size_t srtp_profile = 0;
    size_t fragment_size = 0;
+   size_t compression_method = 0;
 
    BER_Decoder(ber, ber_len)
       .start_cons(SEQUENCE)
@@ -81,7 +81,7 @@ Session::Session(const byte ber[], size_t ber_len)
         .decode(m_identifier, OCTET_STRING)
         .decode(m_session_ticket, OCTET_STRING)
         .decode_integer_type(m_ciphersuite)
-        .decode_integer_type(m_compression_method)
+        .decode_integer_type(compression_method)
         .decode_integer_type(side_code)
         .decode_integer_type(fragment_size)
         .decode(m_extended_master_secret)
@@ -97,6 +97,14 @@ Session::Session(const byte ber[], size_t ber_len)
       .verify_end();
 
    /*
+   * Compression is not supported and must be zero
+   */
+   if(compression_method != 0)
+      {
+      throw Decoding_Error("Serialized TLS session contains non-null compression method");
+      }
+
+   /*
    Fragment size is not supported anymore, but the field is still
    set in the session object.
    */
@@ -109,11 +117,11 @@ Session::Session(const byte ber[], size_t ber_len)
    m_version = Protocol_Version(major_version, minor_version);
    m_start_time = std::chrono::system_clock::from_time_t(start_time);
    m_connection_side = static_cast<Connection_Side>(side_code);
-   m_srtp_profile = static_cast<u16bit>(srtp_profile);
+   m_srtp_profile = static_cast<uint16_t>(srtp_profile);
 
    m_server_info = Server_Information(server_hostname.value(),
                                       server_service.value(),
-                                      static_cast<u16bit>(server_port));
+                                      static_cast<uint16_t>(server_port));
 
    m_srp_identifier = srp_identifier_str.value();
 
@@ -126,9 +134,9 @@ Session::Session(const byte ber[], size_t ber_len)
       }
    }
 
-secure_vector<byte> Session::DER_encode() const
+secure_vector<uint8_t> Session::DER_encode() const
    {
-   std::vector<byte> peer_cert_bits;
+   std::vector<uint8_t> peer_cert_bits;
    for(size_t i = 0; i != m_peer_certs.size(); ++i)
       peer_cert_bits += m_peer_certs[i].BER_encode();
 
@@ -141,7 +149,7 @@ secure_vector<byte> Session::DER_encode() const
          .encode(m_identifier, OCTET_STRING)
          .encode(m_session_ticket, OCTET_STRING)
          .encode(static_cast<size_t>(m_ciphersuite))
-         .encode(static_cast<size_t>(m_compression_method))
+         .encode(static_cast<size_t>(/*old compression method*/0))
          .encode(static_cast<size_t>(m_connection_side))
          .encode(static_cast<size_t>(/*old fragment size*/0))
          .encode(m_extended_master_secret)
@@ -168,14 +176,14 @@ std::chrono::seconds Session::session_age() const
       std::chrono::system_clock::now() - m_start_time);
    }
 
-std::vector<byte>
+std::vector<uint8_t>
 Session::encrypt(const SymmetricKey& key, RandomNumberGenerator& rng) const
    {
    std::unique_ptr<AEAD_Mode> aead(get_aead("AES-256/GCM", ENCRYPTION));
    const size_t nonce_len = aead->default_nonce_length();
 
-   const secure_vector<byte> nonce = rng.random_vec(nonce_len);
-   const secure_vector<byte> bits = this->DER_encode();
+   const secure_vector<uint8_t> nonce = rng.random_vec(nonce_len);
+   const secure_vector<uint8_t> bits = this->DER_encode();
 
    // Support any length key for input
    std::unique_ptr<MessageAuthenticationCode> hmac(MessageAuthenticationCode::create("HMAC(SHA-256)"));
@@ -183,14 +191,14 @@ Session::encrypt(const SymmetricKey& key, RandomNumberGenerator& rng) const
    hmac->update(nonce);
    aead->set_key(hmac->final());
 
-   secure_vector<byte> buf = nonce;
+   secure_vector<uint8_t> buf = nonce;
    buf += bits;
    aead->start(buf.data(), nonce_len);
    aead->finish(buf, nonce_len);
    return unlock(buf);
    }
 
-Session Session::decrypt(const byte in[], size_t in_len, const SymmetricKey& key)
+Session Session::decrypt(const uint8_t in[], size_t in_len, const SymmetricKey& key)
    {
    try
       {
@@ -207,7 +215,7 @@ Session Session::decrypt(const byte in[], size_t in_len, const SymmetricKey& key
       aead->set_key(hmac->final());
 
       aead->start(in, nonce_len);
-      secure_vector<byte> buf(in + nonce_len, in + in_len);
+      secure_vector<uint8_t> buf(in + nonce_len, in + in_len);
       aead->finish(buf, 0);
 
       return Session(buf.data(), buf.size());

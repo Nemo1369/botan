@@ -7,8 +7,7 @@
 
 #include <botan/numthry.h>
 #include <botan/hash.h>
-#include <botan/parsing.h>
-#include <algorithm>
+#include <botan/rng.h>
 
 namespace Botan {
 
@@ -39,7 +38,8 @@ bool fips186_3_valid_size(size_t pbits, size_t qbits)
 bool generate_dsa_primes(RandomNumberGenerator& rng,
                          BigInt& p, BigInt& q,
                          size_t pbits, size_t qbits,
-                         const std::vector<byte>& seed_c)
+                         const std::vector<uint8_t>& seed_c,
+                         size_t offset)
    {
    if(!fips186_3_valid_size(pbits, qbits))
       throw Invalid_Argument(
@@ -49,19 +49,19 @@ bool generate_dsa_primes(RandomNumberGenerator& rng,
    if(seed_c.size() * 8 < qbits)
       throw Invalid_Argument(
          "Generating a DSA parameter set with a " + std::to_string(qbits) +
-         "long q requires a seed at least as many bits long");
+         " bit long q requires a seed at least as many bits long");
 
    const std::string hash_name = "SHA-" + std::to_string(qbits);
    std::unique_ptr<HashFunction> hash(HashFunction::create_or_throw(hash_name));
 
    const size_t HASH_SIZE = hash->output_length();
 
-   class Seed
+   class Seed final
       {
       public:
-         explicit Seed(const std::vector<byte>& s) : m_seed(s) {}
+         explicit Seed(const std::vector<uint8_t>& s) : m_seed(s) {}
 
-         operator std::vector<byte>& () { return m_seed; }
+         const std::vector<uint8_t>& value() const { return m_seed; }
 
          Seed& operator++()
             {
@@ -71,41 +71,44 @@ bool generate_dsa_primes(RandomNumberGenerator& rng,
             return (*this);
             }
       private:
-         std::vector<byte> m_seed;
+         std::vector<uint8_t> m_seed;
       };
 
    Seed seed(seed_c);
 
-   q.binary_decode(hash->process(seed));
+   q.binary_decode(hash->process(seed.value()));
    q.set_bit(qbits-1);
    q.set_bit(0);
 
-   if(!is_prime(q, rng))
+   if(!is_prime(q, rng, 126))
       return false;
 
    const size_t n = (pbits-1) / (HASH_SIZE * 8),
                 b = (pbits-1) % (HASH_SIZE * 8);
 
    BigInt X;
-   std::vector<byte> V(HASH_SIZE * (n+1));
+   std::vector<uint8_t> V(HASH_SIZE * (n+1));
 
    for(size_t j = 0; j != 4*pbits; ++j)
       {
       for(size_t k = 0; k <= n; ++k)
          {
          ++seed;
-         hash->update(seed);
+         hash->update(seed.value());
          hash->final(&V[HASH_SIZE * (n-k)]);
          }
 
-      X.binary_decode(&V[HASH_SIZE - 1 - b/8],
-                      V.size() - (HASH_SIZE - 1 - b/8));
-      X.set_bit(pbits-1);
+      if(j >= offset)
+         {
+         X.binary_decode(&V[HASH_SIZE - 1 - b/8],
+                         V.size() - (HASH_SIZE - 1 - b/8));
+         X.set_bit(pbits-1);
 
-      p = X - (X % (2*q) - 1);
+         p = X - (X % (2*q) - 1);
 
-      if(p.bits() == pbits && is_prime(p, rng))
-         return true;
+         if(p.bits() == pbits && is_prime(p, rng, 126))
+            return true;
+         }
       }
    return false;
    }
@@ -113,13 +116,13 @@ bool generate_dsa_primes(RandomNumberGenerator& rng,
 /*
 * Generate DSA Primes
 */
-std::vector<byte> generate_dsa_primes(RandomNumberGenerator& rng,
+std::vector<uint8_t> generate_dsa_primes(RandomNumberGenerator& rng,
                                       BigInt& p, BigInt& q,
                                       size_t pbits, size_t qbits)
    {
    while(true)
       {
-      std::vector<byte> seed(qbits / 8);
+      std::vector<uint8_t> seed(qbits / 8);
       rng.randomize(seed.data(), seed.size());
 
       if(generate_dsa_primes(rng, p, q, pbits, qbits, seed))

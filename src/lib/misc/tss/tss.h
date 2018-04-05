@@ -5,20 +5,20 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_RTSS_H__
-#define BOTAN_RTSS_H__
+#ifndef BOTAN_RTSS_H_
+#define BOTAN_RTSS_H_
 
 #include <botan/secmem.h>
-#include <botan/hash.h>
-#include <botan/rng.h>
 #include <vector>
 
 namespace Botan {
 
+class RandomNumberGenerator;
+
 /**
 * A split secret, using the format from draft-mcgrew-tss-03
 */
-class BOTAN_DLL RTSS_Share
+class BOTAN_PUBLIC_API(2,0) RTSS_Share final
    {
    public:
       /**
@@ -30,18 +30,18 @@ class BOTAN_DLL RTSS_Share
       * @param rng the random number generator to use
       */
       static std::vector<RTSS_Share>
-         split(byte M, byte N,
-               const byte secret[], u16bit secret_len,
-               const byte identifier[16],
+         split(uint8_t M, uint8_t N,
+               const uint8_t secret[], uint16_t secret_len,
+               const uint8_t identifier[16],
                RandomNumberGenerator& rng);
 
       /**
       * @param shares the list of shares
       */
-      static secure_vector<byte>
+      static secure_vector<uint8_t>
         reconstruct(const std::vector<RTSS_Share>& shares);
 
-      RTSS_Share() {}
+      RTSS_Share() = default;
 
       /**
       * @param hex_input the share encoded in hexadecimal
@@ -56,7 +56,7 @@ class BOTAN_DLL RTSS_Share
       /**
       * @return share identifier
       */
-      byte share_id() const;
+      uint8_t share_id() const;
 
       /**
       * @return size of this share in bytes
@@ -68,7 +68,7 @@ class BOTAN_DLL RTSS_Share
       */
       bool initialized() const { return (m_contents.size() > 0); }
    private:
-      secure_vector<byte> m_contents;
+      secure_vector<uint8_t> m_contents;
    };
 
 }

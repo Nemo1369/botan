@@ -1,37 +1,32 @@
 /*
 * (C) 2014,2015 Jack Lloyd
 *     2016 Matthias Gierlings
+*     2017 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 #include "cli.h"
 
-#if defined(BOTAN_HAS_TLS) && defined(BOTAN_TARGET_OS_HAS_SOCKETS)
+#if defined(BOTAN_HAS_TLS) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM) && \
+   (defined(BOTAN_TARGET_OS_HAS_SOCKETS) || defined(BOTAN_TARGET_OS_HAS_WINSOCK2))
 
 #include <botan/tls_client.h>
+#include <botan/tls_policy.h>
+#include <botan/x509path.h>
+#include <botan/ocsp.h>
 #include <botan/hex.h>
+#include <botan/parsing.h>
+#include <fstream>
 
 #if defined(BOTAN_HAS_TLS_SQLITE3_SESSION_MANAGER)
-#include <botan/tls_session_manager_sqlite.h>
+   #include <botan/tls_session_manager_sqlite.h>
 #endif
 
 #include <string>
 #include <memory>
 
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
-
-#if !defined(MSG_NOSIGNAL)
-  #define MSG_NOSIGNAL 0
-#endif
-
+#include "socket_utils.h"
 #include "credentials.h"
 
 namespace Botan_CLI {
@@ -39,9 +34,29 @@ namespace Botan_CLI {
 class TLS_Client final : public Command, public Botan::TLS::Callbacks
    {
    public:
-      TLS_Client() : Command("tls_client host --port=443 --print-certs --policy= "
-                             "--tls1.0 --tls1.1 --tls1.2 "
-                             "--session-db= --session-db-pass= --next-protocols= --type=tcp") {}
+      TLS_Client()
+         : Command("tls_client host --port=443 --print-certs --policy= "
+                   "--tls1.0 --tls1.1 --tls1.2 "
+                   "--skip-system-cert-store --trusted-cas= "
+                   "--session-db= --session-db-pass= --next-protocols= --type=tcp")
+         {
+         init_sockets();
+         }
+
+      ~TLS_Client()
+         {
+         stop_sockets();
+         }
+
+      std::string group() const override
+         {
+         return "tls";
+         }
+
+      std::string description() const override
+         {
+         return "Connect to a host using TLS/DTLS";
+         }
 
       void go() override
          {
@@ -50,6 +65,13 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
          std::unique_ptr<Botan::TLS::Session_Manager> session_mgr;
 
          const std::string sessions_db = get_arg("session-db");
+         const std::string host = get_arg("host");
+         const uint16_t port = get_arg_sz("port");
+         const std::string transport = get_arg("type");
+         const std::string next_protos = get_arg("next-protocols");
+         std::string policy_file = get_arg("policy");
+         const bool use_system_cert_store = flag_set("skip-system-cert-store") == false;
+         const std::string trusted_CAs = get_arg("trusted-cas");
 
          if(!sessions_db.empty())
             {
@@ -65,8 +87,6 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
             {
             session_mgr.reset(new Botan::TLS::Session_Manager_In_Memory(rng()));
             }
-
-         std::string policy_file = get_arg("policy");
 
          std::unique_ptr<Botan::TLS::Policy> policy;
 
@@ -86,15 +106,10 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
             policy.reset(new Botan::TLS::Policy);
             }
 
-         Basic_Credentials_Manager creds;
-
-         const std::string host = get_arg("host");
-         const uint16_t port = get_arg_sz("port");
-         const std::string transport = get_arg("type");
-         const std::string next_protos = get_arg("next-protocols");
-
          if(transport != "tcp" && transport != "udp")
+            {
             throw CLI_Usage_Error("Invalid transport type '" + transport + "' for TLS");
+            }
 
          const bool use_tcp = (transport == "tcp");
 
@@ -115,14 +130,20 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
             version = Botan::TLS::Protocol_Version::TLS_V11;
             }
 
-         Botan::TLS::Client client(*this,
-                                   *session_mgr,
-                                   creds,
-                                   *policy,
-                                   rng(),
-                                   Botan::TLS::Server_Information(host, port),
-                                   version,
-                                   protocols_to_offer);
+         struct sockaddr_storage addrbuf;
+         std::string hostname;
+         if(!host.empty() &&
+               inet_pton(AF_INET, host.c_str(), &addrbuf) != 1 &&
+               inet_pton(AF_INET6, host.c_str(), &addrbuf) != 1)
+            {
+            hostname = host;
+            }
+
+         Basic_Credentials_Manager creds(use_system_cert_store, trusted_CAs);
+
+         Botan::TLS::Client client(*this, *session_mgr, creds, *policy, rng(),
+                                   Botan::TLS::Server_Information(hostname, port),
+                                   version, protocols_to_offer);
 
          bool first_active = true;
 
@@ -139,7 +160,9 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
                   {
                   std::string app = client.application_protocol();
                   if(app != "")
+                     {
                      output() << "Server choose protocol: " << client.application_protocol() << "\n";
+                     }
                   first_active = false;
                   }
                }
@@ -150,7 +173,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
 
             if(FD_ISSET(m_sockfd, &readfds))
                {
-               uint8_t buf[4*1024] = { 0 };
+               uint8_t buf[4 * 1024] = { 0 };
 
                ssize_t got = ::read(m_sockfd, buf, sizeof(buf));
 
@@ -161,7 +184,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
                   }
                else if(got == -1)
                   {
-                  output() << "Socket error: " << errno << " " << strerror(errno) << "\n";
+                  output() << "Socket error: " << errno << " " << std::strerror(errno) << "\n";
                   continue;
                   }
 
@@ -181,7 +204,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
                   }
                else if(got == -1)
                   {
-                  output() << "Stdin error: " << errno << " " << strerror(errno) << "\n";
+                  output() << "Stdin error: " << errno << " " << std::strerror(errno) << "\n";
                   continue;
                   }
 
@@ -201,7 +224,9 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
                      }
                   }
                else
+                  {
                   client.send(buf, got);
+                  }
                }
 
             if(client.timeout_check())
@@ -216,50 +241,102 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
    private:
       int connect_to_host(const std::string& host, uint16_t port, bool tcp)
          {
-         hostent* host_addr = ::gethostbyname(host.c_str());
+         addrinfo hints;
+         std::memset(&hints, 0, sizeof(hints));
+         hints.ai_family = AF_UNSPEC;
+         hints.ai_socktype = tcp ? SOCK_STREAM : SOCK_DGRAM;
+         addrinfo* res, *rp = nullptr;
 
-         if(!host_addr)
-            throw CLI_Error("gethostbyname failed for " + host);
-
-         if(host_addr->h_addrtype != AF_INET) // FIXME
-            throw CLI_Error(host + " has IPv6 address, not supported");
-
-         int type = tcp ? SOCK_STREAM : SOCK_DGRAM;
-
-         int fd = ::socket(PF_INET, type, 0);
-         if(fd == -1)
-            throw CLI_Error("Unable to acquire socket");
-
-         sockaddr_in socket_info;
-         ::memset(&socket_info, 0, sizeof(socket_info));
-         socket_info.sin_family = AF_INET;
-         socket_info.sin_port = htons(port);
-
-         ::memcpy(&socket_info.sin_addr,
-                  host_addr->h_addr,
-                  host_addr->h_length);
-
-         socket_info.sin_addr = *reinterpret_cast<struct in_addr*>(host_addr->h_addr); // FIXME
-
-         if(::connect(fd, reinterpret_cast<sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0)
+         if(::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res) != 0)
             {
-            ::close(fd);
+            throw CLI_Error("getaddrinfo failed for " + host);
+            }
+
+         int fd = 0;
+
+         for(rp = res; rp != nullptr; rp = rp->ai_next)
+            {
+            fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+
+            if(fd == -1)
+               {
+               continue;
+               }
+
+            if(::connect(fd, rp->ai_addr, rp->ai_addrlen) != 0)
+               {
+               ::close(fd);
+               continue;
+               }
+
+            break;
+            }
+
+         ::freeaddrinfo(res);
+
+         if(rp == nullptr) // no address succeeded
+            {
             throw CLI_Error("connect failed");
             }
 
          return fd;
          }
 
+      void tls_verify_cert_chain(
+         const std::vector<Botan::X509_Certificate>& cert_chain,
+         const std::vector<std::shared_ptr<const Botan::OCSP::Response>>& ocsp,
+         const std::vector<Botan::Certificate_Store*>& trusted_roots,
+         Botan::Usage_Type usage,
+         const std::string& hostname,
+         const Botan::TLS::Policy& policy) override
+         {
+         if(cert_chain.empty())
+            {
+            throw std::invalid_argument("Certificate chain was empty");
+            }
+
+         Botan::Path_Validation_Restrictions restrictions(
+            policy.require_cert_revocation_info(),
+            policy.minimum_signature_strength());
+
+         auto ocsp_timeout = std::chrono::milliseconds(1000);
+
+         Botan::Path_Validation_Result result = Botan::x509_path_validate(
+               cert_chain,
+               restrictions,
+               trusted_roots,
+               hostname,
+               usage,
+               std::chrono::system_clock::now(),
+               ocsp_timeout,
+               ocsp);
+
+         output() << "Certificate validation status: " << result.result_string() << "\n";
+         if(result.successful_validation())
+            {
+            auto status = result.all_statuses();
+
+            if(status.size() > 0 && status[0].count(Botan::Certificate_Status_Code::OCSP_RESPONSE_GOOD))
+               {
+               output() << "Valid OCSP response for this server\n";
+               }
+            }
+         }
+
       bool tls_session_established(const Botan::TLS::Session& session) override
          {
          output() << "Handshake complete, " << session.version().to_string()
-                   << " using " << session.ciphersuite().to_string() << "\n";
+                  << " using " << session.ciphersuite().to_string() << "\n";
 
          if(!session.session_id().empty())
+            {
             output() << "Session ID " << Botan::hex_encode(session.session_id()) << "\n";
+            }
 
          if(!session.session_ticket().empty())
+            {
             output() << "Session ticket " << Botan::hex_encode(session.session_ticket()) << "\n";
+            }
 
          if(flag_set("print-certs"))
             {
@@ -267,7 +344,7 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
 
             for(size_t i = 0; i != certs.size(); ++i)
                {
-               output() << "Certificate " << i+1 << "/" << certs.size() << "\n";
+               output() << "Certificate " << i + 1 << "/" << certs.size() << "\n";
                output() << certs[i].to_string();
                output() << certs[i].PEM_encode();
                }
@@ -278,10 +355,12 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
 
       static void dgram_socket_write(int sockfd, const uint8_t buf[], size_t length)
          {
-         int r = send(sockfd, buf, length, MSG_NOSIGNAL);
+         int r = ::send(sockfd, buf, length, MSG_NOSIGNAL);
 
          if(r == -1)
+            {
             throw CLI_Error("Socket write failed errno=" + std::to_string(errno));
+            }
          }
 
       void tls_emit_data(const uint8_t buf[], size_t length) override
@@ -295,9 +374,13 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
             if(sent == -1)
                {
                if(errno == EINTR)
+                  {
                   sent = 0;
+                  }
                else
+                  {
                   throw CLI_Error("Socket write failed errno=" + std::to_string(errno));
+                  }
                }
 
             offset += sent;
@@ -313,11 +396,13 @@ class TLS_Client final : public Command, public Botan::TLS::Callbacks
       void tls_record_received(uint64_t /*seq_no*/, const uint8_t buf[], size_t buf_size) override
          {
          for(size_t i = 0; i != buf_size; ++i)
+            {
             output() << buf[i];
+            }
          }
 
-      private:
-         int m_sockfd = -1;
+   private:
+      int m_sockfd = -1;
    };
 
 BOTAN_REGISTER_COMMAND("tls_client", TLS_Client);

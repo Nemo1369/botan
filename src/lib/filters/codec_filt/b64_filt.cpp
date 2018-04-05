@@ -7,7 +7,6 @@
 
 #include <botan/b64_filt.h>
 #include <botan/base64.h>
-#include <botan/charset.h>
 #include <botan/exceptn.h>
 #include <algorithm>
 
@@ -29,7 +28,7 @@ Base64_Encoder::Base64_Encoder(bool breaks, size_t length, bool t_n) :
 /*
 * Encode and send a block
 */
-void Base64_Encoder::encode_and_send(const byte input[], size_t length,
+void Base64_Encoder::encode_and_send(const uint8_t input[], size_t length,
                                      bool final_inputs)
    {
    while(length)
@@ -37,8 +36,8 @@ void Base64_Encoder::encode_and_send(const byte input[], size_t length,
       const size_t proc = std::min(length, m_in.size());
 
       size_t consumed = 0;
-      size_t produced = base64_encode(reinterpret_cast<char*>(m_out.data()), input,
-                                      proc, consumed, final_inputs);
+      size_t produced = base64_encode(cast_uint8_ptr_to_char(m_out.data()),
+                                      input, proc, consumed, final_inputs);
 
       do_output(m_out.data(), produced);
 
@@ -51,7 +50,7 @@ void Base64_Encoder::encode_and_send(const byte input[], size_t length,
 /*
 * Handle the output
 */
-void Base64_Encoder::do_output(const byte input[], size_t length)
+void Base64_Encoder::do_output(const uint8_t input[], size_t length)
    {
    if(m_line_length == 0)
       send(input, length);
@@ -77,7 +76,7 @@ void Base64_Encoder::do_output(const byte input[], size_t length)
 /*
 * Convert some data into Base64
 */
-void Base64_Encoder::write(const byte input[], size_t length)
+void Base64_Encoder::write(const uint8_t input[], size_t length)
    {
    buffer_insert(m_in, m_position, input, length);
    if(m_position + length >= m_in.size())
@@ -121,7 +120,7 @@ Base64_Decoder::Base64_Decoder(Decoder_Checking c) :
 /*
 * Convert some data from Base64
 */
-void Base64_Decoder::write(const byte input[], size_t length)
+void Base64_Decoder::write(const uint8_t input[], size_t length)
    {
    while(length)
       {
@@ -136,7 +135,7 @@ void Base64_Decoder::write(const byte input[], size_t length)
 
       size_t consumed = 0;
       size_t written = base64_decode(m_out.data(),
-                                     reinterpret_cast<const char*>(m_in.data()),
+                                     cast_uint8_ptr_to_char(m_in.data()),
                                      m_position,
                                      consumed,
                                      false,
@@ -164,7 +163,7 @@ void Base64_Decoder::end_msg()
    {
    size_t consumed = 0;
    size_t written = base64_decode(m_out.data(),
-                                  reinterpret_cast<const char*>(m_in.data()),
+                                  cast_uint8_ptr_to_char(m_in.data()),
                                   m_position,
                                   consumed,
                                   true,

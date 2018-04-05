@@ -12,12 +12,12 @@ namespace Botan {
 
 namespace {
 
-const u32bit P_INIT[18] = {
+const uint32_t P_INIT[18] = {
    0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344, 0xA4093822, 0x299F31D0,
    0x082EFA98, 0xEC4E6C89, 0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C,
    0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917, 0x9216D5D9, 0x8979FB1B };
 
-const u32bit S_INIT[1024] = {
+const uint32_t S_INIT[1024] = {
    0xD1310BA6, 0x98DFB5AC, 0x2FFD72DB, 0xD01ADFB7, 0xB8E1AFED, 0x6A267E96,
    0xBA7C9045, 0xF12C7F99, 0x24A19947, 0xB3916CF7, 0x0801F2E2, 0x858EFC16,
    0x636920D8, 0x71574E69, 0xA458FEA3, 0xF4933D7E, 0x0D95748F, 0x728EB658,
@@ -190,82 +190,128 @@ const u32bit S_INIT[1024] = {
    0x01C36AE4, 0xD6EBE1F9, 0x90D4F869, 0xA65CDEA0, 0x3F09252D, 0xC208E69F,
    0xB74E6132, 0xCE77E25B, 0x578FDFE3, 0x3AC372E6 };
 
+inline uint32_t BFF(uint32_t X, const secure_vector<uint32_t>& S)
+   {
+   return ((S[    get_byte(0, X)]  + S[256+get_byte(1, X)]) ^
+            S[512+get_byte(2, X)]) + S[768+get_byte(3, X)];
+   }
+
 }
 
 /*
 * Blowfish Encryption
 */
-void Blowfish::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void Blowfish::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   const u32bit* S1 = &m_S[0];
-   const u32bit* S2 = &m_S[256];
-   const u32bit* S3 = &m_S[512];
-   const u32bit* S4 = &m_S[768];
+   verify_key_set(m_S.empty() == false);
 
-   for(size_t i = 0; i != blocks; ++i)
+   while(blocks >= 2)
       {
-      u32bit L = load_be<u32bit>(in, 0);
-      u32bit R = load_be<u32bit>(in, 1);
+      uint32_t L0, R0, L1, R1;
+      load_be(in, L0, R0, L1, R1);
 
-      for(size_t j = 0; j != 16; j += 2)
+      for(size_t r = 0; r != 16; r += 2)
          {
-         L ^= m_P[j];
-         R ^= ((S1[get_byte(0, L)]  + S2[get_byte(1, L)]) ^
-                S3[get_byte(2, L)]) + S4[get_byte(3, L)];
+         L0 ^= m_P[r];
+         L1 ^= m_P[r];
+         R0 ^= BFF(L0, m_S);
+         R1 ^= BFF(L1, m_S);
 
-         R ^= m_P[j+1];
-         L ^= ((S1[get_byte(0, R)]  + S2[get_byte(1, R)]) ^
-                S3[get_byte(2, R)]) + S4[get_byte(3, R)];
+         R0 ^= m_P[r+1];
+         R1 ^= m_P[r+1];
+         L0 ^= BFF(R0, m_S);
+         L1 ^= BFF(R1, m_S);
+         }
+
+      L0 ^= m_P[16]; R0 ^= m_P[17];
+      L1 ^= m_P[16]; R1 ^= m_P[17];
+
+      store_be(out, R0, L0, R1, L1);
+
+      in += 2*BLOCK_SIZE;
+      out += 2*BLOCK_SIZE;
+      blocks -= 2;
+      }
+
+   if(blocks)
+      {
+      uint32_t L, R;
+      load_be(in, L, R);
+
+      for(size_t r = 0; r != 16; r += 2)
+         {
+         L ^= m_P[r];
+         R ^= BFF(L, m_S);
+
+         R ^= m_P[r+1];
+         L ^= BFF(R, m_S);
          }
 
       L ^= m_P[16]; R ^= m_P[17];
 
       store_be(out, R, L);
-
-      in += BLOCK_SIZE;
-      out += BLOCK_SIZE;
       }
    }
 
 /*
 * Blowfish Decryption
 */
-void Blowfish::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void Blowfish::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   const u32bit* S1 = &m_S[0];
-   const u32bit* S2 = &m_S[256];
-   const u32bit* S3 = &m_S[512];
-   const u32bit* S4 = &m_S[768];
+   verify_key_set(m_S.empty() == false);
 
-   for(size_t i = 0; i != blocks; ++i)
+   while(blocks >= 2)
       {
-      u32bit L = load_be<u32bit>(in, 0);
-      u32bit R = load_be<u32bit>(in, 1);
+      uint32_t L0, R0, L1, R1;
+      load_be(in, L0, R0, L1, R1);
 
-      for(size_t j = 17; j != 1; j -= 2)
+      for(size_t r = 17; r != 1; r -= 2)
          {
-         L ^= m_P[j];
-         R ^= ((S1[get_byte(0, L)]  + S2[get_byte(1, L)]) ^
-                S3[get_byte(2, L)]) + S4[get_byte(3, L)];
+         L0 ^= m_P[r];
+         L1 ^= m_P[r];
+         R0 ^= BFF(L0, m_S);
+         R1 ^= BFF(L1, m_S);
 
-         R ^= m_P[j-1];
-         L ^= ((S1[get_byte(0, R)]  + S2[get_byte(1, R)]) ^
-                S3[get_byte(2, R)]) + S4[get_byte(3, R)];
+         R0 ^= m_P[r-1];
+         R1 ^= m_P[r-1];
+         L0 ^= BFF(R0, m_S);
+         L1 ^= BFF(R1, m_S);
+         }
+
+      L0 ^= m_P[1]; R0 ^= m_P[0];
+      L1 ^= m_P[1]; R1 ^= m_P[0];
+
+      store_be(out, R0, L0, R1, L1);
+
+      in += 2*BLOCK_SIZE;
+      out += 2*BLOCK_SIZE;
+      blocks -= 2;
+      }
+
+   if(blocks)
+      {
+      uint32_t L, R;
+      load_be(in, L, R);
+
+      for(size_t r = 17; r != 1; r -= 2)
+         {
+         L ^= m_P[r];
+         R ^= BFF(L, m_S);
+
+         R ^= m_P[r-1];
+         L ^= BFF(R, m_S);
          }
 
       L ^= m_P[1]; R ^= m_P[0];
 
       store_be(out, R, L);
-
-      in += BLOCK_SIZE;
-      out += BLOCK_SIZE;
       }
    }
 
 /*
 * Blowfish Key Schedule
 */
-void Blowfish::key_schedule(const byte key[], size_t length)
+void Blowfish::key_schedule(const uint8_t key[], size_t length)
    {
    m_P.resize(18);
    copy_mem(m_P.data(), P_INIT, 18);
@@ -273,20 +319,20 @@ void Blowfish::key_schedule(const byte key[], size_t length)
    m_S.resize(1024);
    copy_mem(m_S.data(), S_INIT, 1024);
 
-   const byte null_salt[16] = { 0 };
+   const uint8_t null_salt[16] = { 0 };
 
    key_expansion(key, length, null_salt);
    }
 
-void Blowfish::key_expansion(const byte key[],
+void Blowfish::key_expansion(const uint8_t key[],
                              size_t length,
-                             const byte salt[16])
+                             const uint8_t salt[16])
    {
    for(size_t i = 0, j = 0; i != 18; ++i, j += 4)
-      m_P[i] ^= make_u32bit(key[(j  ) % length], key[(j+1) % length],
-                          key[(j+2) % length], key[(j+3) % length]);
+      m_P[i] ^= make_uint32(key[(j  ) % length], key[(j+1) % length],
+                            key[(j+2) % length], key[(j+3) % length]);
 
-   u32bit L = 0, R = 0;
+   uint32_t L = 0, R = 0;
    generate_sbox(m_P, L, R, salt, 0);
    generate_sbox(m_S, L, R, salt, 2);
    }
@@ -294,33 +340,37 @@ void Blowfish::key_expansion(const byte key[],
 /*
 * Modified key schedule used for bcrypt password hashing
 */
-void Blowfish::eks_key_schedule(const byte key[], size_t length,
-                                const byte salt[16], size_t workfactor)
+void Blowfish::eks_key_schedule(const uint8_t key[], size_t length,
+                                const uint8_t salt[16], size_t workfactor)
    {
-   // Truncate longer passwords to the 56 byte limit Blowfish enforces
-   length = std::min<size_t>(length, 55);
-
-   if(workfactor == 0)
-      throw Invalid_Argument("Bcrypt work factor must be at least 1");
 
    /*
    * On a 2.8 GHz Core-i7, workfactor == 18 takes about 25 seconds to
    * hash a password. This seems like a reasonable upper bound for the
    * time being.
+   * Bcrypt allows up to work factor 31 (2^31 iterations)
    */
    if(workfactor > 18)
       throw Invalid_Argument("Requested Bcrypt work factor " +
-                                  std::to_string(workfactor) + " too large");
+                             std::to_string(workfactor) + " too large");
+
+   if(workfactor < 4)
+      throw Invalid_Argument("Bcrypt requires work factor at least 4");
+
+   if(length > 72)
+      {
+      // Truncate longer passwords to the 72 char bcrypt limit
+      length = 72;
+      }
 
    m_P.resize(18);
    copy_mem(m_P.data(), P_INIT, 18);
 
    m_S.resize(1024);
    copy_mem(m_S.data(), S_INIT, 1024);
-
    key_expansion(key, length, salt);
 
-   const byte null_salt[16] = { 0 };
+   const uint8_t null_salt[16] = { 0 };
    const size_t rounds = static_cast<size_t>(1) << workfactor;
 
    for(size_t r = 0; r != rounds; ++r)
@@ -333,33 +383,26 @@ void Blowfish::eks_key_schedule(const byte key[], size_t length,
 /*
 * Generate one of the Sboxes
 */
-void Blowfish::generate_sbox(secure_vector<u32bit>& box,
-                             u32bit& L, u32bit& R,
-                             const byte salt[16],
+void Blowfish::generate_sbox(secure_vector<uint32_t>& box,
+                             uint32_t& L, uint32_t& R,
+                             const uint8_t salt[16],
                              size_t salt_off) const
    {
-   const u32bit* S1 = &m_S[0];
-   const u32bit* S2 = &m_S[256];
-   const u32bit* S3 = &m_S[512];
-   const u32bit* S4 = &m_S[768];
-
    for(size_t i = 0; i != box.size(); i += 2)
       {
-      L ^= load_be<u32bit>(salt, (i + salt_off) % 4);
-      R ^= load_be<u32bit>(salt, (i + salt_off + 1) % 4);
+      L ^= load_be<uint32_t>(salt, (i + salt_off) % 4);
+      R ^= load_be<uint32_t>(salt, (i + salt_off + 1) % 4);
 
-      for(size_t j = 0; j != 16; j += 2)
+      for(size_t r = 0; r != 16; r += 2)
          {
-         L ^= m_P[j];
-         R ^= ((S1[get_byte(0, L)]  + S2[get_byte(1, L)]) ^
-                S3[get_byte(2, L)]) + S4[get_byte(3, L)];
+         L ^= m_P[r];
+         R ^= BFF(L, m_S);
 
-         R ^= m_P[j+1];
-         L ^= ((S1[get_byte(0, R)]  + S2[get_byte(1, R)]) ^
-                S3[get_byte(2, R)]) + S4[get_byte(3, R)];
+         R ^= m_P[r+1];
+         L ^= BFF(R, m_S);
          }
 
-      u32bit T = R; R = L ^ m_P[16]; L = T ^ m_P[17];
+      uint32_t T = R; R = L ^ m_P[16]; L = T ^ m_P[17];
       box[i] = L;
       box[i+1] = R;
       }

@@ -25,6 +25,11 @@ Blocking_Client::Blocking_Client(read_fn reader,
                                  const std::vector<std::string>& next) :
    m_read(reader),
    m_callbacks(new TLS::Compat_Callbacks(
+                  /*
+                  we are ok using deprecated features here because the whole Blocking_Client class
+                  is also deprecated, so just silence the warning.
+                  */
+               TLS::Compat_Callbacks::SILENCE_DEPRECATION_WARNING::PLEASE,
                writer,
                std::bind(&Blocking_Client::data_cb, this, _1, _2),
                std::function<void (Alert)>(std::bind(&Blocking_Client::alert_cb, this, _1)),
@@ -51,14 +56,14 @@ void Blocking_Client::alert_cb(const Alert& alert)
    this->alert_notification(alert);
    }
 
-void Blocking_Client::data_cb(const byte data[], size_t data_len)
+void Blocking_Client::data_cb(const uint8_t data[], size_t data_len)
    {
    m_plaintext.insert(m_plaintext.end(), data, data + data_len);
    }
 
 void Blocking_Client::do_handshake()
    {
-   std::vector<byte> readbuf(4096);
+   std::vector<uint8_t> readbuf(4096);
 
    while(!m_channel.is_closed() && !m_channel.is_active())
       {
@@ -67,9 +72,9 @@ void Blocking_Client::do_handshake()
       }
    }
 
-size_t Blocking_Client::read(byte buf[], size_t buf_len)
+size_t Blocking_Client::read(uint8_t buf[], size_t buf_len)
    {
-   std::vector<byte> readbuf(4096);
+   std::vector<uint8_t> readbuf(4096);
 
    while(m_plaintext.empty() && !m_channel.is_closed())
       {

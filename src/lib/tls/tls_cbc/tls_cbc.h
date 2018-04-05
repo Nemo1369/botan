@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_CBC_HMAC_AEAD_H__
-#define BOTAN_TLS_CBC_HMAC_AEAD_H__
+#ifndef BOTAN_TLS_CBC_HMAC_AEAD_H_
+#define BOTAN_TLS_CBC_HMAC_AEAD_H_
 
 #include <botan/aead.h>
 #include <botan/block_cipher.h>
@@ -21,14 +21,14 @@ namespace TLS {
 * TLS CBC+HMAC AEAD base class (GenericBlockCipher in TLS spec)
 * This is the weird TLS-specific mode, not for general consumption.
 */
-class TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
+class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
    {
    public:
       size_t process(uint8_t buf[], size_t sz) override final;
 
       std::string name() const override final;
 
-      void set_associated_data(const byte ad[], size_t ad_len) override;
+      void set_associated_data(const uint8_t ad[], size_t ad_len) override;
 
       size_t update_granularity() const override final;
 
@@ -45,7 +45,8 @@ class TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
       void reset() override final;
 
  protected:
-      TLS_CBC_HMAC_AEAD_Mode(const std::string& cipher_name,
+      TLS_CBC_HMAC_AEAD_Mode(Cipher_Dir direction,
+                             const std::string& cipher_name,
                              size_t cipher_keylen,
                              const std::string& mac_name,
                              size_t mac_keylen,
@@ -59,11 +60,7 @@ class TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
 
       bool use_encrypt_then_mac() const { return m_use_encrypt_then_mac; }
 
-      BlockCipher& cipher() const
-         {
-         BOTAN_ASSERT_NONNULL(m_cipher);
-         return *m_cipher;
-         }
+      Cipher_Mode& cbc() const { return *m_cbc; }
 
       MessageAuthenticationCode& mac() const
          {
@@ -71,16 +68,16 @@ class TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
          return *m_mac;
          }
 
-      secure_vector<byte>& cbc_state() { return m_cbc_state; }
-      std::vector<byte>& assoc_data() { return m_ad; }
-      secure_vector<byte>& msg() { return m_msg; }
+      secure_vector<uint8_t>& cbc_state() { return m_cbc_state; }
+      std::vector<uint8_t>& assoc_data() { return m_ad; }
+      secure_vector<uint8_t>& msg() { return m_msg; }
 
-      std::vector<byte> assoc_data_with_len(uint16_t len);
+      std::vector<uint8_t> assoc_data_with_len(uint16_t len);
 
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override final;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override final;
 
-      void key_schedule(const byte key[], size_t length) override final;
+      void key_schedule(const uint8_t key[], size_t length) override final;
 
       const std::string m_cipher_name;
       const std::string m_mac_name;
@@ -91,18 +88,18 @@ class TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
       size_t m_block_size;
       bool m_use_encrypt_then_mac;
 
-      std::unique_ptr<BlockCipher> m_cipher;
+      std::unique_ptr<Cipher_Mode> m_cbc;
       std::unique_ptr<MessageAuthenticationCode> m_mac;
 
-      secure_vector<byte> m_cbc_state;
-      std::vector<byte> m_ad;
-      secure_vector<byte> m_msg;
+      secure_vector<uint8_t> m_cbc_state;
+      std::vector<uint8_t> m_ad;
+      secure_vector<uint8_t> m_msg;
    };
 
 /**
 * TLS_CBC_HMAC_AEAD Encryption
 */
-class BOTAN_DLL TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AEAD_Mode
+class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AEAD_Mode
    {
    public:
       /**
@@ -113,7 +110,8 @@ class BOTAN_DLL TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AEAD_Mo
                                    const size_t mac_keylen,
                                    bool use_explicit_iv,
                                    bool use_encrypt_then_mac) :
-         TLS_CBC_HMAC_AEAD_Mode(cipher_algo,
+         TLS_CBC_HMAC_AEAD_Mode(ENCRYPTION,
+                                cipher_algo,
                                 cipher_keylen,
                                 mac_algo,
                                 mac_keylen,
@@ -121,21 +119,21 @@ class BOTAN_DLL TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AEAD_Mo
                                 use_encrypt_then_mac)
          {}
 
-      void set_associated_data(const byte ad[], size_t ad_len) override;
+      void set_associated_data(const uint8_t ad[], size_t ad_len) override;
 
       size_t output_length(size_t input_length) const override;
 
       size_t minimum_final_size() const override { return 0; }
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    private:
-      void cbc_encrypt_record(byte record_contents[], size_t record_len);
+      void cbc_encrypt_record(uint8_t record_contents[], size_t record_len);
    };
 
 /**
 * TLS_CBC_HMAC_AEAD Decryption
 */
-class BOTAN_DLL TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AEAD_Mode
+class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AEAD_Mode
    {
    public:
       /**
@@ -146,7 +144,8 @@ class BOTAN_DLL TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AEAD_Mo
                                    const size_t mac_keylen,
                                    bool use_explicit_iv,
                                    bool use_encrypt_then_mac) :
-         TLS_CBC_HMAC_AEAD_Mode(cipher_algo,
+         TLS_CBC_HMAC_AEAD_Mode(DECRYPTION,
+                                cipher_algo,
                                 cipher_keylen,
                                 mac_algo,
                                 mac_keylen,
@@ -158,13 +157,21 @@ class BOTAN_DLL TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AEAD_Mo
 
       size_t minimum_final_size() const override { return tag_size(); }
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
    private:
-      void cbc_decrypt_record(byte record_contents[], size_t record_len);
-      
+      void cbc_decrypt_record(uint8_t record_contents[], size_t record_len);
+
       void perform_additional_compressions(size_t plen, size_t padlen);
    };
+
+/**
+* Check the TLS padding of a record
+* @param record the record bits
+* @param record_len length of record
+* @return 0 if padding is invalid, otherwise padding_bytes + 1
+*/
+BOTAN_TEST_API uint16_t check_tls_cbc_padding(const uint8_t record[], size_t record_len);
 
 }
 

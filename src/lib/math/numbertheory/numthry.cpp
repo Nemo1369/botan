@@ -6,6 +6,7 @@
 */
 
 #include <botan/numthry.h>
+#include <botan/pow_mod.h>
 #include <botan/reducer.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>
@@ -81,7 +82,7 @@ with n <= k <= 2n
 Returns k
 
 "The Montgomery Modular Inverse - Revisited" Çetin Koç, E. Savas
-http://citeseerx.ist.psu.edu/viewdoc/citations?doi=10.1.1.75.8377
+https://citeseerx.ist.psu.edu/viewdoc/citations?doi=10.1.1.75.8377
 
 A const time implementation of this algorithm is described in
 "Constant Time Modular Inversion" Joppe W. Bos
@@ -127,7 +128,7 @@ size_t almost_montgomery_inverse(BigInt& result,
 
    if(r >= p)
       {
-      r = r - p;
+      r -= p;
       }
 
    result = p - r;
@@ -156,6 +157,8 @@ BigInt ct_inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod)
       throw Invalid_Argument("ct_inverse_mod_odd_modulus: arguments must be non-negative");
    if(mod < 3 || mod.is_even())
       throw Invalid_Argument("Bad modulus to ct_inverse_mod_odd_modulus");
+   if(n >= mod)
+      throw Invalid_Argument("ct_inverse_mod_odd_modulus n >= mod not supported");
 
    /*
    This uses a modular inversion algorithm designed by Niels Möller
@@ -170,7 +173,7 @@ BigInt ct_inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod)
    Software Polynomial Multiplication on ARM Processors using the NEON Engine"
    by Danilo Câmara, Conrado P. L. Gouvêa, Julio López, and Ricardo
    Dahab in LNCS 8182
-      http://conradoplg.cryptoland.net/files/2010/12/mocrysen13.pdf
+      https://conradoplg.cryptoland.net/files/2010/12/mocrysen13.pdf
 
    Thanks to Niels for creating the algorithm, explaining some things
    about it, and the reference to the paper.
@@ -283,8 +286,21 @@ BigInt inverse_mod(const BigInt& n, const BigInt& mod)
    if(n.is_zero() || (n.is_even() && mod.is_even()))
       return 0; // fast fail checks
 
-   if(mod.is_odd())
+   if(mod.is_odd() && n < mod)
       return ct_inverse_mod_odd_modulus(n, mod);
+
+   return inverse_euclid(n, mod);
+   }
+
+BigInt inverse_euclid(const BigInt& n, const BigInt& mod)
+   {
+   if(mod.is_zero())
+      throw BigInt::DivideByZero();
+   if(mod.is_negative() || n.is_negative())
+      throw Invalid_Argument("inverse_mod: arguments must be non-negative");
+
+   if(n.is_zero() || (n.is_even() && mod.is_even()))
+      return 0; // fast fail checks
 
    BigInt u = mod, v = n;
    BigInt A = 1, B = 0, C = 0, D = 1;
@@ -358,6 +374,9 @@ word monty_inverse(word input)
       y1 = y;
       }
 
+   const word check = y2 * input;
+   BOTAN_ASSERT_EQUAL(check, 1, "monty_inverse result is inverse of input");
+
    // Now invert in addition space
    y2 = (MP_WORD_MAX - y2) + 1;
 
@@ -369,6 +388,18 @@ word monty_inverse(word input)
 */
 BigInt power_mod(const BigInt& base, const BigInt& exp, const BigInt& mod)
    {
+   if(mod.is_negative() || mod == 1)
+      {
+      return 0;
+      }
+
+   if(base.is_zero() || mod.is_zero())
+      {
+      if(exp.is_zero())
+         return 1;
+      return 0;
+      }
+
    Power_Mod pow_mod(mod);
 
    /*
@@ -376,9 +407,22 @@ BigInt power_mod(const BigInt& base, const BigInt& exp, const BigInt& mod)
    * minimal window. This makes sense given that here we know that any
    * precomputation is wasted.
    */
-   pow_mod.set_base(base);
-   pow_mod.set_exponent(exp);
-   return pow_mod.execute();
+
+   if(base.is_negative())
+      {
+      pow_mod.set_base(-base);
+      pow_mod.set_exponent(exp);
+      if(exp.is_even())
+         return pow_mod.execute();
+      else
+         return (mod - pow_mod.execute());
+      }
+   else
+      {
+      pow_mod.set_base(base);
+      pow_mod.set_exponent(exp);
+      return pow_mod.execute();
+      }
    }
 
 namespace {
@@ -446,7 +490,7 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
    // Fast path testing for small numbers (<= 65521)
    if(n <= PRIMES[PRIME_TABLE_SIZE-1])
       {
-      const u16bit num = static_cast<u16bit>(n.word_at(0));
+      const uint16_t num = static_cast<uint16_t>(n.word_at(0));
 
       return std::binary_search(PRIMES, PRIMES + PRIME_TABLE_SIZE, num);
       }
@@ -456,15 +500,15 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
    const BigInt n_minus_1 = n - 1;
    const size_t s = low_zero_bits(n_minus_1);
 
-   Fixed_Exponent_Power_Mod pow_mod(n_minus_1 >> s, n);
-   Modular_Reducer reducer(n);
+   const Modular_Reducer mod_n(n);
+   const Fixed_Exponent_Power_Mod pow_mod(n_minus_1 >> s, n);
 
    for(size_t i = 0; i != test_iterations; ++i)
       {
       const BigInt a = BigInt::random_integer(rng, 2, n_minus_1);
       BigInt y = pow_mod(a);
 
-      if(mr_witness(std::move(y), reducer, n_minus_1, s))
+      if(mr_witness(std::move(y), mod_n, n_minus_1, s))
          return false;
       }
 

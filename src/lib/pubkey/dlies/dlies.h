@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_DLIES_H__
-#define BOTAN_DLIES_H__
+#ifndef BOTAN_DLIES_H_
+#define BOTAN_DLIES_H_
 
 #include <botan/pubkey.h>
 #include <botan/mac.h>
@@ -20,7 +20,7 @@ namespace Botan {
 /**
 * DLIES Encryption
 */
-class BOTAN_DLL DLIES_Encryptor : public PK_Encryptor
+class BOTAN_PUBLIC_API(2,0) DLIES_Encryptor final : public PK_Encryptor
    {
    public:
       /**
@@ -62,7 +62,7 @@ class BOTAN_DLL DLIES_Encryptor : public PK_Encryptor
                       size_t mac_key_len = 20);
 
       // Set the other parties public key
-      inline void set_other_key(const std::vector<byte>& other_pub_key)
+      inline void set_other_key(const std::vector<uint8_t>& other_pub_key)
          {
          m_other_pub_key = other_pub_key;
          }
@@ -74,13 +74,13 @@ class BOTAN_DLL DLIES_Encryptor : public PK_Encryptor
          }
 
    private:
-      std::vector<byte> enc(const byte[], size_t,
+      std::vector<uint8_t> enc(const uint8_t[], size_t,
                             RandomNumberGenerator&) const override;
 
       size_t maximum_input_size() const override;
 
-      std::vector<byte> m_other_pub_key;
-      std::vector<byte> m_own_pub_key;
+      std::vector<uint8_t> m_other_pub_key;
+      std::vector<uint8_t> m_own_pub_key;
       PK_Key_Agreement m_ka;
       std::unique_ptr<KDF> m_kdf;
       std::unique_ptr<Cipher_Mode> m_cipher;
@@ -93,7 +93,7 @@ class BOTAN_DLL DLIES_Encryptor : public PK_Encryptor
 /**
 * DLIES Decryption
 */
-class BOTAN_DLL DLIES_Decryptor : public PK_Decryptor
+class BOTAN_PUBLIC_API(2,0) DLIES_Decryptor final : public PK_Decryptor
    {
    public:
       /**
@@ -141,8 +141,8 @@ class BOTAN_DLL DLIES_Decryptor : public PK_Decryptor
          }
 
    private:
-      secure_vector<byte> do_decrypt(byte& valid_mask,
-                                     const byte in[], size_t in_len) const override;
+      secure_vector<uint8_t> do_decrypt(uint8_t& valid_mask,
+                                     const uint8_t in[], size_t in_len) const override;
 
       const size_t m_pub_key_size;
       PK_Key_Agreement m_ka;

@@ -6,15 +6,17 @@
 */
 
 #include <botan/name_constraint.h>
+#include <botan/asn1_alt_name.h>
 #include <botan/ber_dec.h>
-#include <botan/der_enc.h>
-#include <botan/charset.h>
 #include <botan/loadstor.h>
 #include <botan/x509_dn.h>
 #include <botan/x509cert.h>
+#include <botan/parsing.h>
 #include <sstream>
 
 namespace Botan {
+
+class DER_Encoder;
 
 GeneralName::GeneralName(const std::string& str) : GeneralName()
    {
@@ -31,7 +33,7 @@ GeneralName::GeneralName(const std::string& str) : GeneralName()
       }
    }
 
-void GeneralName::encode_into(class DER_Encoder&) const
+void GeneralName::encode_into(DER_Encoder&) const
    {
    throw Not_Implemented("GeneralName encoding");
    }
@@ -39,59 +41,49 @@ void GeneralName::encode_into(class DER_Encoder&) const
 void GeneralName::decode_from(class BER_Decoder& ber)
    {
    BER_Object obj = ber.get_next_object();
-   if((obj.class_tag != CONTEXT_SPECIFIC) &&
-      (obj.class_tag != (CONTEXT_SPECIFIC | CONSTRUCTED)))
-      throw Decoding_Error("Invalid class tag while decoding GeneralName");
 
-   const ASN1_Tag tag = obj.type_tag;
-
-   if(tag == 1 || tag == 2 || tag == 6)
+   if(obj.is_a(1, CONTEXT_SPECIFIC))
       {
-      m_name = Charset::transcode(ASN1::to_string(obj), LATIN1_CHARSET, LOCAL_CHARSET);
-
-      if(tag == 1)
-         {
-         m_type = "RFC822";
-         }
-      else if(tag == 2)
-         {
-         m_type = "DNS";
-         }
-      else if(tag == 6)
-         {
-         m_type = "URI";
-         }
+      m_type = "RFC822";
+      m_name = ASN1::to_string(obj);
       }
-   else if(tag == 4)
+   else if(obj.is_a(2, CONTEXT_SPECIFIC))
       {
+      m_type = "DNS";
+      m_name = ASN1::to_string(obj);
+      }
+   else if(obj.is_a(6, CONTEXT_SPECIFIC))
+      {
+      m_type = "URI";
+      m_name = ASN1::to_string(obj);
+      }
+   else if(obj.is_a(4, ASN1_Tag(CONTEXT_SPECIFIC | CONSTRUCTED)))
+      {
+      m_type = "DN";
       X509_DN dn;
-      std::multimap<std::string, std::string> nam;
-      BER_Decoder dec(obj.value);
+      BER_Decoder dec(obj);
       std::stringstream ss;
 
       dn.decode_from(dec);
       ss << dn;
 
       m_name = ss.str();
-      m_type = "DN";
       }
-   else if(tag == 7)
+   else if(obj.is_a(7, CONTEXT_SPECIFIC))
       {
-      if(obj.value.size() == 8)
+      if(obj.length() == 8)
          {
-         const std::vector<byte> ip(obj.value.begin(), obj.value.begin() + 4);
-         const std::vector<byte> net(obj.value.begin() + 4, obj.value.end());
          m_type = "IP";
-         m_name = ipv4_to_string(load_be<u32bit>(ip.data(), 0)) + "/" + ipv4_to_string(load_be<u32bit>(net.data(), 0));
+         m_name = ipv4_to_string(load_be<uint32_t>(obj.bits(), 0)) + "/" +
+                  ipv4_to_string(load_be<uint32_t>(obj.bits(), 1));
          }
-      else if(obj.value.size() == 32)
+      else if(obj.length() == 32)
          {
          throw Decoding_Error("Unsupported IPv6 name constraint");
          }
       else
          {
-         throw Decoding_Error("Invalid IP name constraint size " +
-                              std::to_string(obj.value.size()));
+         throw Decoding_Error("Invalid IP name constraint size " + std::to_string(obj.length()));
          }
       }
    else
@@ -105,14 +97,18 @@ GeneralName::MatchResult GeneralName::matches(const X509_Certificate& cert) cons
    std::vector<std::string> nam;
    std::function<bool(const GeneralName*, const std::string&)> match_fn;
 
+   const X509_DN& dn = cert.subject_dn();
+   const AlternativeName& alt_name = cert.subject_alt_name();
+
    if(type() == "DNS")
       {
       match_fn = std::mem_fn(&GeneralName::matches_dns);
-      nam = cert.subject_info("DNS");
+
+      nam = alt_name.get_attribute("DNS");
 
       if(nam.empty())
          {
-         nam = cert.subject_info("CN");
+         nam = dn.get_attribute("CN");
          }
       }
    else if(type() == "DN")
@@ -120,13 +116,13 @@ GeneralName::MatchResult GeneralName::matches(const X509_Certificate& cert) cons
       match_fn = std::mem_fn(&GeneralName::matches_dn);
 
       std::stringstream ss;
-      ss << cert.subject_dn();
+      ss << dn;
       nam.push_back(ss.str());
       }
    else if(type() == "IP")
       {
       match_fn = std::mem_fn(&GeneralName::matches_ip);
-      nam = cert.subject_info("IP");
+      nam = alt_name.get_attribute("IP");
       }
    else
       {
@@ -192,16 +188,16 @@ bool GeneralName::matches_dn(const std::string& nam) const
 
    auto attr = nam_dn.get_attributes();
    bool ret = true;
-   int trys = 0;
+   size_t trys = 0;
 
-   for(const std::pair<OID,std::string>& c: my_dn.get_attributes())
+   for(const auto& c: my_dn.dn_info())
       {
       auto i = attr.equal_range(c.first);
 
       if(i.first != i.second)
          {
          trys += 1;
-         ret &= i.first->second == c.second;
+         ret = ret && (i.first->second == c.second.value());
          }
       }
 
@@ -210,14 +206,14 @@ bool GeneralName::matches_dn(const std::string& nam) const
 
 bool GeneralName::matches_ip(const std::string& nam) const
    {
-   u32bit ip = string_to_ipv4(nam);
+   uint32_t ip = string_to_ipv4(nam);
    std::vector<std::string> p = split_on(name(), '/');
 
    if(p.size() != 2)
       throw Decoding_Error("failed to parse IPv4 address");
 
-   u32bit net = string_to_ipv4(p.at(0));
-   u32bit mask = string_to_ipv4(p.at(1));
+   uint32_t net = string_to_ipv4(p.at(0));
+   uint32_t mask = string_to_ipv4(p.at(1));
 
    return (ip & mask) == net;
    }
@@ -247,7 +243,7 @@ GeneralSubtree::GeneralSubtree(const std::string& str) : GeneralSubtree()
       }
    }
 
-void GeneralSubtree::encode_into(class DER_Encoder&) const
+void GeneralSubtree::encode_into(DER_Encoder&) const
    {
    throw Not_Implemented("General Subtree encoding");
    }

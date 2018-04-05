@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_SESSION_MANAGER_H__
-#define BOTAN_TLS_SESSION_MANAGER_H__
+#ifndef BOTAN_TLS_SESSION_MANAGER_H_
+#define BOTAN_TLS_SESSION_MANAGER_H_
 
 #include <botan/tls_session.h>
 #include <botan/mutex.h>
@@ -26,7 +26,7 @@ namespace TLS {
 *
 * Implementations should strive to be thread safe
 */
-class BOTAN_DLL Session_Manager
+class BOTAN_PUBLIC_API(2,0) Session_Manager
    {
    public:
       /**
@@ -36,7 +36,7 @@ class BOTAN_DLL Session_Manager
                or not modified if not found
       * @return true if session was modified
       */
-      virtual bool load_from_session_id(const std::vector<byte>& session_id,
+      virtual bool load_from_session_id(const std::vector<uint8_t>& session_id,
                                         Session& session) = 0;
 
       /**
@@ -52,7 +52,7 @@ class BOTAN_DLL Session_Manager
       /**
       * Remove this session id from the cache, if it exists
       */
-      virtual void remove_entry(const std::vector<byte>& session_id) = 0;
+      virtual void remove_entry(const std::vector<uint8_t>& session_id) = 0;
 
       /**
       * Remove all sessions from the cache, return number of sessions deleted
@@ -76,23 +76,23 @@ class BOTAN_DLL Session_Manager
       */
       virtual std::chrono::seconds session_lifetime() const = 0;
 
-      virtual ~Session_Manager() {}
+      virtual ~Session_Manager() = default;
    };
 
 /**
 * An implementation of Session_Manager that does not save sessions at
 * all, preventing session resumption.
 */
-class BOTAN_DLL Session_Manager_Noop : public Session_Manager
+class BOTAN_PUBLIC_API(2,0) Session_Manager_Noop final : public Session_Manager
    {
    public:
-      bool load_from_session_id(const std::vector<byte>&, Session&) override
+      bool load_from_session_id(const std::vector<uint8_t>&, Session&) override
          { return false; }
 
       bool load_from_server_info(const Server_Information&, Session&) override
          { return false; }
 
-      void remove_entry(const std::vector<byte>&) override {}
+      void remove_entry(const std::vector<uint8_t>&) override {}
 
       size_t remove_all() override { return 0; }
 
@@ -105,7 +105,7 @@ class BOTAN_DLL Session_Manager_Noop : public Session_Manager
 /**
 * An implementation of Session_Manager that saves values in memory.
 */
-class BOTAN_DLL Session_Manager_In_Memory : public Session_Manager
+class BOTAN_PUBLIC_API(2,0) Session_Manager_In_Memory final : public Session_Manager
    {
    public:
       /**
@@ -121,13 +121,13 @@ class BOTAN_DLL Session_Manager_In_Memory : public Session_Manager
                                 std::chrono::seconds session_lifetime =
                                    std::chrono::seconds(7200));
 
-      bool load_from_session_id(const std::vector<byte>& session_id,
+      bool load_from_session_id(const std::vector<uint8_t>& session_id,
                                 Session& session) override;
 
       bool load_from_server_info(const Server_Information& info,
                                  Session& session) override;
 
-      void remove_entry(const std::vector<byte>& session_id) override;
+      void remove_entry(const std::vector<uint8_t>& session_id) override;
 
       size_t remove_all() override;
 
@@ -147,9 +147,9 @@ class BOTAN_DLL Session_Manager_In_Memory : public Session_Manager
       std::chrono::seconds m_session_lifetime;
 
       RandomNumberGenerator& m_rng;
-      secure_vector<byte> m_session_key;
+      secure_vector<uint8_t> m_session_key;
 
-      std::map<std::string, std::vector<byte>> m_sessions; // hex(session_id) -> session
+      std::map<std::string, std::vector<uint8_t>> m_sessions; // hex(session_id) -> session
       std::map<Server_Information, std::string> m_info_sessions;
    };
 

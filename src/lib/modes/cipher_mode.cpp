@@ -8,6 +8,7 @@
 #include <botan/cipher_mode.h>
 #include <botan/stream_mode.h>
 #include <botan/scan_name.h>
+#include <botan/parsing.h>
 #include <sstream>
 
 #if defined(BOTAN_HAS_BLOCK_CIPHER)
@@ -16,10 +17,6 @@
 
 #if defined(BOTAN_HAS_AEAD_MODES)
   #include <botan/aead.h>
-#endif
-
-#if defined(BOTAN_HAS_MODE_ECB)
-  #include <botan/ecb.h>
 #endif
 
 #if defined(BOTAN_HAS_MODE_CBC)
@@ -34,18 +31,32 @@
   #include <botan/xts.h>
 #endif
 
-#if defined(BOTAN_HAS_MODE_XTS)
-  #include <botan/xts.h>
+#if defined(BOTAN_HAS_OPENSSL)
+  #include <botan/internal/openssl.h>
 #endif
 
 namespace Botan {
 
-Cipher_Mode* get_cipher_mode(const std::string& algo, Cipher_Dir direction)
+Cipher_Mode* get_cipher_mode(const std::string& algo, Cipher_Dir direction,
+                             const std::string& provider)
    {
+#if defined(BOTAN_HAS_OPENSSL)
+   if(provider.empty() || provider == "openssl")
+      {
+      if(Cipher_Mode* bc = make_openssl_cipher_mode(algo, direction))
+         return bc;
+
+      if(!provider.empty())
+         return nullptr;
+      }
+#endif
+
+#if defined(BOTAN_HAS_STREAM_CIPHER)
    if(auto sc = StreamCipher::create(algo))
       {
       return new Stream_Cipher_Mode(sc.release());
       }
+#endif
 
 #if defined(BOTAN_HAS_AEAD_MODES)
    if(auto aead = get_aead(algo, direction))
@@ -73,7 +84,7 @@ Cipher_Mode* get_cipher_mode(const std::string& algo, Cipher_Dir direction)
       alg_args << ')';
 
       const std::string mode_name = mode_info[0] + alg_args.str();
-      return get_cipher_mode(mode_name, direction);
+      return get_cipher_mode(mode_name, direction, provider);
       }
 
 #if defined(BOTAN_HAS_BLOCK_CIPHER)
@@ -85,7 +96,7 @@ Cipher_Mode* get_cipher_mode(const std::string& algo, Cipher_Dir direction)
       return nullptr;
       }
 
-   std::unique_ptr<BlockCipher> bc(BlockCipher::create(spec.arg(0)));
+   std::unique_ptr<BlockCipher> bc(BlockCipher::create(spec.arg(0), provider));
 
    if(!bc)
       {
@@ -140,23 +151,25 @@ Cipher_Mode* get_cipher_mode(const std::string& algo, Cipher_Dir direction)
       }
 #endif
 
-#if defined(BOTAN_HAS_MODE_ECB)
-   if(spec.algo_name() == "ECB")
-      {
-      std::unique_ptr<BlockCipherModePaddingMethod> pad(get_bc_pad(spec.arg(1, "NoPadding")));
-      if(pad)
-         {
-         if(direction == ENCRYPTION)
-            return new ECB_Encryption(bc.release(), pad.release());
-         else
-            return new ECB_Decryption(bc.release(), pad.release());
-         }
-      }
-#endif
-
 #endif
 
    return nullptr;
+   }
+
+//static
+std::vector<std::string> Cipher_Mode::providers(const std::string& algo_spec)
+   {
+   const std::vector<std::string>& possible = { "base", "openssl" };
+   std::vector<std::string> providers;
+   for(auto&& prov : possible)
+      {
+      std::unique_ptr<Cipher_Mode> mode(get_cipher_mode(algo_spec, ENCRYPTION, prov));
+      if(mode)
+         {
+         providers.push_back(prov); // available
+         }
+      }
+   return providers;
    }
 
 }

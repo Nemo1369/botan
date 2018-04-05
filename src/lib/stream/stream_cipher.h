@@ -5,21 +5,22 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_STREAM_CIPHER_H__
-#define BOTAN_STREAM_CIPHER_H__
+#ifndef BOTAN_STREAM_CIPHER_H_
+#define BOTAN_STREAM_CIPHER_H_
 
 #include <botan/sym_algo.h>
 #include <string>
+#include <memory>
 
 namespace Botan {
 
 /**
 * Base class for all stream ciphers
 */
-class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
+class BOTAN_PUBLIC_API(2,0) StreamCipher : public SymmetricAlgorithm
    {
    public:
-      virtual ~StreamCipher() {}
+      virtual ~StreamCipher() = default;
 
       /**
       * Create an instance based on a name
@@ -54,7 +55,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param out the byte array to hold the output, i.e. the ciphertext
       * @param len the length of both in and out in bytes
       */
-      virtual void cipher(const byte in[], byte out[], size_t len) = 0;
+      virtual void cipher(const uint8_t in[], uint8_t out[], size_t len) = 0;
 
       /**
       * Encrypt or decrypt a message
@@ -62,7 +63,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param buf the plaintext / ciphertext
       * @param len the length of buf in bytes
       */
-      void cipher1(byte buf[], size_t len)
+      void cipher1(uint8_t buf[], size_t len)
          { cipher(buf, buf, len); }
 
       /**
@@ -71,7 +72,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param inout the plaintext / ciphertext
       */
       template<typename Alloc>
-         void encipher(std::vector<byte, Alloc>& inout)
+         void encipher(std::vector<uint8_t, Alloc>& inout)
          { cipher(inout.data(), inout.data(), inout.size()); }
 
       /**
@@ -80,7 +81,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param inout the plaintext / ciphertext
       */
       template<typename Alloc>
-         void encrypt(std::vector<byte, Alloc>& inout)
+         void encrypt(std::vector<uint8_t, Alloc>& inout)
          { cipher(inout.data(), inout.data(), inout.size()); }
 
       /**
@@ -89,7 +90,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param inout the plaintext / ciphertext
       */
       template<typename Alloc>
-         void decrypt(std::vector<byte, Alloc>& inout)
+         void decrypt(std::vector<uint8_t, Alloc>& inout)
          { cipher(inout.data(), inout.data(), inout.size()); }
 
       /**
@@ -97,7 +98,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * @param iv the initialization vector
       * @param iv_len the length of the IV in bytes
       */
-      virtual void set_iv(const byte iv[], size_t iv_len) = 0;
+      virtual void set_iv(const uint8_t iv[], size_t iv_len) = 0;
 
       /**
       * @param iv_len the length of the IV in bytes
@@ -114,7 +115,7 @@ class BOTAN_DLL StreamCipher : public SymmetricAlgorithm
       * Set the offset and the state used later to generate the keystream
       * @param offset the offset where we begin to generate the keystream
       */
-      virtual void seek(u64bit offset) = 0;
+      virtual void seek(uint64_t offset) = 0;
 
       /**
       * @return provider information about this implementation. Default is "base",

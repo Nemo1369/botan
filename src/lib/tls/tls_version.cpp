@@ -7,7 +7,6 @@
 
 #include <botan/tls_version.h>
 #include <botan/tls_exceptn.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 
@@ -15,8 +14,8 @@ namespace TLS {
 
 std::string Protocol_Version::to_string() const
    {
-   const byte maj = major_version();
-   const byte min = minor_version();
+   const uint8_t maj = major_version();
+   const uint8_t min = minor_version();
 
    if(maj == 3 && min == 0)
       return "SSL v3";

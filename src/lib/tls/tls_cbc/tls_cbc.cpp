@@ -9,10 +9,11 @@
 */
 
 #include <botan/internal/tls_cbc.h>
+#include <botan/cbc.h>
+
 #include <botan/internal/rounding.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/tls_alert.h>
-#include <botan/tls_magic.h>
 #include <botan/tls_exceptn.h>
 
 namespace Botan {
@@ -22,7 +23,8 @@ namespace TLS {
 /*
 * TLS_CBC_HMAC_AEAD_Mode Constructor
 */
-TLS_CBC_HMAC_AEAD_Mode::TLS_CBC_HMAC_AEAD_Mode(const std::string& cipher_name,
+TLS_CBC_HMAC_AEAD_Mode::TLS_CBC_HMAC_AEAD_Mode(Cipher_Dir dir,
+                                               const std::string& cipher_name,
                                                size_t cipher_keylen,
                                                const std::string& mac_name,
                                                size_t mac_keylen,
@@ -34,18 +36,23 @@ TLS_CBC_HMAC_AEAD_Mode::TLS_CBC_HMAC_AEAD_Mode(const std::string& cipher_name,
    m_mac_keylen(mac_keylen),
    m_use_encrypt_then_mac(use_encrypt_then_mac)
    {
-   m_cipher = BlockCipher::create_or_throw(m_cipher_name);
    m_mac = MessageAuthenticationCode::create_or_throw("HMAC(" + m_mac_name + ")");
+   std::unique_ptr<BlockCipher> cipher = BlockCipher::create_or_throw(m_cipher_name);
 
    m_tag_size = m_mac->output_length();
-   m_block_size = m_cipher->block_size();
+   m_block_size = cipher->block_size();
 
    m_iv_size = use_explicit_iv ? m_block_size : 0;
+
+   if(dir == ENCRYPTION)
+      m_cbc.reset(new CBC_Encryption(cipher.release(), new Null_Padding));
+   else
+      m_cbc.reset(new CBC_Decryption(cipher.release(), new Null_Padding));
    }
 
 void TLS_CBC_HMAC_AEAD_Mode::clear()
    {
-   cipher().clear();
+   cbc().clear();
    mac().clear();
    reset();
    }
@@ -79,18 +86,18 @@ Key_Length_Specification TLS_CBC_HMAC_AEAD_Mode::key_spec() const
    return Key_Length_Specification(m_cipher_keylen + m_mac_keylen);
    }
 
-void TLS_CBC_HMAC_AEAD_Mode::key_schedule(const byte key[], size_t keylen)
+void TLS_CBC_HMAC_AEAD_Mode::key_schedule(const uint8_t key[], size_t keylen)
    {
    // Both keys are of fixed length specified by the ciphersuite
 
    if(keylen != m_cipher_keylen + m_mac_keylen)
       throw Invalid_Key_Length(name(), keylen);
 
-   cipher().set_key(&key[0], m_cipher_keylen);
+   cbc().set_key(&key[0], m_cipher_keylen);
    mac().set_key(&key[m_cipher_keylen], m_mac_keylen);
    }
 
-void TLS_CBC_HMAC_AEAD_Mode::start_msg(const byte nonce[], size_t nonce_len)
+void TLS_CBC_HMAC_AEAD_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
    {
    if(!valid_nonce_length(nonce_len))
       {
@@ -105,58 +112,48 @@ void TLS_CBC_HMAC_AEAD_Mode::start_msg(const byte nonce[], size_t nonce_len)
       }
    }
 
-size_t TLS_CBC_HMAC_AEAD_Mode::process(byte buf[], size_t sz)
+size_t TLS_CBC_HMAC_AEAD_Mode::process(uint8_t buf[], size_t sz)
    {
    m_msg.insert(m_msg.end(), buf, buf + sz);
    return 0;
    }
 
-std::vector<byte> TLS_CBC_HMAC_AEAD_Mode::assoc_data_with_len(uint16_t len)
+std::vector<uint8_t> TLS_CBC_HMAC_AEAD_Mode::assoc_data_with_len(uint16_t len)
    {
-   std::vector<byte> ad = m_ad;
+   std::vector<uint8_t> ad = m_ad;
    BOTAN_ASSERT(ad.size() == 13, "Expected AAD size");
    ad[11] = get_byte(0, len);
    ad[12] = get_byte(1, len);
    return ad;
    }
 
-void TLS_CBC_HMAC_AEAD_Mode::set_associated_data(const byte ad[], size_t ad_len)
+void TLS_CBC_HMAC_AEAD_Mode::set_associated_data(const uint8_t ad[], size_t ad_len)
    {
    if(ad_len != 13)
       throw Exception("Invalid TLS AEAD associated data length");
    m_ad.assign(ad, ad + ad_len);
    }
 
-void TLS_CBC_HMAC_AEAD_Encryption::set_associated_data(const byte ad[], size_t ad_len)
+void TLS_CBC_HMAC_AEAD_Encryption::set_associated_data(const uint8_t ad[], size_t ad_len)
    {
    TLS_CBC_HMAC_AEAD_Mode::set_associated_data(ad, ad_len);
 
    if(use_encrypt_then_mac())
       {
       // AAD hack for EtM
-      size_t pt_size = make_u16bit(assoc_data()[11], assoc_data()[12]);
-      size_t enc_size = round_up(iv_size() + pt_size + 1, block_size());
+      const uint16_t pt_size = make_uint16(assoc_data()[11], assoc_data()[12]);
+      const uint16_t enc_size = round_up(iv_size() + pt_size + 1, block_size());
       assoc_data()[11] = get_byte<uint16_t>(0, enc_size);
       assoc_data()[12] = get_byte<uint16_t>(1, enc_size);
       }
    }
 
-void TLS_CBC_HMAC_AEAD_Encryption::cbc_encrypt_record(byte buf[], size_t buf_size)
+void TLS_CBC_HMAC_AEAD_Encryption::cbc_encrypt_record(uint8_t buf[], size_t buf_size)
    {
-   const size_t blocks = buf_size / block_size();
-   BOTAN_ASSERT(buf_size % block_size() == 0, "Valid CBC input");
+   cbc().start(cbc_state());
+   cbc().process(buf, buf_size);
 
-   xor_buf(buf, cbc_state().data(), block_size());
-   cipher().encrypt(buf);
-
-   for(size_t i = 1; i < blocks; ++i)
-      {
-      xor_buf(&buf[block_size()*i], &buf[block_size()*(i-1)], block_size());
-      cipher().encrypt(&buf[block_size()*i]);
-      }
-
-   cbc_state().assign(&buf[block_size()*(blocks-1)],
-                      &buf[block_size()*blocks]);
+   cbc_state().assign(buf + buf_size - block_size(), buf + buf_size);
    }
 
 size_t TLS_CBC_HMAC_AEAD_Encryption::output_length(size_t input_length) const
@@ -165,7 +162,7 @@ size_t TLS_CBC_HMAC_AEAD_Encryption::output_length(size_t input_length) const
       (use_encrypt_then_mac() ? tag_size() : 0);
    }
 
-void TLS_CBC_HMAC_AEAD_Encryption::finish(secure_vector<byte>& buffer, size_t offset)
+void TLS_CBC_HMAC_AEAD_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
    buffer.resize(offset); // truncate, leaving just header
@@ -191,12 +188,12 @@ void TLS_CBC_HMAC_AEAD_Encryption::finish(secure_vector<byte>& buffer, size_t of
          }
 
       for(size_t i = 0; i != pad_val + 1; ++i)
-         buffer.push_back(static_cast<byte>(pad_val));
+         buffer.push_back(static_cast<uint8_t>(pad_val));
       cbc_encrypt_record(&buffer[header_size], enc_size);
       }
 
    // EtM also uses ciphertext size instead of plaintext size for AEAD input
-   const byte* mac_input = (use_encrypt_then_mac() ? &buffer[header_size] : msg().data());
+   const uint8_t* mac_input = (use_encrypt_then_mac() ? &buffer[header_size] : msg().data());
    const size_t mac_input_len = (use_encrypt_then_mac() ? enc_size : msg().size());
 
    mac().update(mac_input, mac_input_len);
@@ -207,13 +204,10 @@ void TLS_CBC_HMAC_AEAD_Encryption::finish(secure_vector<byte>& buffer, size_t of
    if(use_encrypt_then_mac() == false)
       {
       for(size_t i = 0; i != pad_val + 1; ++i)
-         buffer.push_back(static_cast<byte>(pad_val));
+         buffer.push_back(static_cast<uint8_t>(pad_val));
       cbc_encrypt_record(&buffer[header_size], buf_size);
       }
    }
-
-namespace {
-
 
 /*
 * Checks the TLS padding. Returns 0 if the padding is invalid (we
@@ -226,57 +220,45 @@ namespace {
 * Returning 0 in the error case should ensure the MAC check will fail.
 * This approach is suggested in section 6.2.3.2 of RFC 5246.
 */
-u16bit check_tls_padding(const byte record[], size_t record_len)
+uint16_t check_tls_cbc_padding(const uint8_t record[], size_t record_len)
    {
+   if(record_len == 0 || record_len > 0xFFFF)
+      return 0;
+
+   const uint16_t rec16 = static_cast<uint16_t>(record_len);
+
    /*
    * TLS v1.0 and up require all the padding bytes be the same value
    * and allows up to 255 bytes.
    */
 
-   const byte pad_byte = record[(record_len-1)];
+   const uint16_t to_check = std::min<uint16_t>(256, record_len);
+   const uint8_t pad_byte = record[record_len-1];
+   const uint16_t pad_bytes = 1 + pad_byte;
 
-   byte pad_invalid = 0;
-   for(size_t i = 0; i != record_len; ++i)
+   uint16_t pad_invalid = CT::is_less<uint16_t>(rec16, pad_bytes);
+
+   for(uint16_t i = rec16 - to_check; i != rec16; ++i)
       {
-      const size_t left = record_len - i - 2;
-      const byte delim_mask = CT::is_less<u16bit>(static_cast<u16bit>(left), pad_byte) & 0xFF;
-      pad_invalid |= (delim_mask & (record[i] ^ pad_byte));
+      const uint16_t offset = rec16 - i;
+      const uint16_t in_pad_range = CT::is_lte<uint16_t>(offset, pad_bytes);
+      pad_invalid |= (in_pad_range & (record[i] ^ pad_byte));
       }
 
-   u16bit pad_invalid_mask = CT::expand_mask<u16bit>(pad_invalid);
-   return CT::select<u16bit>(pad_invalid_mask, 0, pad_byte + 1);
+   const uint16_t pad_invalid_mask = CT::expand_mask<uint16_t>(pad_invalid);
+   return CT::select<uint16_t>(pad_invalid_mask, 0, pad_byte + 1);
    }
 
-}
-
-void TLS_CBC_HMAC_AEAD_Decryption::cbc_decrypt_record(byte record_contents[], size_t record_len)
+void TLS_CBC_HMAC_AEAD_Decryption::cbc_decrypt_record(uint8_t record_contents[], size_t record_len)
    {
-   BOTAN_ASSERT(record_len % block_size() == 0,
-                "Buffer is an even multiple of block size");
+   if(record_len == 0 || record_len % block_size() != 0)
+      throw Decoding_Error("Received TLS CBC ciphertext with invalid length");
 
-   const size_t blocks = record_len / block_size();
+   cbc().start(cbc_state());
+   cbc_state().assign(record_contents + record_len - block_size(),
+                      record_contents + record_len);
 
-   BOTAN_ASSERT(blocks >= 1, "At least one ciphertext block");
-
-   byte* buf = record_contents;
-
-   secure_vector<byte> last_ciphertext(block_size());
-   copy_mem(last_ciphertext.data(), buf, block_size());
-
-   cipher().decrypt(buf);
-   xor_buf(buf, cbc_state().data(), block_size());
-
-   secure_vector<byte> last_ciphertext2;
-
-   for(size_t i = 1; i < blocks; ++i)
-      {
-      last_ciphertext2.assign(&buf[block_size()*i], &buf[block_size()*(i+1)]);
-      cipher().decrypt(&buf[block_size()*i]);
-      xor_buf(&buf[block_size()*i], last_ciphertext.data(), block_size());
-      std::swap(last_ciphertext, last_ciphertext2);
-      }
-
-   cbc_state().assign(last_ciphertext.begin(), last_ciphertext.end());
+   cbc().process(record_contents, record_len);
    }
 
 size_t TLS_CBC_HMAC_AEAD_Decryption::output_length(size_t) const
@@ -316,7 +298,7 @@ size_t TLS_CBC_HMAC_AEAD_Decryption::output_length(size_t) const
 *    no compressions are performed.
 * 
 * Note that the padding validation in Botan is always performed over
-* min(plen,256) bytes, see the function check_tls_padding. This differs
+* min(plen,256) bytes, see the function check_tls_cbc_padding. This differs
 * from the countermeasure described in the paper.
 * 
 * Note that the padding length padlen does also count the last byte
@@ -344,11 +326,11 @@ void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, 
       max_bytes_in_first_block = 55;
       }
    // number of maximum MACed bytes
-   const uint16_t L1 = 13 + plen - tag_size();
+   const uint16_t L1 = static_cast<uint16_t>(13 + plen - tag_size());
    // number of current MACed bytes (L1 - padlen)
    // Here the Lucky 13 paper is different because the padlen length in the paper 
    // does not count the last message byte.
-   const uint16_t L2 = 13 + plen - padlen - tag_size();
+   const uint16_t L2 = static_cast<uint16_t>(13 + plen - padlen - tag_size());
    // From the paper, for SHA-256/SHA-1 compute: ceil((L1-55)/64) and ceil((L2-55)/64)
    // ceil((L1-55)/64) = floor((L1+64-1-55)/64)
    // Here we compute number of compressions for SHA-* in general
@@ -361,18 +343,18 @@ void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, 
    // If there are no compressions, we just add 55/111 dummy bytes so that no
    // compression is performed.
    const uint16_t data_len = block_size * add_compressions + equal * max_bytes_in_first_block;
-   secure_vector<byte> data(data_len);
+   secure_vector<uint8_t> data(data_len);
    mac().update(unlock(data));
    // we do not need to clear the MAC since the connection is broken anyway
    }
 
-void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t offset)
+void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
    buffer.resize(offset);
 
    const size_t record_len = msg().size();
-   byte* record_contents = msg().data();
+   uint8_t* record_contents = msg().data();
 
    // This early exit does not leak info because all the values compared are public
    if(record_len < tag_size() ||
@@ -392,12 +374,12 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t of
          }
       mac().update(record_contents, enc_size);
 
-      std::vector<byte> mac_buf(tag_size());
+      std::vector<uint8_t> mac_buf(tag_size());
       mac().final(mac_buf.data());
 
       const size_t mac_offset = enc_size;
 
-      const bool mac_ok = same_mem(&record_contents[mac_offset], mac_buf.data(), tag_size());
+      const bool mac_ok = constant_time_compare(&record_contents[mac_offset], mac_buf.data(), tag_size());
 
       if(!mac_ok)
          {
@@ -407,7 +389,7 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t of
       cbc_decrypt_record(record_contents, enc_size);
 
       // 0 if padding was invalid, otherwise 1 + padding_bytes
-      u16bit pad_size = check_tls_padding(record_contents, enc_size);
+      uint16_t pad_size = check_tls_cbc_padding(record_contents, enc_size);
 
       // No oracle here, whoever sent us this had the key since MAC check passed
       if(pad_size == 0)
@@ -415,19 +397,19 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t of
          throw TLS_Exception(Alert::BAD_RECORD_MAC, "Message authentication failure");
          }
 
-      const byte* plaintext_block = &record_contents[0];
-      const u16bit plaintext_length = enc_size - pad_size;
+      const uint8_t* plaintext_block = &record_contents[0];
+      const size_t plaintext_length = enc_size - pad_size;
 
       buffer.insert(buffer.end(), plaintext_block, plaintext_block + plaintext_length);
       }
    else
       {
-      CT::poison(record_contents, record_len);
-
       cbc_decrypt_record(record_contents, record_len);
 
+      CT::poison(record_contents, record_len);
+
       // 0 if padding was invalid, otherwise 1 + padding_bytes
-      u16bit pad_size = check_tls_padding(record_contents, record_len);
+      uint16_t pad_size = check_tls_cbc_padding(record_contents, record_len);
 
       /*
       This mask is zero if there is not enough room in the packet to get a valid MAC.
@@ -437,7 +419,7 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t of
       (sending empty records, instead of 1/(n-1) splitting)
       */
 
-      const u16bit size_ok_mask = CT::is_lte<u16bit>(static_cast<u16bit>(tag_size() + pad_size), static_cast<u16bit>(record_len + 1));
+      const uint16_t size_ok_mask = CT::is_lte<uint16_t>(static_cast<uint16_t>(tag_size() + pad_size), static_cast<uint16_t>(record_len + 1));
       pad_size &= size_ok_mask;
 
       CT::unpoison(record_contents, record_len);
@@ -448,20 +430,20 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<byte>& buffer, size_t of
       */
       CT::unpoison(pad_size);
 
-      const byte* plaintext_block = &record_contents[0];
-      const u16bit plaintext_length = static_cast<u16bit>(record_len - tag_size() - pad_size);
+      const uint8_t* plaintext_block = &record_contents[0];
+      const uint16_t plaintext_length = static_cast<uint16_t>(record_len - tag_size() - pad_size);
 
       mac().update(assoc_data_with_len(plaintext_length));
       mac().update(plaintext_block, plaintext_length);
 
-      std::vector<byte> mac_buf(tag_size());
+      std::vector<uint8_t> mac_buf(tag_size());
       mac().final(mac_buf.data());
 
       const size_t mac_offset = record_len - (tag_size() + pad_size);
 
-      const bool mac_ok = same_mem(&record_contents[mac_offset], mac_buf.data(), tag_size());
+      const bool mac_ok = constant_time_compare(&record_contents[mac_offset], mac_buf.data(), tag_size());
 
-      const u16bit ok_mask = size_ok_mask & CT::expand_mask<u16bit>(mac_ok) & CT::expand_mask<u16bit>(pad_size);
+      const uint16_t ok_mask = size_ok_mask & CT::expand_mask<uint16_t>(mac_ok) & CT::expand_mask<uint16_t>(pad_size);
 
       CT::unpoison(ok_mask);
 

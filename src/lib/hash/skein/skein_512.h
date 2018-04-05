@@ -5,11 +5,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SKEIN_512_H__
-#define BOTAN_SKEIN_512_H__
+#ifndef BOTAN_SKEIN_512_H_
+#define BOTAN_SKEIN_512_H_
 
 #include <botan/hash.h>
-#include <botan/threefish.h>
+#include <botan/threefish_512.h>
 #include <string>
 #include <memory>
 
@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * Skein-512, a SHA-3 candidate
 */
-class BOTAN_DLL Skein_512 final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) Skein_512 final : public HashFunction
    {
    public:
       /**
@@ -33,6 +33,7 @@ class BOTAN_DLL Skein_512 final : public HashFunction
       size_t output_length() const override { return m_output_bits / 8; }
 
       HashFunction* clone() const override;
+      std::unique_ptr<HashFunction> copy_state() const override;
       std::string name() const override;
       void clear() override;
    private:
@@ -47,10 +48,10 @@ class BOTAN_DLL Skein_512 final : public HashFunction
          SKEIN_OUTPUT = 63
       };
 
-      void add_data(const byte input[], size_t length) override;
-      void final_result(byte out[]) override;
+      void add_data(const uint8_t input[], size_t length) override;
+      void final_result(uint8_t out[]) override;
 
-      void ubi_512(const byte msg[], size_t msg_len);
+      void ubi_512(const uint8_t msg[], size_t msg_len);
 
       void initial_block();
       void reset_tweak(type_code type, bool is_final);
@@ -59,8 +60,8 @@ class BOTAN_DLL Skein_512 final : public HashFunction
       size_t m_output_bits;
 
       std::unique_ptr<Threefish_512> m_threefish;
-      secure_vector<u64bit> m_T;
-      secure_vector<byte> m_buffer;
+      secure_vector<uint64_t> m_T;
+      secure_vector<uint8_t> m_buffer;
       size_t m_buf_pos;
    };
 

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_ALERT_H__
-#define BOTAN_TLS_ALERT_H__
+#ifndef BOTAN_TLS_ALERT_H_
+#define BOTAN_TLS_ALERT_H_
 
 #include <botan/secmem.h>
 #include <string>
@@ -18,7 +18,7 @@ namespace TLS {
 /**
 * SSL/TLS Alert Message
 */
-class BOTAN_DLL Alert
+class BOTAN_PUBLIC_API(2,0) Alert final
    {
    public:
       /**
@@ -86,13 +86,13 @@ class BOTAN_DLL Alert
       /**
       * Serialize an alert
       */
-      std::vector<byte> serialize() const;
+      std::vector<uint8_t> serialize() const;
 
       /**
       * Deserialize an Alert message
       * @param buf the serialized alert
       */
-      explicit Alert(const secure_vector<byte>& buf);
+      explicit Alert(const secure_vector<uint8_t>& buf);
 
       /**
       * Create a new Alert

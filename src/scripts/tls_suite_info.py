@@ -3,7 +3,7 @@
 """
 Used to generate lib/tls/tls_suite_info.cpp from IANA params
 
-(C) 2011, 2012, 2013, 2014, 2015 Jack Lloyd
+(C) 2011, 2012, 2013, 2014, 2015, 2016, 2017 Jack Lloyd
 
 Botan is released under the Simplified BSD License (see license.txt)
 """
@@ -19,16 +19,16 @@ def to_ciphersuite_info(code, name):
     (sig_and_kex,cipher_and_mac) = name.split('_WITH_')
 
     if sig_and_kex == 'RSA':
-        sig_algo = 'RSA'
+        sig_algo = 'IMPLICIT'
         kex_algo = 'RSA'
     elif 'PSK' in sig_and_kex:
-        sig_algo = ''
+        sig_algo = 'IMPLICIT'
         kex_algo = sig_and_kex
     elif 'SRP' in sig_and_kex:
         srp_info = sig_and_kex.split('_')
         if len(srp_info) == 2: # 'SRP_' + hash
             kex_algo = sig_and_kex
-            sig_algo = ''
+            sig_algo = 'IMPLICIT'
         else:
             kex_algo = '_'.join(srp_info[0:-1])
             sig_algo = srp_info[-1]
@@ -42,6 +42,9 @@ def to_ciphersuite_info(code, name):
     cipher = cipher_and_mac[:-1]
 
     if mac_algo == '8' and cipher[-1] == 'CCM':
+        cipher = cipher[:-1]
+        mac_algo = 'CCM_8'
+    elif cipher[-2] == 'CCM' and cipher[-1] == '8':
         cipher = cipher[:-1]
         mac_algo = 'CCM_8'
 
@@ -60,11 +63,13 @@ def to_ciphersuite_info(code, name):
         'CAMELLIA': ('Camellia',None),
         'AES': ('AES',None),
         'SEED': ('SEED',16),
-        'ARIA': ('ARIA',16),
+        'ARIA': ('ARIA',None),
         }
 
     tls_to_botan_names = {
-        'anon': '',
+        'IMPLICIT': 'IMPLICIT',
+
+        'anon': 'ANONYMOUS',
         'MD5': 'MD5',
         'SHA': 'SHA-1',
         'SHA256': 'SHA-256',
@@ -87,6 +92,8 @@ def to_ciphersuite_info(code, name):
         'DHE_PSK': 'DHE_PSK',
         'PSK_DHE': 'DHE_PSK',
         'ECDHE_PSK': 'ECDHE_PSK',
+        'CECPQ1': 'CECPQ1',
+        'CECPQ1_PSK': 'CECPQ1_PSK',
         }
 
     mac_keylen = {
@@ -100,32 +107,26 @@ def to_ciphersuite_info(code, name):
     mac_algo = tls_to_botan_names[mac_algo]
     sig_algo = tls_to_botan_names[sig_algo]
     kex_algo = tls_to_botan_names[kex_algo]
+    if kex_algo == 'RSA':
+        kex_algo = 'STATIC_RSA'
 
     (cipher_algo, cipher_keylen) = cipher_info[cipher[0]]
 
     if cipher_keylen is None:
         cipher_keylen = int(cipher[1]) / 8
 
-    if cipher_algo in ['AES', 'Camellia']:
+    if cipher_algo in ['AES', 'Camellia', 'ARIA']:
         cipher_algo += '-%d' % (cipher_keylen*8)
 
     modestr = ''
     mode = ''
-    ivlen = 0
 
     if cipher[0] == 'CHACHA20' and cipher[1] == 'POLY1305':
-        iv_len = 12
-        if code in ['CC13', 'CC14', 'CC15']:
-            iv_len = 0 # Google variant
-        record_iv_len = 0
-
-        return (name, code, sig_algo, kex_algo, "ChaCha20Poly1305", cipher_keylen, iv_len, record_iv_len, "AEAD", 0, mac_algo)
+        return (name, code, sig_algo, kex_algo, "ChaCha20Poly1305", cipher_keylen, "AEAD", 0, mac_algo, 'AEAD_XOR_12')
 
     mode = cipher[-1]
     if mode not in ['CBC', 'GCM', 'CCM(8)', 'CCM', 'OCB']:
-        print "#warning Unknown mode %s" % (' '.join(cipher))
-
-    ivlen = 8 if cipher_algo == '3DES' else 16
+        print "#warning Unknown mode '%s' for ciphersuite %s (0x%d)" % (' '.join(cipher), name, code)
 
     if mode != 'CBC':
         if mode == 'OCB':
@@ -134,16 +135,16 @@ def to_ciphersuite_info(code, name):
             cipher_algo += '/' + mode
 
     if mode == 'CBC':
-        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, ivlen, 0, mac_algo, mac_keylen[mac_algo], "")
+        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, mac_algo, mac_keylen[mac_algo], mac_algo, 'CBC_MODE')
 
     elif mode == 'OCB':
-        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, 12, 0, "AEAD", 0, mac_algo)
+        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, "AEAD", 0, mac_algo, 'AEAD_XOR_12')
 
     else:
         iv_bytes_from_hs = 4
         iv_bytes_from_rec = 8
 
-        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, iv_bytes_from_hs, iv_bytes_from_rec, "AEAD", 0, mac_algo)
+        return (name, code, sig_algo, kex_algo, cipher_algo, cipher_keylen, "AEAD", 0, mac_algo, 'AEAD_IMPLICIT_4')
 
 def open_input(args):
     iana_url = 'https://www.iana.org/assignments/tls-parameters/tls-parameters.txt'
@@ -167,17 +168,27 @@ def process_command_line(args):
     parser = optparse.OptionParser()
 
     parser.add_option('--with-ocb', action='store_true', default=True,
-                      help='enable experimental OCB AEAD suites')
+                      help='enable OCB AEAD suites')
     parser.add_option('--without-ocb', action='store_false', dest='with_ocb',
-                      help='disable experimental OCB AEAD suites')
+                      help='disable OCB AEAD suites')
+
+    parser.add_option('--with-aria-cbc', action='store_true', default=False,
+                      help='enable ARIA CBC suites')
+    parser.add_option('--without-aria-cbc', action='store_false', dest='with_aria_cbc',
+                      help='disable ARIA CBC suites')
+
+    parser.add_option('--with-cecpq1', action='store_true', default=True,
+                      help='enable CECPQ1 suites')
+    parser.add_option('--without-cecpq1', action='store_false', dest='with_cecpq1',
+                      help='disable CECPQ1 suites')
 
     parser.add_option('--with-srp-aead', action='store_true', default=False,
-                      help='add experimental SRP AEAD suites')
-    parser.add_option('--with-eax', action='store_true', default=False,
-                      help='add experimental EAX AEAD suites')
+                      help='add SRP AEAD suites')
+    parser.add_option('--without-srp-aead', action='store_false', dest='with_srp_aead',
+                      help='disable SRP AEAD suites')
 
-    parser.add_option('--save-download', action='store_true', default=True,
-                      help='save downloaded tls-parameters.txt')
+    parser.add_option('--save-download', action='store_true', default=False,
+                      help='save downloaded tls-parameters.txt to cwd')
 
     parser.add_option('--output', '-o',
                       help='file to write output to (default %default)',
@@ -192,10 +203,13 @@ def main(args = None):
     weak_crypto = ['EXPORT', 'RC2', 'IDEA', 'RC4', '_DES_', 'WITH_NULL']
     static_dh = ['ECDH_ECDSA', 'ECDH_RSA', 'DH_DSS', 'DH_RSA'] # not supported
     protocol_goop = ['SCSV', 'KRB5']
-    maybe_someday = ['ARIA', 'RSA_PSK']
+    maybe_someday = ['RSA_PSK']
     not_supported = weak_crypto + static_dh + protocol_goop + maybe_someday
 
     (options, args) = process_command_line(args)
+
+    if not options.with_aria_cbc:
+        not_supported += ['ARIA_128_CBC', 'ARIA_256_CBC']
 
     ciphersuite_re = re.compile(' +0x([0-9a-fA-F][0-9a-fA-F]),0x([0-9a-fA-F][0-9a-fA-F]) + TLS_([A-Za-z_0-9]+) ')
 
@@ -231,13 +245,15 @@ def main(args = None):
     def define_custom_ciphersuite(name, code):
         suites[code] = to_ciphersuite_info(code, name)
 
-    # Google servers - draft-agl-tls-chacha20poly1305-04
-    define_custom_ciphersuite('ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256', 'CC13')
-    define_custom_ciphersuite('ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256', 'CC14')
-    define_custom_ciphersuite('DHE_RSA_WITH_CHACHA20_POLY1305_SHA256', 'CC15')
+    if options.with_cecpq1:
+        # CECPQ1 key exchange
+        define_custom_ciphersuite('CECPQ1_RSA_WITH_CHACHA20_POLY1305_SHA256', '16B7')
+        define_custom_ciphersuite('CECPQ1_ECDSA_WITH_CHACHA20_POLY1305_SHA256', '16B8')
+        define_custom_ciphersuite('CECPQ1_RSA_WITH_AES_256_GCM_SHA384', '16B9')
+        define_custom_ciphersuite('CECPQ1_ECDSA_WITH_AES_256_GCM_SHA384', '16BA')
 
-    # Expermental things
     if options.with_ocb:
+        # OCB ciphersuites draft-zauner-tls-aes-ocb-04
         define_custom_ciphersuite('DHE_RSA_WITH_AES_128_OCB_SHA256', 'FFC0')
         define_custom_ciphersuite('DHE_RSA_WITH_AES_256_OCB_SHA256', 'FFC1')
         define_custom_ciphersuite('ECDHE_RSA_WITH_AES_128_OCB_SHA256', 'FFC2')
@@ -252,23 +268,24 @@ def main(args = None):
         define_custom_ciphersuite('ECDHE_PSK_WITH_AES_128_OCB_SHA256', 'FFCA')
         define_custom_ciphersuite('ECDHE_PSK_WITH_AES_256_OCB_SHA256', 'FFCB')
 
-    if options.with_eax:
-        define_custom_ciphersuite('ECDHE_ECDSA_WITH_AES_128_EAX_SHA256', 'FF90')
-        define_custom_ciphersuite('ECDHE_ECDSA_WITH_AES_256_EAX_SHA384', 'FF91')
-        define_custom_ciphersuite('ECDHE_RSA_WITH_AES_128_EAX_SHA256', 'FF92')
-        define_custom_ciphersuite('ECDHE_RSA_WITH_AES_256_EAX_SHA384', 'FF93')
+    if options.with_cecpq1 and options.with_ocb:
+        # CECPQ1 OCB ciphersuites - Botan extension
+        define_custom_ciphersuite('CECPQ1_RSA_WITH_AES_256_OCB_SHA256', 'FFCC')
+        define_custom_ciphersuite('CECPQ1_ECDSA_WITH_AES_256_OCB_SHA256', 'FFCD')
+        #define_custom_ciphersuite('CECPQ1_PSK_WITH_AES_256_OCB_SHA256', 'FFCE')
 
     if options.with_srp_aead:
+        # SRP using GCM or OCB - Botan extension
         define_custom_ciphersuite('SRP_SHA_WITH_AES_256_GCM_SHA384', 'FFA0')
         define_custom_ciphersuite('SRP_SHA_RSA_WITH_AES_256_GCM_SHA384', 'FFA1')
         define_custom_ciphersuite('SRP_SHA_DSS_WITH_AES_256_GCM_SHA384', 'FFA2')
         define_custom_ciphersuite('SRP_SHA_ECDSA_WITH_AES_256_GCM_SHA384', 'FFA3')
 
-        if options.with_eax:
-            define_custom_ciphersuite('SRP_SHA_WITH_AES_256_EAX_SHA384', 'FFA8')
-            define_custom_ciphersuite('SRP_SHA_RSA_WITH_AES_256_EAX_SHA384', 'FFA9')
-            define_custom_ciphersuite('SRP_SHA_DSS_WITH_AES_256_EAX_SHA384', 'FFAA')
-            define_custom_ciphersuite('SRP_SHA_ECDSA_WITH_AES_256_EAX_SHA384', 'FFAB')
+        if options.with_ocb:
+            define_custom_ciphersuite('SRP_SHA_WITH_AES_256_OCB_SHA256', 'FFA4')
+            define_custom_ciphersuite('SRP_SHA_RSA_WITH_AES_256_OCB_SHA256', 'FFA5')
+            define_custom_ciphersuite('SRP_SHA_DSS_WITH_AES_256_OCB_SHA256', 'FFA6')
+            define_custom_ciphersuite('SRP_SHA_ECDSA_WITH_AES_256_OCB_SHA256', 'FFA7')
 
     suite_info = ''
 
@@ -302,9 +319,9 @@ const std::vector<Ciphersuite>& Ciphersuite::all_known_ciphersuites()
 
     for code in sorted(suites.keys()):
         info = suites[code]
-        assert len(info) == 11
-        suite_expr = 'Ciphersuite(0x%s, "%s", "%s", "%s", "%s", %d, %d, %d, "%s", %d, "%s")' % (
-            code, info[0], info[2], info[3], info[4], info[5], info[6], info[7], info[8], info[9], info[10])
+        assert len(info) == 10
+        suite_expr = 'Ciphersuite(0x%s, "%s", Auth_Method::%s, Kex_Algo::%s, "%s", %d, "%s", %d, KDF_Algo::%s, Nonce_Format::%s)' % (
+            code, info[0], info[2], info[3], info[4], info[5], info[6], info[7], info[8].replace('-','_'), info[9])
 
         suite_info += "      " + suite_expr + ",\n"
         

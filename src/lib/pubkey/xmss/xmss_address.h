@@ -1,15 +1,13 @@
-/**
+/*
  * XMSS Address
  * (C) 2016 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_ADDRESS_H__
-#define BOTAN_XMSS_ADDRESS_H__
+#ifndef BOTAN_XMSS_ADDRESS_H_
+#define BOTAN_XMSS_ADDRESS_H_
 
-#include <cstdint>
-#include <limits>
 #include <botan/xmss_tools.h>
 
 namespace Botan {
@@ -20,7 +18,7 @@ namespace Botan {
  * OTS-Hash-Address can be called depending on the type currently
  * assigned to the XMSS address using set_type().
  **/
-class XMSS_Address
+class XMSS_Address final
    {
    public:
       /**
@@ -112,8 +110,8 @@ class XMSS_Address
        **/
       void set_type(Type type)
          {
-         m_data[15] = static_cast<byte>(type);
-         std::fill(m_data.begin() + 16, m_data.end(), 0);
+         m_data[15] = static_cast<uint8_t>(type);
+         std::fill(m_data.begin() + 16, m_data.end(), static_cast<uint8_t>(0));
          }
 
       /**
@@ -138,7 +136,7 @@ class XMSS_Address
          BOTAN_ASSERT(value != Key_Mask::Mask_LSB_Mode ||
                       get_type() != Type::OTS_Hash_Address,
                       "Invalid Key_Mask for current XMSS_Address::Type.");
-         m_data[31] = static_cast<byte>(value);
+         m_data[31] = static_cast<uint8_t>(value);
          }
 
       /**
@@ -218,8 +216,6 @@ class XMSS_Address
       /**
        * Set the chain address. A call to this method is only valid, if
        * the address type is set to Type::OTS_Hash_Address.
-       *
-       * @return chain address.
        **/
       void set_chain_address(uint32_t value)
          {
@@ -323,12 +319,12 @@ class XMSS_Address
          set_hi32(3, value);
          }
 
-      const secure_vector<byte>& bytes() const
+      const secure_vector<uint8_t>& bytes() const
          {
          return m_data;
          }
 
-      secure_vector<byte>& bytes()
+      secure_vector<uint8_t>& bytes()
          {
          return m_data;
          }
@@ -353,20 +349,20 @@ class XMSS_Address
          set_type(type);
          }
 
-      XMSS_Address(const secure_vector<byte>& data) : m_data(data)
+      XMSS_Address(const secure_vector<uint8_t>& data) : m_data(data)
          {
          BOTAN_ASSERT(m_data.size() == m_address_size,
                       "XMSS_Address must be of 256 bits size.");
          }
 
-      XMSS_Address(secure_vector<byte>&& data) : m_data(std::move(data))
+      XMSS_Address(secure_vector<uint8_t>&& data) : m_data(std::move(data))
          {
          BOTAN_ASSERT(m_data.size() == m_address_size,
                       "XMSS_Address must be of 256 bits size.");
          }
 
    protected:
-      secure_vector<byte> m_data;
+      secure_vector<uint8_t> m_data;
 
    private:
       static const size_t m_address_size = 32;

@@ -6,6 +6,7 @@
 */
 
 #include <botan/passhash9.h>
+#include <botan/rng.h>
 #include <botan/loadstor.h>
 #include <botan/pbkdf2.h>
 #include <botan/base64.h>
@@ -23,7 +24,7 @@ const size_t PASSHASH9_PBKDF_OUTPUT_LEN = 24; // 192 bits output
 
 const size_t WORK_FACTOR_SCALE = 10000;
 
-std::unique_ptr<MessageAuthenticationCode> get_pbkdf_prf(byte alg_id)
+std::unique_ptr<MessageAuthenticationCode> get_pbkdf_prf(uint8_t alg_id)
    {
    if(alg_id == 0)
       return MessageAuthenticationCode::create("HMAC(SHA-1)");
@@ -42,8 +43,8 @@ std::unique_ptr<MessageAuthenticationCode> get_pbkdf_prf(byte alg_id)
 
 std::string generate_passhash9(const std::string& pass,
                                RandomNumberGenerator& rng,
-                               u16bit work_factor,
-                               byte alg_id)
+                               uint16_t work_factor,
+                               uint8_t alg_id)
    {
    std::unique_ptr<MessageAuthenticationCode> prf = get_pbkdf_prf(alg_id);
 
@@ -54,12 +55,12 @@ std::string generate_passhash9(const std::string& pass,
 
    PKCS5_PBKDF2 kdf(prf.release()); // takes ownership of pointer
 
-   secure_vector<byte> salt(SALT_BYTES);
+   secure_vector<uint8_t> salt(SALT_BYTES);
    rng.randomize(salt.data(), salt.size());
 
    const size_t kdf_iterations = WORK_FACTOR_SCALE * work_factor;
 
-   secure_vector<byte> blob;
+   secure_vector<uint8_t> blob;
    blob.push_back(alg_id);
    blob.push_back(get_byte(0, work_factor));
    blob.push_back(get_byte(1, work_factor));
@@ -90,22 +91,22 @@ bool check_passhash9(const std::string& pass, const std::string& hash)
       if(hash[i] != MAGIC_PREFIX[i])
          return false;
 
-   secure_vector<byte> bin = base64_decode(hash.c_str() + MAGIC_PREFIX.size());
+   secure_vector<uint8_t> bin = base64_decode(hash.c_str() + MAGIC_PREFIX.size());
 
    if(bin.size() != BINARY_LENGTH)
       return false;
 
-   byte alg_id = bin[0];
+   uint8_t alg_id = bin[0];
 
-   const size_t work_factor = load_be<u16bit>(&bin[ALGID_BYTES], 0);
+   const size_t work_factor = load_be<uint16_t>(&bin[ALGID_BYTES], 0);
 
    // Bug in the format, bad states shouldn't be representable, but are...
    if(work_factor == 0)
       return false;
 
    if(work_factor > 512)
-      throw Invalid_Argument("Requested Bcrypt work factor " +
-                                  std::to_string(work_factor) + " too large");
+      throw Invalid_Argument("Requested passhash9 work factor " +
+                             std::to_string(work_factor) + " is too large");
 
    const size_t kdf_iterations = WORK_FACTOR_SCALE * work_factor;
 
@@ -116,15 +117,24 @@ bool check_passhash9(const std::string& pass, const std::string& hash)
 
    PKCS5_PBKDF2 kdf(pbkdf_prf.release()); // takes ownership of pointer
 
-   secure_vector<byte> cmp = kdf.derive_key(
+   secure_vector<uint8_t> cmp = kdf.derive_key(
       PASSHASH9_PBKDF_OUTPUT_LEN,
       pass,
       &bin[ALGID_BYTES + WORKFACTOR_BYTES], SALT_BYTES,
       kdf_iterations).bits_of();
 
-   return same_mem(cmp.data(),
+   return constant_time_compare(cmp.data(),
                    &bin[ALGID_BYTES + WORKFACTOR_BYTES + SALT_BYTES],
                    PASSHASH9_PBKDF_OUTPUT_LEN);
+   }
+
+bool is_passhash9_alg_supported(uint8_t alg_id)
+   {
+   if (get_pbkdf_prf(alg_id))
+      {
+      return true;
+      }
+   return false;
    }
 
 }

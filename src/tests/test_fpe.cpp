@@ -7,17 +7,17 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_FPE_FE1)
-  #include <botan/fpe_fe1.h>
+   #include <botan/fpe_fe1.h>
 #endif
 
 namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_FPE_FE1)
 
-class FPE_FE1_Tests : public Text_Based_Test
+class FPE_FE1_Tests final : public Text_Based_Test
    {
    public:
-      FPE_FE1_Tests() : Text_Based_Test("fpe_fe1.vec", {"Mod", "In", "Out", "Key", "Tweak"}) {}
+      FPE_FE1_Tests() : Text_Based_Test("fpe_fe1.vec", "Mod,In,Out,Key,Tweak") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {

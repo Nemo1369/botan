@@ -1,16 +1,18 @@
-os_type unix
 
-soname_pattern_base  "libbotan-{version_major}.{version_minor}.so"
-soname_pattern_abi   "libbotan-{version_major}.{version_minor}.so.{abi_rev}"
-soname_pattern_patch "libbotan-{version_major}.{version_minor}.so.{abi_rev}.{version_patch}"
+soname_suffix "so"
 
 <target_features>
-clock_gettime
-gettimeofday
+posix1
 posix_mlock
-gmtime_r
-dlopen
-readdir
+clock_gettime
+
+dev_random
+
+# getauxval is available in Android NDK for min API 18 and in Crystax NDK
+# for all min API levels. Use --without-os-feature=getauxval to disable
+getauxval
+
+sockets
 threads
 filesystem
 </target_features>

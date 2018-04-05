@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CBC_MAC_H__
-#define BOTAN_CBC_MAC_H__
+#ifndef BOTAN_CBC_MAC_H_
+#define BOTAN_CBC_MAC_H_
 
 #include <botan/mac.h>
 #include <botan/block_cipher.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * CBC-MAC
 */
-class BOTAN_DLL CBC_MAC final : public MessageAuthenticationCode
+class BOTAN_PUBLIC_API(2,0) CBC_MAC final : public MessageAuthenticationCode
    {
    public:
       std::string name() const override;
@@ -34,12 +34,12 @@ class BOTAN_DLL CBC_MAC final : public MessageAuthenticationCode
       */
       explicit CBC_MAC(BlockCipher* cipher);
    private:
-      void add_data(const byte[], size_t) override;
-      void final_result(byte[]) override;
-      void key_schedule(const byte[], size_t) override;
+      void add_data(const uint8_t[], size_t) override;
+      void final_result(uint8_t[]) override;
+      void key_schedule(const uint8_t[], size_t) override;
 
       std::unique_ptr<BlockCipher> m_cipher;
-      secure_vector<byte> m_state;
+      secure_vector<uint8_t> m_state;
       size_t m_position = 0;
    };
 

@@ -5,9 +5,10 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CREDENTIALS_MANAGER_H__
-#define BOTAN_CREDENTIALS_MANAGER_H__
+#ifndef BOTAN_CREDENTIALS_MANAGER_H_
+#define BOTAN_CREDENTIALS_MANAGER_H_
 
+#include <botan/pk_keys.h>
 #include <botan/x509cert.h>
 #include <botan/certstor.h>
 #include <botan/symkey.h>
@@ -15,6 +16,7 @@
 
 namespace Botan {
 
+class X509_DN;
 class BigInt;
 
 /**
@@ -25,10 +27,10 @@ class BigInt;
 * and "tls-server". Context represents a hostname, email address,
 * username, or other identifier.
 */
-class BOTAN_DLL Credentials_Manager
+class BOTAN_PUBLIC_API(2,0) Credentials_Manager
    {
    public:
-      virtual ~Credentials_Manager() {}
+      virtual ~Credentials_Manager() = default;
 
       /**
       * Return a list of the certificates of CAs that we trust in this
@@ -44,27 +46,32 @@ class BOTAN_DLL Credentials_Manager
          const std::string& context);
 
       /**
-      * Check the certificate chain is valid up to a trusted root, and
-      * optionally (if hostname != "") that the hostname given is
-      * consistent with the leaf certificate.
+      * Return a cert chain we can use, ordered from leaf to root,
+      * or else an empty vector.
       *
-      * This function should throw an exception derived from
-      * std::exception with an informative what() result if the
-      * certificate chain cannot be verified.
-
+      * It is assumed that the caller can get the private key of the
+      * leaf with private_key_for
+      *
+      * @param cert_key_types specifies the key types desired ("RSA",
+      *                       "DSA", "ECDSA", etc), or empty if there
+      *                       is no preference by the caller.
+      *
+      * @param acceptable_CAs the CAs the requestor will accept (possibly empty)
       * @param type specifies the type of operation occurring
-      * @param hostname specifies the purported hostname
-      * @param cert_chain specifies a certificate chain leading to a
-      *        trusted root CA certificate.
+      * @param context specifies a context relative to type.
       */
-      virtual void verify_certificate_chain(
+      virtual std::vector<X509_Certificate> find_cert_chain(
+         const std::vector<std::string>& cert_key_types,
+         const std::vector<X509_DN>& acceptable_CAs,
          const std::string& type,
-         const std::string& hostname,
-         const std::vector<X509_Certificate>& cert_chain);
+         const std::string& context);
 
       /**
       * Return a cert chain we can use, ordered from leaf to root,
       * or else an empty vector.
+      *
+      * This virtual function is deprecated, and will be removed in a
+      * future release. Use (and override) find_cert_chain instead.
       *
       * It is assumed that the caller can get the private key of the
       * leaf with private_key_for
@@ -150,7 +157,7 @@ class BOTAN_DLL Credentials_Manager
                                 const std::string& identifier,
                                 std::string& group_name,
                                 BigInt& verifier,
-                                std::vector<byte>& salt,
+                                std::vector<uint8_t>& salt,
                                 bool generate_fake_on_unknown);
 
       /**

@@ -9,6 +9,7 @@
 #include <botan/internal/mp_core.h>
 #include <botan/internal/mp_asmi.h>
 #include <botan/mem_ops.h>
+#include <botan/exceptn.h>
 
 namespace Botan {
 
@@ -17,18 +18,19 @@ namespace {
 const size_t KARATSUBA_MULTIPLY_THRESHOLD = 32;
 const size_t KARATSUBA_SQUARE_THRESHOLD = 32;
 
-namespace {
-
 /*
 * Simple O(N^2) Multiplication
 */
-void basecase_mul(word z[],
+void basecase_mul(word z[], size_t z_size,
                   const word x[], size_t x_size,
                   const word y[], size_t y_size)
    {
+   if(z_size < x_size + y_size)
+      throw Invalid_Argument("basecase_mul z_size too small");
+
    const size_t x_size_8 = x_size - (x_size % 8);
 
-   clear_mem(z, x_size + y_size);
+   clear_mem(z, z_size);
 
    for(size_t i = 0; i != y_size; ++i)
       {
@@ -46,7 +48,31 @@ void basecase_mul(word z[],
       }
    }
 
-}
+void basecase_sqr(word z[], size_t z_size,
+                  const word x[], size_t x_size)
+   {
+   if(z_size < 2*x_size)
+      throw Invalid_Argument("basecase_sqr z_size too small");
+
+   const size_t x_size_8 = x_size - (x_size % 8);
+
+   clear_mem(z, z_size);
+
+   for(size_t i = 0; i != x_size; ++i)
+      {
+      const word x_i = x[i];
+
+      word carry = 0;
+
+      for(size_t j = 0; j != x_size_8; j += 8)
+         carry = word8_madd3(z + i + j, x + j, x_i, carry);
+
+      for(size_t j = x_size_8; j != x_size; ++j)
+         z[i+j] = word_madd3(x[j], x_i, z[i+j], &carry);
+
+      z[x_size+i] = carry;
+      }
+   }
 
 /*
 * Karatsuba Multiplication Operation
@@ -63,7 +89,7 @@ void karatsuba_mul(word z[], const word x[], const word y[], size_t N,
       else if(N == 16)
          return bigint_comba_mul16(z, x, y);
       else
-         return basecase_mul(z, x, N, y, N);
+         return basecase_mul(z, 2*N, x, N, y, N);
       }
 
    const size_t N2 = N / 2;
@@ -75,8 +101,8 @@ void karatsuba_mul(word z[], const word x[], const word y[], size_t N,
    word* z0 = z;
    word* z1 = z + N;
 
-   const s32bit cmp0 = bigint_cmp(x0, N2, x1, N2);
-   const s32bit cmp1 = bigint_cmp(y1, N2, y0, N2);
+   const int32_t cmp0 = bigint_cmp(x0, N2, x1, N2);
+   const int32_t cmp1 = bigint_cmp(y1, N2, y0, N2);
 
    clear_mem(workspace, 2*N);
 
@@ -133,7 +159,7 @@ void karatsuba_sqr(word z[], const word x[], size_t N, word workspace[])
       else if(N == 16)
          return bigint_comba_sqr16(z, x);
       else
-         return basecase_mul(z, x, N, x, N);
+         return basecase_sqr(z, 2*N, x, N);
       }
 
    const size_t N2 = N / 2;
@@ -143,7 +169,7 @@ void karatsuba_sqr(word z[], const word x[], size_t N, word workspace[])
    word* z0 = z;
    word* z1 = z + N;
 
-   const s32bit cmp = bigint_cmp(x0, N2, x1, N2);
+   const int32_t cmp = bigint_cmp(x0, N2, x1, N2);
 
    clear_mem(workspace, 2*N);
 
@@ -248,107 +274,124 @@ size_t karatsuba_size(size_t z_size, size_t x_size, size_t x_sw)
    return 0;
    }
 
+template<size_t SZ>
+inline bool sized_for_comba_mul(size_t x_sw, size_t x_size,
+                                size_t y_sw, size_t y_size,
+                                size_t z_size)
+   {
+   return (x_sw <= SZ && x_size >= SZ &&
+           y_sw <= SZ && y_size >= SZ &&
+           z_size >= 2*SZ);
+   }
+
+template<size_t SZ>
+inline bool sized_for_comba_sqr(size_t x_sw, size_t x_size,
+                                size_t z_size)
+   {
+   return (x_sw <= SZ && x_size >= SZ && z_size >= 2*SZ);
+   }
+
 }
 
-/*
-* Multiplication Algorithm Dispatcher
-*/
-void bigint_mul(BigInt& z, const BigInt& x, const BigInt& y, word workspace[])
+void bigint_mul(word z[], size_t z_size,
+                const word x[], size_t x_size, size_t x_sw,
+                const word y[], size_t y_size, size_t y_sw,
+                word workspace[], size_t ws_size)
    {
-   if(x.sig_words() == 1)
+   clear_mem(z, z_size);
+
+   if(x_sw == 1)
       {
-      bigint_linmul3(z.mutable_data(), y.data(), y.sig_words(), x.data()[0]);
+      bigint_linmul3(z, y, y_sw, x[0]);
       }
-   else if(y.sig_words() == 1)
+   else if(y_sw == 1)
       {
-      bigint_linmul3(z.mutable_data(), x.data(), x.sig_words(), y.data()[0]);
+      bigint_linmul3(z, x, x_sw, y[0]);
       }
-   else if(x.sig_words() <= 4 && x.size() >= 4 &&
-           y.sig_words() <= 4 && y.size() >= 4 && z.size() >= 8)
+   else if(sized_for_comba_mul<4>(x_sw, x_size, y_sw, y_size, z_size))
       {
-      bigint_comba_mul4(z.mutable_data(), x.data(), y.data());
+      bigint_comba_mul4(z, x, y);
       }
-   else if(x.sig_words() <= 6 && x.size() >= 6 &&
-           y.sig_words() <= 6 && y.size() >= 6 && z.size() >= 12)
+   else if(sized_for_comba_mul<6>(x_sw, x_size, y_sw, y_size, z_size))
       {
-      bigint_comba_mul6(z.mutable_data(), x.data(), y.data());
+      bigint_comba_mul6(z, x, y);
       }
-   else if(x.sig_words() <= 8 && x.size() >= 8 &&
-           y.sig_words() <= 8 && y.size() >= 8 && z.size() >= 16)
+   else if(sized_for_comba_mul<8>(x_sw, x_size, y_sw, y_size, z_size))
       {
-      bigint_comba_mul8(z.mutable_data(), x.data(), y.data());
+      bigint_comba_mul8(z, x, y);
       }
-   else if(x.sig_words() <= 9 && x.size() >= 9 &&
-           y.sig_words() <= 9 && y.size() >= 9 && z.size() >= 18)
+   else if(sized_for_comba_mul<9>(x_sw, x_size, y_sw, y_size, z_size))
       {
-      bigint_comba_mul9(z.mutable_data(), x.data(), y.data());
+      bigint_comba_mul9(z, x, y);
       }
-   else if(x.sig_words() <= 16 && x.size() >= 16 &&
-           y.sig_words() <= 16 && y.size() >= 16 && z.size() >= 32)
+   else if(sized_for_comba_mul<16>(x_sw, x_size, y_sw, y_size, z_size))
       {
-      bigint_comba_mul16(z.mutable_data(), x.data(), y.data());
+      bigint_comba_mul16(z, x, y);
       }
-   else if(x.sig_words() < KARATSUBA_MULTIPLY_THRESHOLD ||
-           y.sig_words() < KARATSUBA_MULTIPLY_THRESHOLD ||
+   else if(x_sw < KARATSUBA_MULTIPLY_THRESHOLD ||
+           y_sw < KARATSUBA_MULTIPLY_THRESHOLD ||
            !workspace)
       {
-      basecase_mul(z.mutable_data(), x.data(), x.sig_words(), y.data(), y.sig_words());
+      basecase_mul(z, z_size, x, x_sw, y, y_sw);
       }
    else
       {
-      const size_t N = karatsuba_size(z.size(), x.size(), x.sig_words(), y.size(), y.sig_words());
+      const size_t N = karatsuba_size(z_size, x_size, x_sw, y_size, y_sw);
 
-      if(N)
-         karatsuba_mul(z.mutable_data(), x.data(), y.data(), N, workspace);
+      if(N && z_size >= 2*N && ws_size >= 2*N)
+         karatsuba_mul(z, x, y, N, workspace);
       else
-         basecase_mul(z.mutable_data(), x.data(), x.sig_words(), y.data(), y.sig_words());
+         basecase_mul(z, z_size, x, x_sw, y, y_sw);
       }
    }
 
 /*
 * Squaring Algorithm Dispatcher
 */
-void bigint_sqr(word z[], size_t z_size, word workspace[],
-                const word x[], size_t x_size, size_t x_sw)
+void bigint_sqr(word z[], size_t z_size,
+                const word x[], size_t x_size, size_t x_sw,
+                word workspace[], size_t ws_size)
    {
+   clear_mem(z, z_size);
+
    BOTAN_ASSERT(z_size/2 >= x_sw, "Output size is sufficient");
 
    if(x_sw == 1)
       {
       bigint_linmul3(z, x, x_sw, x[0]);
       }
-   else if(x_sw <= 4 && x_size >= 4 && z_size >= 8)
+   else if(sized_for_comba_sqr<4>(x_sw, x_size, z_size))
       {
       bigint_comba_sqr4(z, x);
       }
-   else if(x_sw <= 6 && x_size >= 6 && z_size >= 12)
+   else if(sized_for_comba_sqr<6>(x_sw, x_size, z_size))
       {
       bigint_comba_sqr6(z, x);
       }
-   else if(x_sw <= 8 && x_size >= 8 && z_size >= 16)
+   else if(sized_for_comba_sqr<8>(x_sw, x_size, z_size))
       {
       bigint_comba_sqr8(z, x);
       }
-   else if(x_sw == 9 && x_size >= 9 && z_size >= 18)
+   else if(sized_for_comba_sqr<9>(x_sw, x_size, z_size))
       {
       bigint_comba_sqr9(z, x);
       }
-   else if(x_sw <= 16 && x_size >= 16 && z_size >= 32)
+   else if(sized_for_comba_sqr<16>(x_sw, x_size, z_size))
       {
       bigint_comba_sqr16(z, x);
       }
    else if(x_size < KARATSUBA_SQUARE_THRESHOLD || !workspace)
       {
-      basecase_mul(z, x, x_sw, x, x_sw);
+      basecase_sqr(z, z_size, x, x_sw);
       }
    else
       {
       const size_t N = karatsuba_size(z_size, x_size, x_sw);
 
-      if(N)
+      if(N && z_size >= 2*N && ws_size >= 2*N)
          karatsuba_sqr(z, x, N, workspace);
       else
-         basecase_mul(z, x, x_sw, x, x_sw);
+         basecase_sqr(z, z_size, x, x_sw);
       }
    }
 

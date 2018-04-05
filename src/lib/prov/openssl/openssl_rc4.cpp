@@ -18,10 +18,10 @@ namespace Botan {
 
 namespace {
 
-class OpenSSL_RC4 : public StreamCipher
+class OpenSSL_RC4 final : public StreamCipher
    {
    public:
-      void clear() override { clear_mem(&m_rc4, 1); }
+      void clear() override { clear_mem(&m_rc4, 1); m_key_set = false; }
 
       std::string provider() const override { return "openssl"; }
 
@@ -34,11 +34,11 @@ class OpenSSL_RC4 : public StreamCipher
             case 256:
                return "MARK-4";
             default:
-               return "RC4_skip(" + std::to_string(m_skip) + ")";
+               return "RC4(" + std::to_string(m_skip) + ")";
             }
          }
 
-      StreamCipher* clone() const override { return new OpenSSL_RC4; }
+      StreamCipher* clone() const override { return new OpenSSL_RC4(m_skip); }
 
       Key_Length_Specification key_spec() const override
          {
@@ -48,32 +48,35 @@ class OpenSSL_RC4 : public StreamCipher
       explicit OpenSSL_RC4(size_t skip = 0) : m_skip(skip) { clear(); }
       ~OpenSSL_RC4() { clear(); }
 
-      void set_iv(const byte*, size_t len) override
+      void set_iv(const uint8_t*, size_t len) override
          {
          if(len > 0)
             throw Exception("RC4 does not support an IV");
          }
 
-      void seek(u64bit) override
+      void seek(uint64_t) override
          {
-         throw Exception("RC4 does not support seeking");
+         throw Not_Implemented("RC4 does not support seeking");
          }
    private:
-      void cipher(const byte in[], byte out[], size_t length) override
+      void cipher(const uint8_t in[], uint8_t out[], size_t length) override
          {
+         verify_key_set(m_key_set);
          ::RC4(&m_rc4, length, in, out);
          }
 
-      void key_schedule(const byte key[], size_t length) override
+      void key_schedule(const uint8_t key[], size_t length) override
          {
          ::RC4_set_key(&m_rc4, length, key);
-         byte d = 0;
+         uint8_t d = 0;
          for(size_t i = 0; i != m_skip; ++i)
             ::RC4(&m_rc4, 1, &d, &d);
+         m_key_set = true;
          }
 
       size_t m_skip;
       RC4_KEY m_rc4;
+      bool m_key_set;
    };
 
 }

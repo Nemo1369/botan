@@ -6,22 +6,22 @@
 */
 
 #include <botan/mgf1.h>
-#include <botan/exceptn.h>
+#include <botan/hash.h>
 #include <algorithm>
 
 namespace Botan {
 
 void mgf1_mask(HashFunction& hash,
-               const byte in[], size_t in_len,
-               byte out[], size_t out_len)
+               const uint8_t in[], size_t in_len,
+               uint8_t out[], size_t out_len)
    {
-   u32bit counter = 0;
+   uint32_t counter = 0;
 
    while(out_len)
       {
       hash.update(in, in_len);
       hash.update_be(counter);
-      secure_vector<byte> buffer = hash.final();
+      secure_vector<uint8_t> buffer = hash.final();
 
       size_t xored = std::min<size_t>(buffer.size(), out_len);
       xor_buf(out, buffer.data(), xored);

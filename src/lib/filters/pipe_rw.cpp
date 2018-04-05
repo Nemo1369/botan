@@ -7,6 +7,7 @@
 */
 
 #include <botan/pipe.h>
+#include <botan/filter.h>
 #include <botan/internal/out_buf.h>
 
 namespace Botan {
@@ -31,7 +32,7 @@ Pipe::message_id Pipe::get_message_no(const std::string& func_name,
 /*
 * Write into a Pipe
 */
-void Pipe::write(const byte input[], size_t length)
+void Pipe::write(const uint8_t input[], size_t length)
    {
    if(!m_inside_msg)
       throw Invalid_State("Cannot write to a Pipe while it is not processing");
@@ -43,13 +44,13 @@ void Pipe::write(const byte input[], size_t length)
 */
 void Pipe::write(const std::string& str)
    {
-   write(reinterpret_cast<const byte*>(str.data()), str.size());
+   write(cast_char_ptr_to_uint8(str.data()), str.size());
    }
 
 /*
 * Write a single byte into a Pipe
 */
-void Pipe::write(byte input)
+void Pipe::write(uint8_t input)
    {
    write(&input, 1);
    }
@@ -59,7 +60,7 @@ void Pipe::write(byte input)
 */
 void Pipe::write(DataSource& source)
    {
-   secure_vector<byte> buffer(DEFAULT_BUFFERSIZE);
+   secure_vector<uint8_t> buffer(BOTAN_DEFAULT_BUFFER_SIZE);
    while(!source.end_of_data())
       {
       size_t got = source.read(buffer.data(), buffer.size());
@@ -70,7 +71,7 @@ void Pipe::write(DataSource& source)
 /*
 * Read some data from the pipe
 */
-size_t Pipe::read(byte output[], size_t length, message_id msg)
+size_t Pipe::read(uint8_t output[], size_t length, message_id msg)
    {
    return m_outputs->read(output, length, get_message_no("read", msg));
    }
@@ -78,7 +79,7 @@ size_t Pipe::read(byte output[], size_t length, message_id msg)
 /*
 * Read some data from the pipe
 */
-size_t Pipe::read(byte output[], size_t length)
+size_t Pipe::read(uint8_t output[], size_t length)
    {
    return read(output, length, DEFAULT_MESSAGE);
    }
@@ -86,7 +87,7 @@ size_t Pipe::read(byte output[], size_t length)
 /*
 * Read a single byte from the pipe
 */
-size_t Pipe::read(byte& out, message_id msg)
+size_t Pipe::read(uint8_t& out, message_id msg)
    {
    return read(&out, 1, msg);
    }
@@ -94,10 +95,10 @@ size_t Pipe::read(byte& out, message_id msg)
 /*
 * Return all data in the pipe
 */
-secure_vector<byte> Pipe::read_all(message_id msg)
+secure_vector<uint8_t> Pipe::read_all(message_id msg)
    {
    msg = ((msg != DEFAULT_MESSAGE) ? msg : default_msg());
-   secure_vector<byte> buffer(remaining(msg));
+   secure_vector<uint8_t> buffer(remaining(msg));
    size_t got = read(buffer.data(), buffer.size(), msg);
    buffer.resize(got);
    return buffer;
@@ -109,7 +110,7 @@ secure_vector<byte> Pipe::read_all(message_id msg)
 std::string Pipe::read_all_as_string(message_id msg)
    {
    msg = ((msg != DEFAULT_MESSAGE) ? msg : default_msg());
-   secure_vector<byte> buffer(DEFAULT_BUFFERSIZE);
+   secure_vector<uint8_t> buffer(BOTAN_DEFAULT_BUFFER_SIZE);
    std::string str;
    str.reserve(remaining(msg));
 
@@ -118,7 +119,7 @@ std::string Pipe::read_all_as_string(message_id msg)
       size_t got = read(buffer.data(), buffer.size(), msg);
       if(got == 0)
          break;
-      str.append(reinterpret_cast<const char*>(buffer.data()), got);
+      str.append(cast_uint8_ptr_to_char(buffer.data()), got);
       }
 
    return str;
@@ -135,7 +136,7 @@ size_t Pipe::remaining(message_id msg) const
 /*
 * Peek at some data in the pipe
 */
-size_t Pipe::peek(byte output[], size_t length,
+size_t Pipe::peek(uint8_t output[], size_t length,
                   size_t offset, message_id msg) const
    {
    return m_outputs->peek(output, length, offset, get_message_no("peek", msg));
@@ -144,7 +145,7 @@ size_t Pipe::peek(byte output[], size_t length,
 /*
 * Peek at some data in the pipe
 */
-size_t Pipe::peek(byte output[], size_t length, size_t offset) const
+size_t Pipe::peek(uint8_t output[], size_t length, size_t offset) const
    {
    return peek(output, length, offset, DEFAULT_MESSAGE);
    }
@@ -152,14 +153,14 @@ size_t Pipe::peek(byte output[], size_t length, size_t offset) const
 /*
 * Peek at a byte in the pipe
 */
-size_t Pipe::peek(byte& out, size_t offset, message_id msg) const
+size_t Pipe::peek(uint8_t& out, size_t offset, message_id msg) const
    {
    return peek(&out, 1, offset, msg);
    }
 
 size_t Pipe::get_bytes_read() const
    {
-   return m_outputs->get_bytes_read(DEFAULT_MESSAGE);
+   return m_outputs->get_bytes_read(default_msg());
    }
 
 size_t Pipe::get_bytes_read(message_id msg) const
@@ -169,7 +170,7 @@ size_t Pipe::get_bytes_read(message_id msg) const
 
 bool Pipe::check_available(size_t n)
    {
-   return (n <= remaining(DEFAULT_MESSAGE));
+   return (n <= remaining(default_msg()));
    }
 
 bool Pipe::check_available_msg(size_t n, message_id msg)

@@ -5,23 +5,25 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MLOCK_ALLOCATOR_H__
-#define BOTAN_MLOCK_ALLOCATOR_H__
+#ifndef BOTAN_MLOCK_ALLOCATOR_H_
+#define BOTAN_MLOCK_ALLOCATOR_H_
 
 #include <botan/types.h>
 #include <vector>
-#include <botan/mutex.h>
+#include <memory>
 
 namespace Botan {
 
-class BOTAN_DLL mlock_allocator
+class Memory_Pool;
+
+class BOTAN_PUBLIC_API(2,0) mlock_allocator final
    {
    public:
       static mlock_allocator& instance();
 
       void* allocate(size_t num_elems, size_t elem_size);
 
-      bool deallocate(void* p, size_t num_elems, size_t elem_size);
+      bool deallocate(void* p, size_t num_elems, size_t elem_size) BOTAN_NOEXCEPT;
 
       mlock_allocator(const mlock_allocator&) = delete;
 
@@ -32,10 +34,9 @@ class BOTAN_DLL mlock_allocator
 
       ~mlock_allocator();
 
-      mutex_type m_mutex;
-      std::vector<std::pair<size_t, size_t>> m_freelist;
-      byte* m_pool = nullptr;
-      size_t m_poolsize = 0;
+      std::unique_ptr<Memory_Pool> m_pool;
+      uint8_t* m_locked_pages = nullptr;
+      size_t m_locked_pages_size = 0;
    };
 
 }

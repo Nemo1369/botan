@@ -12,7 +12,7 @@ namespace Botan {
 
 //static
 BOTAN_FUNC_ISA("sse2")
-void ChaCha::chacha_sse2_x4(byte output[64*4], u32bit input[16], size_t rounds)
+void ChaCha::chacha_sse2_x4(uint8_t output[64*4], uint32_t input[16], size_t rounds)
    {
    BOTAN_ASSERT(rounds % 2 == 0, "Valid rounds");
 
@@ -37,20 +37,17 @@ void ChaCha::chacha_sse2_x4(byte output[64*4], u32bit input[16], size_t rounds)
    __m128i r1_0 = input0;
    __m128i r1_1 = input1;
    __m128i r1_2 = input2;
-   __m128i r1_3 = input3;
-   r1_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 1));
+   __m128i r1_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 1));
 
    __m128i r2_0 = input0;
    __m128i r2_1 = input1;
    __m128i r2_2 = input2;
-   __m128i r2_3 = input3;
-   r2_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 2));
+   __m128i r2_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 2));
 
    __m128i r3_0 = input0;
    __m128i r3_1 = input1;
    __m128i r3_2 = input2;
-   __m128i r3_3 = input3;
-   r3_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 3));
+   __m128i r3_3 = _mm_add_epi64(r0_3, _mm_set_epi32(0, 0, 0, 3));
 
    for(size_t r = 0; r != rounds / 2; ++r)
       {

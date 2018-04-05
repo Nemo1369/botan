@@ -19,10 +19,12 @@
 
 #if defined(BOTAN_HAS_GMAC)
   #include <botan/gmac.h>
+  #include <botan/block_cipher.h>
 #endif
 
 #if defined(BOTAN_HAS_HMAC)
   #include <botan/hmac.h>
+  #include <botan/hash.h>
 #endif
 
 #if defined(BOTAN_HAS_POLY1305)
@@ -121,6 +123,9 @@ MessageAuthenticationCode::create(const std::string& algo_spec,
       }
 #endif
 
+   BOTAN_UNUSED(req);
+   BOTAN_UNUSED(provider);
+
    return nullptr;
    }
 
@@ -145,14 +150,14 @@ MessageAuthenticationCode::create_or_throw(const std::string& algo,
 /*
 * Default (deterministic) MAC verification operation
 */
-bool MessageAuthenticationCode::verify_mac(const byte mac[], size_t length)
+bool MessageAuthenticationCode::verify_mac(const uint8_t mac[], size_t length)
    {
-   secure_vector<byte> our_mac = final();
+   secure_vector<uint8_t> our_mac = final();
 
    if(our_mac.size() != length)
       return false;
 
-   return same_mem(our_mac.data(), mac, length);
+   return constant_time_compare(our_mac.data(), mac, length);
    }
 
 }

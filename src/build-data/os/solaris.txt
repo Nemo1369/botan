@@ -1,12 +1,15 @@
-os_type unix
 
-install_cmd_data '/usr/ucb/install -m 644'
-install_cmd_exec '/usr/ucb/install -m 755'
+soname_suffix "so"
 
 <target_features>
+posix1
 posix_mlock
-gettimeofday
+clock_gettime
+dev_random
+proc_fs
+
 threads
+sockets
 filesystem
 </target_features>
 

@@ -6,13 +6,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_SERVER_H__
-#define BOTAN_TLS_SERVER_H__
+#ifndef BOTAN_TLS_SERVER_H_
+#define BOTAN_TLS_SERVER_H_
 
 #include <botan/tls_channel.h>
+#include <botan/tls_policy.h>
 #include <botan/credentials_manager.h>
 #include <vector>
-
 
 namespace Botan {
 
@@ -23,7 +23,7 @@ class Server_Handshake_State;
 /**
 * TLS Server
 */
-class BOTAN_DLL Server final : public Channel
+class BOTAN_PUBLIC_API(2,0) Server final : public Channel
    {
    public:
       typedef std::function<std::string (std::vector<std::string>)> next_protocol_fn;
@@ -96,11 +96,19 @@ class BOTAN_DLL Server final : public Channel
 
       /**
       * Return the protocol notification set by the client (using the
-      * NPN extension) for this connection, if any. This value is not
+      * ALPN extension) for this connection, if any. This value is not
       * tied to the session and a later renegotiation of the same
       * session can choose a new protocol.
       */
       std::string next_protocol() const { return m_next_protocol; }
+
+      /**
+      * Return the protocol notification set by the client (using the
+      * ALPN extension) for this connection, if any. This value is not
+      * tied to the session and a later renegotiation of the same
+      * session can choose a new protocol.
+      */
+      std::string application_protocol() const { return m_next_protocol; }
 
    private:
       std::vector<X509_Certificate>
@@ -112,27 +120,27 @@ class BOTAN_DLL Server final : public Channel
       void process_handshake_msg(const Handshake_State* active_state,
                                  Handshake_State& pending_state,
                                  Handshake_Type type,
-                                 const std::vector<byte>& contents) override;
+                                 const std::vector<uint8_t>& contents) override;
 
       void process_client_hello_msg(const Handshake_State* active_state,
                                     Server_Handshake_State& pending_state,
-                                    const std::vector<byte>& contents);
+                                    const std::vector<uint8_t>& contents);
 
       void process_certificate_msg(Server_Handshake_State& pending_state,
-                                   const std::vector<byte>& contents);
+                                   const std::vector<uint8_t>& contents);
 
       void process_client_key_exchange_msg(Server_Handshake_State& pending_state,
-                                           const std::vector<byte>& contents);
+                                           const std::vector<uint8_t>& contents);
 
       void process_change_cipher_spec_msg(Server_Handshake_State& pending_state);
 
       void process_certificate_verify_msg(Server_Handshake_State& pending_state,
                                           Handshake_Type type,
-                                          const std::vector<byte>& contents);
+                                          const std::vector<uint8_t>& contents);
 
       void process_finished_msg(Server_Handshake_State& pending_state,
                                 Handshake_Type type,
-                                const std::vector<byte>& contents);
+                                const std::vector<uint8_t>& contents);
 
       void session_resume(Server_Handshake_State& pending_state,
                           bool have_session_ticket_key,

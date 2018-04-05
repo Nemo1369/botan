@@ -6,13 +6,13 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BASEFILT_H__
-#define BOTAN_BASEFILT_H__
+#ifndef BOTAN_BASEFILT_H_
+#define BOTAN_BASEFILT_H_
 
 #include <botan/filter.h>
 
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
-#include <thread>
+  #include <thread>
 #endif
 
 namespace Botan {
@@ -20,11 +20,12 @@ namespace Botan {
 /**
 * BitBucket is a filter which simply discards all inputs
 */
-struct BOTAN_DLL BitBucket final : public Filter
+class BOTAN_PUBLIC_API(2,0) BitBucket final : public Filter
    {
-   void write(const byte[], size_t) override {}
+   public:
+      void write(const uint8_t[], size_t) override { /* discard */ }
 
-   std::string name() const override { return "BitBucket"; }
+      std::string name() const override { return "BitBucket"; }
    };
 
 /**
@@ -33,10 +34,10 @@ struct BOTAN_DLL BitBucket final : public Filter
 * through all the Filters contained in the Chain.
 */
 
-class BOTAN_DLL Chain : public Fanout_Filter
+class BOTAN_PUBLIC_API(2,0) Chain final : public Fanout_Filter
    {
    public:
-      void write(const byte input[], size_t length) override { send(input, length); }
+      void write(const uint8_t input[], size_t length) override { send(input, length); }
 
       std::string name() const override;
 
@@ -60,10 +61,10 @@ class BOTAN_DLL Chain : public Fanout_Filter
 * flow of data. It causes an input message to result in n messages at
 * the end of the filter, where n is the number of forks.
 */
-class BOTAN_DLL Fork : public Fanout_Filter
+class BOTAN_PUBLIC_API(2,0) Fork : public Fanout_Filter
    {
    public:
-      void write(const byte input[], size_t length) override { send(input, length); }
+      void write(const uint8_t input[], size_t length) override { send(input, length); }
       void set_port(size_t n) { Fanout_Filter::set_port(n); }
 
       std::string name() const override;
@@ -81,14 +82,14 @@ class BOTAN_DLL Fork : public Fanout_Filter
       Fork(Filter* filter_arr[], size_t length);
    };
 
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+#if defined(BOTAN_HAS_THREAD_UTILS)
 
 /**
 * This class is a threaded version of the Fork filter. While this uses
 * threads, the class itself is NOT thread-safe. This is meant as a drop-
 * in replacement for Fork where performance gains are possible.
 */
-class BOTAN_DLL Threaded_Fork : public Fork
+class BOTAN_PUBLIC_API(2,0) Threaded_Fork final : public Fork
    {
    public:
       std::string name() const override;
@@ -107,12 +108,10 @@ class BOTAN_DLL Threaded_Fork : public Fork
 
       ~Threaded_Fork();
 
-   protected:
-      void set_next(Filter* f[], size_t n);
-      void send(const byte in[], size_t length) override;
-
    private:
-      void thread_delegate_work(const byte input[], size_t length);
+      void set_next(Filter* f[], size_t n);
+      void send(const uint8_t in[], size_t length) override;
+      void thread_delegate_work(const uint8_t input[], size_t length);
       void thread_entry(Filter* filter);
 
       std::vector<std::shared_ptr<std::thread>> m_threads;

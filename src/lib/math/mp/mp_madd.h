@@ -6,22 +6,22 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MP_WORD_MULADD_H__
-#define BOTAN_MP_WORD_MULADD_H__
+#ifndef BOTAN_MP_WORD_MULADD_H_
+#define BOTAN_MP_WORD_MULADD_H_
 
-#include <botan/mp_types.h>
+#include <botan/types.h>
 #include <botan/mul128.h>
 
 namespace Botan {
 
 #if (BOTAN_MP_WORD_BITS == 8)
-  typedef u16bit dword;
+  typedef uint16_t dword;
   #define BOTAN_HAS_MP_DWORD
 #elif (BOTAN_MP_WORD_BITS == 16)
-  typedef u32bit dword;
+  typedef uint32_t dword;
   #define BOTAN_HAS_MP_DWORD
 #elif (BOTAN_MP_WORD_BITS == 32)
-  typedef u64bit dword;
+  typedef uint64_t dword;
   #define BOTAN_HAS_MP_DWORD
 #elif (BOTAN_MP_WORD_BITS == 64)
   #if defined(BOTAN_TARGET_HAS_NATIVE_UINT128)
@@ -40,7 +40,7 @@ namespace Botan {
   #if defined(BOTAN_USE_GCC_INLINE_ASM)
     #define BOTAN_MP_USE_X86_32_ASM
     #define ASM(x) x "\n\t"
-  #elif defined(BOTAN_TARGET_COMPILER_IS_MSVC)
+  #elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
     #define BOTAN_MP_USE_X86_32_MSVC_ASM
   #endif
 

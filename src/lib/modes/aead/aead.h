@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_AEAD_MODE_H__
-#define BOTAN_AEAD_MODE_H__
+#ifndef BOTAN_AEAD_MODE_H_
+#define BOTAN_AEAD_MODE_H_
 
 #include <botan/cipher_mode.h>
 
@@ -19,7 +19,7 @@ namespace Botan {
 * which is not included in the ciphertext (for instance a sequence
 * number).
 */
-class BOTAN_DLL AEAD_Mode : public Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) AEAD_Mode : public Cipher_Mode
    {
    public:
       bool authenticated() const override { return true; }
@@ -36,7 +36,7 @@ class BOTAN_DLL AEAD_Mode : public Cipher_Mode
       * @param ad the associated data
       * @param ad_len length of add in bytes
       */
-      virtual void set_associated_data(const byte ad[], size_t ad_len) = 0;
+      virtual void set_associated_data(const uint8_t ad[], size_t ad_len) = 0;
 
       /**
       * Set associated data that is not included in the ciphertext but
@@ -48,7 +48,7 @@ class BOTAN_DLL AEAD_Mode : public Cipher_Mode
       * @param ad the associated data
       */
       template<typename Alloc>
-      void set_associated_data_vec(const std::vector<byte, Alloc>& ad)
+      void set_associated_data_vec(const std::vector<uint8_t, Alloc>& ad)
          {
          set_associated_data(ad.data(), ad.size());
          }
@@ -63,7 +63,7 @@ class BOTAN_DLL AEAD_Mode : public Cipher_Mode
       * @param ad the associated data
       */
       template<typename Alloc>
-      void set_ad(const std::vector<byte, Alloc>& ad)
+      void set_ad(const std::vector<uint8_t, Alloc>& ad)
          {
          set_associated_data(ad.data(), ad.size());
          }
@@ -74,7 +74,7 @@ class BOTAN_DLL AEAD_Mode : public Cipher_Mode
       */
       size_t default_nonce_length() const override { return 12; }
 
-      virtual ~AEAD_Mode() {}
+      virtual ~AEAD_Mode() = default;
    };
 
 /**
@@ -82,7 +82,7 @@ class BOTAN_DLL AEAD_Mode : public Cipher_Mode
 * @param name AEAD name
 * @param direction ENCRYPTION or DECRYPTION
 */
-BOTAN_DLL AEAD_Mode* get_aead(const std::string& name, Cipher_Dir direction);
+BOTAN_PUBLIC_API(2,0) AEAD_Mode* get_aead(const std::string& name, Cipher_Dir direction);
 
 }
 

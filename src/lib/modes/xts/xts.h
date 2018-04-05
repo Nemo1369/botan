@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MODE_XTS_H__
-#define BOTAN_MODE_XTS_H__
+#ifndef BOTAN_MODE_XTS_H_
+#define BOTAN_MODE_XTS_H_
 
 #include <botan/cipher_mode.h>
 #include <botan/block_cipher.h>
@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * IEEE P1619 XTS Mode
 */
-class BOTAN_DLL XTS_Mode : public Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) XTS_Mode : public Cipher_Mode
    {
    public:
       std::string name() const override;
@@ -39,24 +39,24 @@ class BOTAN_DLL XTS_Mode : public Cipher_Mode
    protected:
       explicit XTS_Mode(BlockCipher* cipher);
 
-      const byte* tweak() const { return m_tweak.data(); }
+      const uint8_t* tweak() const { return m_tweak.data(); }
 
       const BlockCipher& cipher() const { return *m_cipher; }
 
       void update_tweak(size_t last_used);
 
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override;
-      void key_schedule(const byte key[], size_t length) override;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override;
+      void key_schedule(const uint8_t key[], size_t length) override;
 
       std::unique_ptr<BlockCipher> m_cipher, m_tweak_cipher;
-      secure_vector<byte> m_tweak;
+      secure_vector<uint8_t> m_tweak;
    };
 
 /**
 * IEEE P1619 XTS Encryption
 */
-class BOTAN_DLL XTS_Encryption final : public XTS_Mode
+class BOTAN_PUBLIC_API(2,0) XTS_Encryption final : public XTS_Mode
    {
    public:
       /**
@@ -66,7 +66,7 @@ class BOTAN_DLL XTS_Encryption final : public XTS_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override;
    };
@@ -74,7 +74,7 @@ class BOTAN_DLL XTS_Encryption final : public XTS_Mode
 /**
 * IEEE P1619 XTS Decryption
 */
-class BOTAN_DLL XTS_Decryption final : public XTS_Mode
+class BOTAN_PUBLIC_API(2,0) XTS_Decryption final : public XTS_Mode
    {
    public:
       /**
@@ -84,7 +84,7 @@ class BOTAN_DLL XTS_Decryption final : public XTS_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override;
    };

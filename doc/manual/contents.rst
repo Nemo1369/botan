@@ -5,29 +5,40 @@ Contents
 .. toctree::
 
    index
+   goals
+   support
    building
-   python
-   firststep
+   versions
    secmem
    rng
-   filters
    hash
-   symmetric_crypto
+   block_cipher
+   stream_ciphers
+   message_auth_codes
+   cipher_modes
    pubkey
-   mceliece
    x509
-   ocsp
    tls
    credentials_manager
    bigint
-   lowlevel
    kdf
    pbkdf
+   keywrap
    passhash
    cryptobox
    srp
+   psk_db
+   filters
    fpe
    compression
-   versions
-   ffi
    pkcs11
+   tpm
+   otp
+   ffi
+   python
+   cli
+   side_channels
+   packaging
+   fuzzing
+   deprecated
+   abi

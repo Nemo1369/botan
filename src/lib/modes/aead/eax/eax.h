@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_AEAD_EAX_H__
-#define BOTAN_AEAD_EAX_H__
+#ifndef BOTAN_AEAD_EAX_H_
+#define BOTAN_AEAD_EAX_H_
 
 #include <botan/aead.h>
 #include <botan/block_cipher.h>
@@ -19,10 +19,10 @@ namespace Botan {
 /**
 * EAX base class
 */
-class BOTAN_DLL EAX_Mode : public AEAD_Mode
+class BOTAN_PUBLIC_API(2,0) EAX_Mode : public AEAD_Mode
    {
    public:
-      void set_associated_data(const byte ad[], size_t ad_len) override;
+      void set_associated_data(const uint8_t ad[], size_t ad_len) override;
 
       std::string name() const override;
 
@@ -54,19 +54,19 @@ class BOTAN_DLL EAX_Mode : public AEAD_Mode
       std::unique_ptr<StreamCipher> m_ctr;
       std::unique_ptr<MessageAuthenticationCode> m_cmac;
 
-      secure_vector<byte> m_ad_mac;
+      secure_vector<uint8_t> m_ad_mac;
 
-      secure_vector<byte> m_nonce_mac;
+      secure_vector<uint8_t> m_nonce_mac;
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override;
 
-      void key_schedule(const byte key[], size_t length) override;
+      void key_schedule(const uint8_t key[], size_t length) override;
    };
 
 /**
 * EAX Encryption
 */
-class BOTAN_DLL EAX_Encryption final : public EAX_Mode
+class BOTAN_PUBLIC_API(2,0) EAX_Encryption final : public EAX_Mode
    {
    public:
       /**
@@ -83,13 +83,13 @@ class BOTAN_DLL EAX_Encryption final : public EAX_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 /**
 * EAX Decryption
 */
-class BOTAN_DLL EAX_Decryption final : public EAX_Mode
+class BOTAN_PUBLIC_API(2,0) EAX_Decryption final : public EAX_Mode
    {
    public:
       /**
@@ -109,7 +109,7 @@ class BOTAN_DLL EAX_Decryption final : public EAX_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 }

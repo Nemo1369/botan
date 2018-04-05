@@ -7,7 +7,6 @@
 
 #include <botan/shake.h>
 #include <botan/sha3.h>
-#include <botan/parsing.h>
 #include <botan/exceptn.h>
 
 namespace Botan {
@@ -30,28 +29,26 @@ HashFunction* SHAKE_128::clone() const
    return new SHAKE_128(m_output_bits);
    }
 
+std::unique_ptr<HashFunction> SHAKE_128::copy_state() const
+   {
+   return std::unique_ptr<HashFunction>(new SHAKE_128(*this));
+   }
+
 void SHAKE_128::clear()
    {
    zeroise(m_S);
    m_S_pos = 0;
    }
 
-void SHAKE_128::add_data(const byte input[], size_t length)
+void SHAKE_128::add_data(const uint8_t input[], size_t length)
    {
    m_S_pos = SHA_3::absorb(SHAKE_128_BITRATE, m_S, m_S_pos, input, length);
    }
 
-void SHAKE_128::final_result(byte output[])
+void SHAKE_128::final_result(uint8_t output[])
    {
-   std::vector<byte> padding(SHAKE_128_BITRATE / 8 - m_S_pos);
-
-   padding[0] = 0x1F;
-   padding[padding.size()-1] |= 0x80;
-
-   add_data(padding.data(), padding.size());
-
+   SHA_3::finish(SHAKE_128_BITRATE, m_S, m_S_pos, 0x1F, 0x80);
    SHA_3::expand(SHAKE_128_BITRATE, m_S, output, output_length());
-
    clear();
    }
 
@@ -73,26 +70,25 @@ HashFunction* SHAKE_256::clone() const
    return new SHAKE_256(m_output_bits);
    }
 
+std::unique_ptr<HashFunction> SHAKE_256::copy_state() const
+   {
+   return std::unique_ptr<HashFunction>(new SHAKE_256(*this));
+   }
+
 void SHAKE_256::clear()
    {
    zeroise(m_S);
    m_S_pos = 0;
    }
 
-void SHAKE_256::add_data(const byte input[], size_t length)
+void SHAKE_256::add_data(const uint8_t input[], size_t length)
    {
    m_S_pos = SHA_3::absorb(SHAKE_256_BITRATE, m_S, m_S_pos, input, length);
    }
 
-void SHAKE_256::final_result(byte output[])
+void SHAKE_256::final_result(uint8_t output[])
    {
-   std::vector<byte> padding(SHAKE_256_BITRATE / 8 - m_S_pos);
-
-   padding[0] = 0x1F;
-   padding[padding.size()-1] |= 0x80;
-
-   add_data(padding.data(), padding.size());
-
+   SHA_3::finish(SHAKE_256_BITRATE, m_S, m_S_pos, 0x1F, 0x80);
    SHA_3::expand(SHAKE_256_BITRATE, m_S, output, output_length());
 
    clear();

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SYMMETRIC_ALGORITHM_H__
-#define BOTAN_SYMMETRIC_ALGORITHM_H__
+#ifndef BOTAN_SYMMETRIC_ALGORITHM_H_
+#define BOTAN_SYMMETRIC_ALGORITHM_H_
 
 #include <botan/key_spec.h>
 #include <botan/exceptn.h>
@@ -18,10 +18,10 @@ namespace Botan {
 /**
 * This class represents a symmetric algorithm object.
 */
-class BOTAN_DLL SymmetricAlgorithm
+class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
    {
    public:
-      virtual ~SymmetricAlgorithm() {}
+      virtual ~SymmetricAlgorithm() = default;
 
       /**
       * Reset the state.
@@ -69,7 +69,7 @@ class BOTAN_DLL SymmetricAlgorithm
          }
 
       template<typename Alloc>
-      void set_key(const std::vector<byte, Alloc>& key)
+      void set_key(const std::vector<uint8_t, Alloc>& key)
          {
          set_key(key.data(), key.size());
          }
@@ -79,7 +79,7 @@ class BOTAN_DLL SymmetricAlgorithm
       * @param key the to be set as a byte array.
       * @param length in bytes of key param
       */
-      void set_key(const byte key[], size_t length)
+      void set_key(const uint8_t key[], size_t length)
          {
          if(!valid_keylength(length))
             throw Invalid_Key_Length(name(), length);
@@ -91,13 +91,20 @@ class BOTAN_DLL SymmetricAlgorithm
       */
       virtual std::string name() const = 0;
 
+   protected:
+      void verify_key_set(bool cond) const
+         {
+         if(cond == false)
+            throw Key_Not_Set(name());
+         }
+
    private:
       /**
       * Run the key schedule
       * @param key the key
       * @param length of key
       */
-      virtual void key_schedule(const byte key[], size_t length) = 0;
+      virtual void key_schedule(const uint8_t key[], size_t length) = 0;
    };
 
 }

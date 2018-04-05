@@ -6,7 +6,8 @@
 */
 
 #include <botan/bigint.h>
-#include <iostream>
+#include <istream>
+#include <ostream>
 
 namespace Botan {
 
@@ -27,11 +28,11 @@ std::ostream& operator<<(std::ostream& stream, const BigInt& n)
       {
       if(n < 0)
          stream.write("-", 1);
-      const std::vector<byte> buffer = BigInt::encode(n, base);
+      const std::vector<uint8_t> buffer = BigInt::encode(n, base);
       size_t skip = 0;
       while(skip < buffer.size() && buffer[skip] == '0')
          ++skip;
-      stream.write(reinterpret_cast<const char*>(buffer.data()) + skip,
+      stream.write(cast_uint8_ptr_to_char(buffer.data()) + skip,
                    buffer.size() - skip);
       }
    if(!stream.good())

@@ -6,21 +6,22 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TPM_H__
-#define BOTAN_TPM_H__
+#ifndef BOTAN_TPM_H_
+#define BOTAN_TPM_H_
 
 #include <botan/exceptn.h>
 #include <botan/pk_keys.h>
 #include <botan/bigint.h>
 #include <botan/rng.h>
 #include <botan/uuid.h>
+#include <functional>
 
 //TODO remove this
 #include <tss/tspi.h>
 
 namespace Botan {
 
-class TPM_Error : public Exception
+class BOTAN_PUBLIC_API(2,0) TPM_Error final : public Exception
    {
    public:
       TPM_Error(const std::string& err) : Exception(err) {}
@@ -36,7 +37,7 @@ class TPM_Error : public Exception
 *
 * TODO: handling owner password?
 */
-class BOTAN_DLL TPM_Context
+class BOTAN_PUBLIC_API(2,0) TPM_Context final
    {
    public:
       /**
@@ -72,17 +73,17 @@ class BOTAN_DLL TPM_Context
       TSS_HTPM m_tpm;
    };
 
-class BOTAN_DLL TPM_RNG : public Hardware_RNG
+class BOTAN_PUBLIC_API(2,0) TPM_RNG final : public Hardware_RNG
    {
    public:
       TPM_RNG(TPM_Context& ctx) : m_ctx(ctx) {}
 
-      void add_entropy(const byte in[], size_t in_len) override
+      void add_entropy(const uint8_t in[], size_t in_len) override
          {
          m_ctx.stir_random(in, in_len);
          }
 
-      void randomize(byte out[], size_t out_len) override
+      void randomize(uint8_t out[], size_t out_len) override
          {
          m_ctx.gen_random(out, out_len);
          }
@@ -90,8 +91,6 @@ class BOTAN_DLL TPM_RNG : public Hardware_RNG
       std::string name() const override { return "TPM_RNG"; }
 
       bool is_seeded() const override { return true; }
-
-      void clear() override {}
 
    private:
       TPM_Context& m_ctx;
@@ -103,7 +102,7 @@ enum class TPM_Storage_Type { User, System };
 * Also implements the public interface, but does not have usable
 * TODO: derive from RSA_PublicKey???
 */
-class BOTAN_DLL TPM_PrivateKey : public Private_Key
+class BOTAN_PUBLIC_API(2,0) TPM_PrivateKey final : public Private_Key
    {
    public:
       // TODO: key import?
@@ -154,9 +153,9 @@ class BOTAN_DLL TPM_PrivateKey : public Private_Key
 
       AlgorithmIdentifier algorithm_identifier() const override;
 
-      std::vector<byte> x509_subject_public_key() const override;
+      std::vector<uint8_t> public_key_bits() const override;
 
-      secure_vector<byte> pkcs8_private_key() const override;
+      secure_vector<uint8_t> private_key_bits() const override;
 
       bool check_key(RandomNumberGenerator& rng, bool) const override;
 

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_COMPRESSION_UTILS_H__
-#define BOTAN_COMPRESSION_UTILS_H__
+#ifndef BOTAN_COMPRESSION_UTILS_H_
+#define BOTAN_COMPRESSION_UTILS_H_
 
 #include <botan/compression.h>
 #include <memory>
@@ -17,7 +17,7 @@ namespace Botan {
 /*
 * Allocation Size Tracking Helper for Zlib/Bzlib/LZMA
 */
-class Compression_Alloc_Info
+class Compression_Alloc_Info final
    {
    public:
       template<typename T>
@@ -45,13 +45,13 @@ template<typename Stream, typename ByteType>
 class Zlib_Style_Stream : public Compression_Stream
    {
    public:
-      void next_in(byte* b, size_t len) override
+      void next_in(uint8_t* b, size_t len) override
          {
          m_stream.next_in = reinterpret_cast<ByteType*>(b);
          m_stream.avail_in = len;
          }
 
-      void next_out(byte* b, size_t len) override
+      void next_out(uint8_t* b, size_t len) override
          {
          m_stream.next_out = reinterpret_cast<ByteType*>(b);
          m_stream.avail_out = len;

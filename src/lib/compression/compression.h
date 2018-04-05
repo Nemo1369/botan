@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_COMPRESSION_TRANSFORM_H__
-#define BOTAN_COMPRESSION_TRANSFORM_H__
+#ifndef BOTAN_COMPRESSION_TRANSFORM_H_
+#define BOTAN_COMPRESSION_TRANSFORM_H_
 
 #include <botan/secmem.h>
 #include <string>
@@ -16,9 +16,24 @@ namespace Botan {
 /*
 * Interface for a compression algorithm.
 */
-class BOTAN_DLL Compression_Algorithm
+class BOTAN_PUBLIC_API(2,0) Compression_Algorithm
    {
    public:
+      /**
+      * Create an instance based on a name, or return null if the
+      * algo combination cannot be found.
+      */
+      static std::unique_ptr<Compression_Algorithm>
+         create(const std::string& algo_spec);
+
+      /**
+      * Create an instance based on a name
+      * @param algo_spec algorithm name
+      * Throws Lookup_Error if not found.
+      */
+      static std::unique_ptr<Compression_Algorithm>
+         create_or_throw(const std::string& algo_spec);
+
       /**
       * Begin compressing. Most compression algorithms offer a tunable
       * time/compression tradeoff parameter generally represented by
@@ -30,12 +45,12 @@ class BOTAN_DLL Compression_Algorithm
       virtual void start(size_t comp_level = 0) = 0;
 
       /**
-      * Process some data. Input must be in size update_granularity() byte blocks.
+      * Process some data.
       * @param buf in/out parameter which will possibly be resized or swapped
       * @param offset an offset into blocks to begin processing
       * @param flush if true the compressor will be told to flush state
       */
-      virtual void update(secure_vector<byte>& buf, size_t offset = 0, bool flush = false) = 0;
+      virtual void update(secure_vector<uint8_t>& buf, size_t offset = 0, bool flush = false) = 0;
 
       /**
       * Finish compressing
@@ -43,7 +58,7 @@ class BOTAN_DLL Compression_Algorithm
       * @param final_block in/out parameter
       * @param offset an offset into final_block to begin processing
       */
-      virtual void finish(secure_vector<byte>& final_block, size_t offset = 0) = 0;
+      virtual void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) = 0;
 
       /**
       * @return name of the compression algorithm
@@ -56,15 +71,30 @@ class BOTAN_DLL Compression_Algorithm
       */
       virtual void clear() = 0;
 
-      virtual ~Compression_Algorithm() {}
+      virtual ~Compression_Algorithm() = default;
    };
 
 /*
 * Interface for a decompression algorithm.
 */
-class BOTAN_DLL Decompression_Algorithm
+class BOTAN_PUBLIC_API(2,0) Decompression_Algorithm
    {
    public:
+      /**
+      * Create an instance based on a name, or return null if the
+      * algo combination cannot be found.
+      */
+      static std::unique_ptr<Decompression_Algorithm>
+         create(const std::string& algo_spec);
+
+      /**
+      * Create an instance based on a name
+      * @param algo_spec algorithm name
+      * Throws Lookup_Error if not found.
+      */
+      static std::unique_ptr<Decompression_Algorithm>
+         create_or_throw(const std::string& algo_spec);
+
       /**
       * Begin decompressing.
       * Decompression does not support levels, as compression does.
@@ -72,11 +102,11 @@ class BOTAN_DLL Decompression_Algorithm
       virtual void start() = 0;
 
       /**
-      * Process some data. Input must be in size update_granularity() byte blocks.
+      * Process some data.
       * @param buf in/out parameter which will possibly be resized or swapped
       * @param offset an offset into blocks to begin processing
       */
-      virtual void update(secure_vector<byte>& buf, size_t offset = 0) = 0;
+      virtual void update(secure_vector<uint8_t>& buf, size_t offset = 0) = 0;
 
       /**
       * Finish decompressing
@@ -84,7 +114,7 @@ class BOTAN_DLL Decompression_Algorithm
       * @param final_block in/out parameter
       * @param offset an offset into final_block to begin processing
       */
-      virtual void finish(secure_vector<byte>& final_block, size_t offset = 0) = 0;
+      virtual void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) = 0;
 
       /**
       * @return name of the decompression algorithm
@@ -97,11 +127,11 @@ class BOTAN_DLL Decompression_Algorithm
       */
       virtual void clear() = 0;
 
-      virtual ~Decompression_Algorithm() {}
+      virtual ~Decompression_Algorithm() = default;
    };
 
-BOTAN_DLL Compression_Algorithm* make_compressor(const std::string& type);
-BOTAN_DLL Decompression_Algorithm* make_decompressor(const std::string& type);
+BOTAN_PUBLIC_API(2,0) Compression_Algorithm* make_compressor(const std::string& type);
+BOTAN_PUBLIC_API(2,0) Decompression_Algorithm* make_decompressor(const std::string& type);
 
 /**
 * Adapts a zlib style API
@@ -109,21 +139,21 @@ BOTAN_DLL Decompression_Algorithm* make_decompressor(const std::string& type);
 class Compression_Stream
    {
    public:
-      virtual ~Compression_Stream() {}
+      virtual ~Compression_Stream() = default;
 
-      virtual void next_in(byte* b, size_t len) = 0;
+      virtual void next_in(uint8_t* b, size_t len) = 0;
 
-      virtual void next_out(byte* b, size_t len) = 0;
+      virtual void next_out(uint8_t* b, size_t len) = 0;
 
       virtual size_t avail_in() const = 0;
 
       virtual size_t avail_out() const = 0;
 
-      virtual u32bit run_flag() const = 0;
-      virtual u32bit flush_flag() const = 0;
-      virtual u32bit finish_flag() const = 0;
+      virtual uint32_t run_flag() const = 0;
+      virtual uint32_t flush_flag() const = 0;
+      virtual uint32_t finish_flag() const = 0;
 
-      virtual bool run(u32bit flags) = 0;
+      virtual bool run(uint32_t flags) = 0;
    };
 
 /**
@@ -132,20 +162,20 @@ class Compression_Stream
 class Stream_Compression : public Compression_Algorithm
    {
    public:
-      void update(secure_vector<byte>& buf, size_t offset, bool flush) final override;
+      void update(secure_vector<uint8_t>& buf, size_t offset, bool flush) final override;
 
-      void finish(secure_vector<byte>& buf, size_t offset) final override;
+      void finish(secure_vector<uint8_t>& buf, size_t offset) final override;
 
       void clear() final override;
 
    private:
       void start(size_t level) final override;
 
-      void process(secure_vector<byte>& buf, size_t offset, u32bit flags);
+      void process(secure_vector<uint8_t>& buf, size_t offset, uint32_t flags);
 
       virtual Compression_Stream* make_stream(size_t level) const = 0;
 
-      secure_vector<byte> m_buffer;
+      secure_vector<uint8_t> m_buffer;
       std::unique_ptr<Compression_Stream> m_stream;
    };
 
@@ -155,20 +185,20 @@ class Stream_Compression : public Compression_Algorithm
 class Stream_Decompression : public Decompression_Algorithm
    {
    public:
-      void update(secure_vector<byte>& buf, size_t offset) final override;
+      void update(secure_vector<uint8_t>& buf, size_t offset) final override;
 
-      void finish(secure_vector<byte>& buf, size_t offset) final override;
+      void finish(secure_vector<uint8_t>& buf, size_t offset) final override;
 
       void clear() final override;
 
    private:
       void start() final override;
 
-      void process(secure_vector<byte>& buf, size_t offset, u32bit flags);
+      void process(secure_vector<uint8_t>& buf, size_t offset, uint32_t flags);
 
       virtual Compression_Stream* make_stream() const = 0;
 
-      secure_vector<byte> m_buffer;
+      secure_vector<uint8_t> m_buffer;
       std::unique_ptr<Compression_Stream> m_stream;
    };
 

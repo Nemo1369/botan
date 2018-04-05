@@ -4,10 +4,9 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_UTIL_MUTEX_H__
-#define BOTAN_UTIL_MUTEX_H__
+#ifndef BOTAN_UTIL_MUTEX_H_
+#define BOTAN_UTIL_MUTEX_H_
 
-#include <botan/build.h>
 #include <botan/types.h>
 
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
@@ -21,14 +20,14 @@ typedef std::mutex mutex_type;
 
 }
 
-#elif defined(BOTAN_TARGET_OS_TYPE_IS_UNIKERNEL)
+#else
 
 // No threads
 
 namespace Botan {
 
 template<typename Mutex>
-class lock_guard
+class lock_guard final
    {
    public:
       explicit lock_guard(Mutex& m) : m_mutex(m)
@@ -42,7 +41,7 @@ class lock_guard
       Mutex& m_mutex;
    };
 
-class noop_mutex
+class noop_mutex final
    {
    public:
       void lock() {}
@@ -54,8 +53,6 @@ template<typename T> using lock_guard_type = lock_guard<T>;
 
 }
 
-#else
-  #error "Threads unexpectedly disabled in non unikernel build"
 #endif
 
 #endif

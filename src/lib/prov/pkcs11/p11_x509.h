@@ -6,16 +6,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_P11_X509_H__
-#define BOTAN_P11_X509_H__
-
-#include <botan/build.h>
-#if defined(BOTAN_HAS_X509_CERTIFICATES)
+#ifndef BOTAN_P11_X509_H_
+#define BOTAN_P11_X509_H_
 
 #include <botan/p11_object.h>
 
-#include <botan/x509cert.h>
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
 
+#include <botan/x509cert.h>
 #include <vector>
 
 namespace Botan {
@@ -24,41 +22,41 @@ namespace PKCS11 {
 class Session;
 
 /// Common attributes of all PKCS#11 X509 certificates
-class BOTAN_DLL X509_CertificateProperties final : public CertificateProperties
+class BOTAN_PUBLIC_API(2,0) X509_CertificateProperties final : public CertificateProperties
    {
    public:
       /**
       * @param subject DER-encoding of the certificate subject name
       * @param value BER-encoding of the certificate
       */
-      X509_CertificateProperties(const std::vector<byte>& subject, const std::vector<byte>& value);
+      X509_CertificateProperties(const std::vector<uint8_t>& subject, const std::vector<uint8_t>& value);
 
       /// @param id key identifier for public/private key pair
-      inline void set_id(const std::vector<byte>& id)
+      inline void set_id(const std::vector<uint8_t>& id)
          {
          add_binary(AttributeType::Id, id);
          }
 
       /// @param issuer DER-encoding of the certificate issuer name
-      inline void set_issuer(const std::vector<byte>& issuer)
+      inline void set_issuer(const std::vector<uint8_t>& issuer)
          {
          add_binary(AttributeType::Issuer, issuer);
          }
 
       /// @param serial DER-encoding of the certificate serial number
-      inline void set_serial(const std::vector<byte>& serial)
+      inline void set_serial(const std::vector<uint8_t>& serial)
          {
          add_binary(AttributeType::SerialNumber, serial);
          }
 
       /// @param hash hash value of the subject public key
-      inline void set_subject_pubkey_hash(const std::vector<byte>& hash)
+      inline void set_subject_pubkey_hash(const std::vector<uint8_t>& hash)
          {
          add_binary(AttributeType::HashOfSubjectPublicKey, hash);
          }
 
       /// @param hash hash value of the issuer public key
-      inline void set_issuer_pubkey_hash(const std::vector<byte>& hash)
+      inline void set_issuer_pubkey_hash(const std::vector<uint8_t>& hash)
          {
          add_binary(AttributeType::HashOfIssuerPublicKey, hash);
          }
@@ -70,24 +68,24 @@ class BOTAN_DLL X509_CertificateProperties final : public CertificateProperties
          }
 
       /// @return the subject
-      inline const std::vector<byte>& subject() const
+      inline const std::vector<uint8_t>& subject() const
          {
          return m_subject;
          }
 
       /// @return the BER-encoding of the certificate
-      inline const std::vector<byte>& value() const
+      inline const std::vector<uint8_t>& value() const
          {
          return m_value;
          }
 
    private:
-      const std::vector<byte> m_subject;
-      const std::vector<byte> m_value;
+      const std::vector<uint8_t> m_subject;
+      const std::vector<uint8_t> m_value;
    };
 
 /// Represents a PKCS#11 X509 certificate
-class BOTAN_DLL PKCS11_X509_Certificate final : public Object, public X509_Certificate
+class BOTAN_PUBLIC_API(2,0) PKCS11_X509_Certificate final : public Object, public X509_Certificate
    {
    public:
       static const ObjectClass Class = ObjectClass::Certificate;

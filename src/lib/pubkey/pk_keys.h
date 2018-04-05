@@ -5,13 +5,12 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PK_KEYS_H__
-#define BOTAN_PK_KEYS_H__
+#ifndef BOTAN_PK_KEYS_H_
+#define BOTAN_PK_KEYS_H_
 
 #include <botan/secmem.h>
 #include <botan/asn1_oid.h>
 #include <botan/alg_id.h>
-#include <botan/rng.h>
 #include <botan/pk_ops_fwd.h>
 
 namespace Botan {
@@ -21,10 +20,13 @@ class RandomNumberGenerator;
 /**
 * Public Key Base Class.
 */
-class BOTAN_DLL Public_Key
+class BOTAN_PUBLIC_API(2,0) Public_Key
    {
    public:
-      virtual ~Public_Key() {}
+      Public_Key() =default;
+      Public_Key(const Public_Key& other) = default;
+      Public_Key& operator=(const Public_Key& other) = default;
+      virtual ~Public_Key() = default;
 
       /**
       * Get the name of the underlying public key scheme.
@@ -74,9 +76,19 @@ class BOTAN_DLL Public_Key
       virtual AlgorithmIdentifier algorithm_identifier() const = 0;
 
       /**
+      * @return BER encoded public key bits
+      */
+      virtual std::vector<uint8_t> public_key_bits() const = 0;
+
+      /**
       * @return X.509 subject key encoding for this key object
       */
-      virtual std::vector<byte> x509_subject_public_key() const = 0;
+      std::vector<uint8_t> subject_public_key() const;
+
+      /**
+       * @return Hash of the subject public key
+       */
+      std::string fingerprint_public(const std::string& alg = "SHA-256") const;
 
       // Internal or non-public declarations follow
 
@@ -155,13 +167,23 @@ class BOTAN_DLL Public_Key
 /**
 * Private Key Base Class
 */
-class BOTAN_DLL Private_Key : public virtual Public_Key
+class BOTAN_PUBLIC_API(2,0) Private_Key : public virtual Public_Key
    {
    public:
+      Private_Key() = default;
+      Private_Key(const Private_Key& other) = default;
+      Private_Key& operator=(const Private_Key& other) = default;
+      virtual ~Private_Key() = default;
+
+      /**
+      * @return BER encoded private key bits
+      */
+      virtual secure_vector<uint8_t> private_key_bits() const = 0;
+
       /**
       * @return PKCS #8 private key encoding for this key object
       */
-      virtual secure_vector<byte> pkcs8_private_key() const = 0;
+      secure_vector<uint8_t> private_key_info() const;
 
       /**
       * @return PKCS #8 AlgorithmIdentifier for this key
@@ -175,7 +197,13 @@ class BOTAN_DLL Private_Key : public virtual Public_Key
       /**
        * @return Hash of the PKCS #8 encoding for this key object
        */
-      std::string fingerprint(const std::string& alg = "SHA") const;
+      std::string fingerprint_private(const std::string& alg) const;
+
+      BOTAN_DEPRECATED("Use fingerprint_private or fingerprint_public")
+         inline std::string fingerprint(const std::string& alg) const
+         {
+         return fingerprint_private(alg); // match behavior in previous versions
+         }
 
       /**
       * This is an internal library function exposed on key types.
@@ -250,15 +278,18 @@ class BOTAN_DLL Private_Key : public virtual Public_Key
 /**
 * PK Secret Value Derivation Key
 */
-class BOTAN_DLL PK_Key_Agreement_Key : public virtual Private_Key
+class BOTAN_PUBLIC_API(2,0) PK_Key_Agreement_Key : public virtual Private_Key
    {
    public:
       /*
       * @return public component of this key
       */
-      virtual std::vector<byte> public_value() const = 0;
+      virtual std::vector<uint8_t> public_value() const = 0;
 
-      virtual ~PK_Key_Agreement_Key() {}
+      PK_Key_Agreement_Key() = default;
+      PK_Key_Agreement_Key(const PK_Key_Agreement_Key&) = default;
+      PK_Key_Agreement_Key& operator=(const PK_Key_Agreement_Key&) = default;
+      virtual ~PK_Key_Agreement_Key() = default;
    };
 
 /*
@@ -268,6 +299,18 @@ class BOTAN_DLL PK_Key_Agreement_Key : public virtual Private_Key
 typedef PK_Key_Agreement_Key PK_KA_Key;
 typedef Public_Key X509_PublicKey;
 typedef Private_Key PKCS8_PrivateKey;
+
+std::string BOTAN_PUBLIC_API(2,4)
+   create_hex_fingerprint(const uint8_t bits[], size_t len,
+                          const std::string& hash_name);
+
+template<typename Alloc>
+std::string create_hex_fingerprint(const std::vector<uint8_t, Alloc>& vec,
+                                   const std::string& hash_name)
+   {
+   return create_hex_fingerprint(vec.data(), vec.size(), hash_name);
+   }
+
 
 }
 

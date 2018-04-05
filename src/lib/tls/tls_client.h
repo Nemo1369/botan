@@ -6,10 +6,11 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_CLIENT_H__
-#define BOTAN_TLS_CLIENT_H__
+#ifndef BOTAN_TLS_CLIENT_H_
+#define BOTAN_TLS_CLIENT_H_
 
 #include <botan/tls_channel.h>
+#include <botan/tls_policy.h>
 #include <botan/credentials_manager.h>
 #include <vector>
 
@@ -20,7 +21,7 @@ namespace TLS {
 /**
 * SSL/TLS Client
 */
-class BOTAN_DLL Client final : public Channel
+class BOTAN_PUBLIC_API(2,0) Client final : public Channel
    {
    public:
 
@@ -150,7 +151,7 @@ class BOTAN_DLL Client final : public Channel
       void process_handshake_msg(const Handshake_State* active_state,
                                  Handshake_State& pending_state,
                                  Handshake_Type type,
-                                 const std::vector<byte>& contents) override;
+                                 const std::vector<uint8_t>& contents) override;
 
       Handshake_State* new_handshake_state(Handshake_IO* io) override;
 

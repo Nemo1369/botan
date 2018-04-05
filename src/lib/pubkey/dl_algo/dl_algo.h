@@ -5,31 +5,37 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_DL_ALGO_H__
-#define BOTAN_DL_ALGO_H__
+#ifndef BOTAN_DL_ALGO_H_
+#define BOTAN_DL_ALGO_H_
 
 #include <botan/dl_group.h>
-#include <botan/x509_key.h>
+#include <botan/pk_keys.h>
 
 namespace Botan {
 
 /**
 * This class represents discrete logarithm (DL) public keys.
 */
-class BOTAN_DLL DL_Scheme_PublicKey : public virtual Public_Key
+class BOTAN_PUBLIC_API(2,0) DL_Scheme_PublicKey : public virtual Public_Key
    {
    public:
       bool check_key(RandomNumberGenerator& rng, bool) const override;
 
       AlgorithmIdentifier algorithm_identifier() const override;
 
-      std::vector<byte> x509_subject_public_key() const override;
+      std::vector<uint8_t> public_key_bits() const override;
 
       /**
       * Get the DL domain parameters of this key.
       * @return DL domain parameters of this key
       */
       const DL_Group& get_domain() const { return m_group; }
+
+      /**
+      * Get the DL domain parameters of this key.
+      * @return DL domain parameters of this key
+      */
+      const DL_Group& get_group() const { return m_group; }
 
       /**
       * Get the public value y with y = g^x mod p where x is the secret key.
@@ -63,18 +69,22 @@ class BOTAN_DLL DL_Scheme_PublicKey : public virtual Public_Key
       size_t key_length() const override;
       size_t estimated_strength() const override;
 
+      DL_Scheme_PublicKey& operator=(const DL_Scheme_PublicKey& other) = default;
+
+   protected:
+      DL_Scheme_PublicKey() = default;
+
       /**
       * Create a public key.
       * @param alg_id the X.509 algorithm identifier
-      * @param key_bits X.509 subject public key info structure
+      * @param key_bits DER encoded public key bits
       * @param group_format the underlying groups encoding format
       */
       DL_Scheme_PublicKey(const AlgorithmIdentifier& alg_id,
-                          const secure_vector<byte>& key_bits,
+                          const std::vector<uint8_t>& key_bits,
                           DL_Group::Format group_format);
 
-   protected:
-      DL_Scheme_PublicKey() {}
+      DL_Scheme_PublicKey(const DL_Group& group, const BigInt& y);
 
       /**
       * The DL public key
@@ -90,7 +100,7 @@ class BOTAN_DLL DL_Scheme_PublicKey : public virtual Public_Key
 /**
 * This class represents discrete logarithm (DL) private keys.
 */
-class BOTAN_DLL DL_Scheme_PrivateKey : public virtual DL_Scheme_PublicKey,
+class BOTAN_PUBLIC_API(2,0) DL_Scheme_PrivateKey : public virtual DL_Scheme_PublicKey,
                                        public virtual Private_Key
    {
    public:
@@ -102,8 +112,11 @@ class BOTAN_DLL DL_Scheme_PrivateKey : public virtual DL_Scheme_PublicKey,
       */
       const BigInt& get_x() const { return m_x; }
 
-      secure_vector<byte> pkcs8_private_key() const override;
+      secure_vector<uint8_t> private_key_bits() const override;
 
+      DL_Scheme_PrivateKey& operator=(const DL_Scheme_PrivateKey& other) = default;
+
+   protected:
       /**
       * Create a private key.
       * @param alg_id the X.509 algorithm identifier
@@ -111,11 +124,10 @@ class BOTAN_DLL DL_Scheme_PrivateKey : public virtual DL_Scheme_PublicKey,
       * @param group_format the underlying groups encoding format
       */
       DL_Scheme_PrivateKey(const AlgorithmIdentifier& alg_id,
-                           const secure_vector<byte>& key_bits,
+                           const secure_vector<uint8_t>& key_bits,
                            DL_Group::Format group_format);
 
-   protected:
-      DL_Scheme_PrivateKey() {}
+      DL_Scheme_PrivateKey() = default;
 
       /**
       * The DL private key

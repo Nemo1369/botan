@@ -6,20 +6,21 @@
 */
 
 #include <botan/lion.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 
 /*
 * Lion Encryption
 */
-void Lion::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void Lion::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_key1.empty() == false);
+
    const size_t LEFT_SIZE = left_size();
    const size_t RIGHT_SIZE = right_size();
 
-   secure_vector<byte> buffer_vec(LEFT_SIZE);
-   byte* buffer = buffer_vec.data();
+   secure_vector<uint8_t> buffer_vec(LEFT_SIZE);
+   uint8_t* buffer = buffer_vec.data();
 
    for(size_t i = 0; i != blocks; ++i)
       {
@@ -43,13 +44,15 @@ void Lion::encrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * Lion Decryption
 */
-void Lion::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void Lion::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_key1.empty() == false);
+
    const size_t LEFT_SIZE = left_size();
    const size_t RIGHT_SIZE = right_size();
 
-   secure_vector<byte> buffer_vec(LEFT_SIZE);
-   byte* buffer = buffer_vec.data();
+   secure_vector<uint8_t> buffer_vec(LEFT_SIZE);
+   uint8_t* buffer = buffer_vec.data();
 
    for(size_t i = 0; i != blocks; ++i)
       {
@@ -73,11 +76,16 @@ void Lion::decrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * Lion Key Schedule
 */
-void Lion::key_schedule(const byte key[], size_t length)
+void Lion::key_schedule(const uint8_t key[], size_t length)
    {
    clear();
 
    const size_t half = length / 2;
+
+   m_key1.resize(left_size());
+   m_key2.resize(left_size());
+   clear_mem(m_key1.data(), m_key1.size());
+   clear_mem(m_key2.data(), m_key2.size());
    copy_mem(m_key1.data(), key, half);
    copy_mem(m_key2.data(), key + half, half);
    }
@@ -105,8 +113,8 @@ BlockCipher* Lion::clone() const
 */
 void Lion::clear()
    {
-   zeroise(m_key1);
-   zeroise(m_key2);
+   zap(m_key1);
+   zap(m_key2);
    m_hash->clear();
    m_cipher->clear();
    }
@@ -124,9 +132,6 @@ Lion::Lion(HashFunction* hash, StreamCipher* cipher, size_t bs) :
 
    if(!m_cipher->valid_keylength(left_size()))
       throw Invalid_Argument(name() + ": This stream/hash combo is invalid");
-
-   m_key1.resize(left_size());
-   m_key2.resize(left_size());
    }
 
 }

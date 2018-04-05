@@ -7,8 +7,6 @@
 
 #include <botan/hex_filt.h>
 #include <botan/hex.h>
-#include <botan/parsing.h>
-#include <botan/charset.h>
 #include <botan/exceptn.h>
 #include <algorithm>
 
@@ -43,9 +41,9 @@ Hex_Encoder::Hex_Encoder(Case c) : m_casing(c), m_line_length(0)
 /*
 * Encode and send a block
 */
-void Hex_Encoder::encode_and_send(const byte block[], size_t length)
+void Hex_Encoder::encode_and_send(const uint8_t block[], size_t length)
    {
-   hex_encode(reinterpret_cast<char*>(m_out.data()),
+   hex_encode(cast_uint8_ptr_to_char(m_out.data()),
               block, length,
               m_casing == Uppercase);
 
@@ -73,7 +71,7 @@ void Hex_Encoder::encode_and_send(const byte block[], size_t length)
 /*
 * Convert some data into hex format
 */
-void Hex_Encoder::write(const byte input[], size_t length)
+void Hex_Encoder::write(const uint8_t input[], size_t length)
    {
    buffer_insert(m_in, m_position, input, length);
    if(m_position + length >= m_in.size())
@@ -117,7 +115,7 @@ Hex_Decoder::Hex_Decoder(Decoder_Checking c) : m_checking(c)
 /*
 * Convert some data from hex format
 */
-void Hex_Decoder::write(const byte input[], size_t length)
+void Hex_Decoder::write(const uint8_t input[], size_t length)
    {
    while(length)
       {
@@ -127,7 +125,7 @@ void Hex_Decoder::write(const byte input[], size_t length)
 
       size_t consumed = 0;
       size_t written = hex_decode(m_out.data(),
-                                  reinterpret_cast<const char*>(m_in.data()),
+                                  cast_uint8_ptr_to_char(m_in.data()),
                                   m_position,
                                   consumed,
                                   m_checking != FULL_CHECK);
@@ -154,7 +152,7 @@ void Hex_Decoder::end_msg()
    {
    size_t consumed = 0;
    size_t written = hex_decode(m_out.data(),
-                               reinterpret_cast<const char*>(m_in.data()),
+                               cast_uint8_ptr_to_char(m_in.data()),
                                m_position,
                                consumed,
                                m_checking != FULL_CHECK);

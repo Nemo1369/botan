@@ -4,8 +4,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TEST_PUBKEY_H__
-#define BOTAN_TEST_PUBKEY_H__
+#ifndef BOTAN_TEST_PUBKEY_H_
+#define BOTAN_TEST_PUBKEY_H_
 
 #include "tests.h"
 
@@ -17,111 +17,182 @@
 
 namespace Botan_Tests {
 
-class PK_Signature_Generation_Test : public Text_Based_Test
+class PK_Test : public Text_Based_Test
    {
    public:
-      PK_Signature_Generation_Test(const std::string& algo,
-                                   const std::string& test_src,
-                                   const std::vector<std::string>& required_keys,
-                                   const std::vector<std::string>& optional_keys = {}) :
-         Text_Based_Test(algo, test_src, required_keys, optional_keys) {}
+      PK_Test(const std::string& algo,
+              const std::string& test_src,
+              const std::string& required_keys,
+              const std::string& optional_keys = {})
+         : Text_Based_Test(test_src, required_keys, optional_keys), m_algo(algo) {}
+
+      std::string algo_name() const
+         {
+         return m_algo;
+         }
+
+   protected:
+      std::vector<std::string> possible_providers(const std::string& params) override;
 
       virtual std::string default_padding(const VarMap&) const
          {
          throw Test_Error("No default padding scheme set for " + algo_name());
          }
+
+      virtual std::string choose_padding(const VarMap& vars,
+                                         const std::string& pad_hdr);
+
+   private:
+      std::string m_algo;
+   };
+
+class PK_Signature_Generation_Test : public PK_Test
+   {
+   public:
+      PK_Signature_Generation_Test(const std::string& algo,
+                                   const std::string& test_src,
+                                   const std::string& required_keys,
+                                   const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
+
 
       virtual std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) = 0;
 
       virtual Botan::RandomNumberGenerator* test_rng(const std::vector<uint8_t>& nonce) const
          {
-            return new Fixed_Output_RNG(nonce);
+         return new Fixed_Output_RNG(nonce);
          }
 
    private:
-      Test::Result run_one_test(const std::string&, const VarMap& vars) override;
+      Test::Result run_one_test(const std::string&, const VarMap& vars) override final;
    };
 
-class PK_Signature_Verification_Test : public Text_Based_Test
+class PK_Signature_Verification_Test : public PK_Test
    {
    public:
       PK_Signature_Verification_Test(const std::string& algo,
                                      const std::string& test_src,
-                                     const std::vector<std::string>& required_keys,
-                                     const std::vector<std::string>& optional_keys = {}) :
-         Text_Based_Test(algo, test_src, required_keys, optional_keys) {}
+                                     const std::string& required_keys,
+                                     const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
 
-      virtual std::string default_padding(const VarMap&) const
+      virtual std::unique_ptr<Botan::Public_Key> load_public_key(const VarMap& vars) = 0;
+   private:
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
+   };
+
+class PK_Signature_NonVerification_Test : public PK_Test
+   {
+   public:
+      PK_Signature_NonVerification_Test(const std::string& algo,
+                                        const std::string& test_src,
+                                        const std::string& required_keys,
+                                        const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
+
+      bool clear_between_callbacks() const override
          {
-         throw Test_Error("No default padding scheme set for " + algo_name());
+         return false;
          }
 
       virtual std::unique_ptr<Botan::Public_Key> load_public_key(const VarMap& vars) = 0;
    private:
-      Test::Result run_one_test(const std::string& header, const VarMap& vars) override;
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
    };
 
-class PK_Encryption_Decryption_Test : public Text_Based_Test
+class PK_Encryption_Decryption_Test : public PK_Test
    {
    public:
       PK_Encryption_Decryption_Test(const std::string& algo,
                                     const std::string& test_src,
-                                    const std::vector<std::string>& required_keys,
-                                    const std::vector<std::string>& optional_keys = {}) :
-         Text_Based_Test(algo, test_src, required_keys, optional_keys) {}
+                                    const std::string& required_keys,
+                                    const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
 
       virtual std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) = 0;
 
-      virtual std::string default_padding(const VarMap&) const { return "Raw"; }
-   private:
-      Test::Result run_one_test(const std::string& header, const VarMap& vars) override;
-};
+      std::string default_padding(const VarMap&) const override
+         {
+         return "Raw";
+         }
 
-class PK_Key_Agreement_Test : public Text_Based_Test
+      virtual Botan::RandomNumberGenerator* test_rng(const std::vector<uint8_t>& nonce) const
+         {
+         return new Fixed_Output_RNG(nonce);
+         }
+
+   private:
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
+   };
+
+class PK_Decryption_Test : public PK_Test
+   {
+   public:
+      PK_Decryption_Test(const std::string& algo,
+                         const std::string& test_src,
+                         const std::string& required_keys,
+                         const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
+
+      virtual std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) = 0;
+
+      std::string default_padding(const VarMap&) const override
+         {
+         return "Raw";
+         }
+
+   private:
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
+   };
+
+class PK_Key_Agreement_Test : public PK_Test
    {
    public:
       PK_Key_Agreement_Test(const std::string& algo,
                             const std::string& test_src,
-                            const std::vector<std::string>& required_keys,
-                            const std::vector<std::string>& optional_keys = {}) :
-         Text_Based_Test(algo, test_src, required_keys, optional_keys) {}
+                            const std::string& required_keys,
+                            const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
 
       virtual std::unique_ptr<Botan::Private_Key> load_our_key(const std::string& header,
-                                                               const VarMap& vars) = 0;
+            const VarMap& vars) = 0;
 
       virtual std::vector<uint8_t> load_their_key(const std::string& header,
-                                                  const VarMap& vars) = 0;
+            const VarMap& vars) = 0;
 
-      virtual std::string default_kdf(const VarMap&) const { return "Raw"; }
+      virtual std::string default_kdf(const VarMap&) const
+         {
+         return "Raw";
+         }
 
    private:
-      Test::Result run_one_test(const std::string& header, const VarMap& vars) override;
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
    };
 
-class PK_KEM_Test : public Text_Based_Test
+class PK_KEM_Test : public PK_Test
    {
    public:
-      //using Text_Based_Test::Text_Based_Test;
-
       PK_KEM_Test(const std::string& algo,
                   const std::string& test_src,
-                  const std::vector<std::string>& required_keys,
-                  const std::vector<std::string>& optional_keys = {}) :
-         Text_Based_Test(algo, test_src, required_keys, optional_keys) {}
+                  const std::string& required_keys,
+                  const std::string& optional_keys = "")
+         : PK_Test(algo, test_src, required_keys, optional_keys) {}
 
       virtual std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) = 0;
    private:
-      Test::Result run_one_test(const std::string& header, const VarMap& vars) override;
+      Test::Result run_one_test(const std::string& header, const VarMap& vars) override final;
    };
 
 class PK_Key_Generation_Test : public Test
    {
    protected:
-      std::vector<Test::Result> run() override;
+      std::vector<Test::Result> run() override final;
 
       virtual std::vector<std::string> keygen_params() const = 0;
 
       virtual std::string algo_name() const = 0;
+
+      std::vector<std::string> possible_providers(const std::string& params) override;
    };
 
 void check_invalid_signatures(Test::Result& result,

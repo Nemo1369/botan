@@ -25,7 +25,7 @@ __m128i aes_128_key_expansion(__m128i key, __m128i key_with_rcon)
 
 BOTAN_FUNC_ISA("ssse3")
 void aes_192_key_expansion(__m128i* K1, __m128i* K2, __m128i key2_with_rcon,
-                           u32bit out[], bool last)
+                           uint32_t out[], bool last)
    {
    __m128i key1 = *K1;
    __m128i key2 = *K2;
@@ -107,24 +107,26 @@ __m128i aes_256_key_expansion(__m128i key, __m128i key2)
 * AES-128 Encryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_128::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_128::aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_EK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_EK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
 
    while(blocks >= 4)
       {
@@ -184,24 +186,26 @@ void AES_128::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-128 Decryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_128::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_128::aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_DK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_DK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
 
    while(blocks >= 4)
       {
@@ -261,7 +265,7 @@ void AES_128::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-128 Key Schedule
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_128::aesni_key_schedule(const byte key[], size_t)
+void AES_128::aesni_key_schedule(const uint8_t key[], size_t)
    {
    m_EK.resize(44);
    m_DK.resize(44);
@@ -269,17 +273,17 @@ void AES_128::aesni_key_schedule(const byte key[], size_t)
    #define AES_128_key_exp(K, RCON) \
       aes_128_key_expansion(K, _mm_aeskeygenassist_si128(K, RCON))
 
-   __m128i K0  = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key));
-   __m128i K1  = AES_128_key_exp(K0, 0x01);
-   __m128i K2  = AES_128_key_exp(K1, 0x02);
-   __m128i K3  = AES_128_key_exp(K2, 0x04);
-   __m128i K4  = AES_128_key_exp(K3, 0x08);
-   __m128i K5  = AES_128_key_exp(K4, 0x10);
-   __m128i K6  = AES_128_key_exp(K5, 0x20);
-   __m128i K7  = AES_128_key_exp(K6, 0x40);
-   __m128i K8  = AES_128_key_exp(K7, 0x80);
-   __m128i K9  = AES_128_key_exp(K8, 0x1B);
-   __m128i K10 = AES_128_key_exp(K9, 0x36);
+   const __m128i K0  = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key));
+   const __m128i K1  = AES_128_key_exp(K0, 0x01);
+   const __m128i K2  = AES_128_key_exp(K1, 0x02);
+   const __m128i K3  = AES_128_key_exp(K2, 0x04);
+   const __m128i K4  = AES_128_key_exp(K3, 0x08);
+   const __m128i K5  = AES_128_key_exp(K4, 0x10);
+   const __m128i K6  = AES_128_key_exp(K5, 0x20);
+   const __m128i K7  = AES_128_key_exp(K6, 0x40);
+   const __m128i K8  = AES_128_key_exp(K7, 0x80);
+   const __m128i K9  = AES_128_key_exp(K8, 0x1B);
+   const __m128i K10 = AES_128_key_exp(K9, 0x36);
 
    __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
    _mm_storeu_si128(EK_mm     , K0);
@@ -314,26 +318,28 @@ void AES_128::aesni_key_schedule(const byte key[], size_t)
 * AES-192 Encryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_192::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_192::aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_EK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_EK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
-   __m128i K11 = _mm_loadu_si128(key_mm + 11);
-   __m128i K12 = _mm_loadu_si128(key_mm + 12);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K11 = _mm_loadu_si128(key_mm + 11);
+   const __m128i K12 = _mm_loadu_si128(key_mm + 12);
 
    while(blocks >= 4)
       {
@@ -397,26 +403,28 @@ void AES_192::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-192 Decryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_192::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_192::aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_DK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_DK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
-   __m128i K11 = _mm_loadu_si128(key_mm + 11);
-   __m128i K12 = _mm_loadu_si128(key_mm + 12);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K11 = _mm_loadu_si128(key_mm + 11);
+   const __m128i K12 = _mm_loadu_si128(key_mm + 12);
 
    while(blocks >= 4)
       {
@@ -480,7 +488,7 @@ void AES_192::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-192 Key Schedule
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_192::aesni_key_schedule(const byte key[], size_t)
+void AES_192::aesni_key_schedule(const uint8_t key[], size_t)
    {
    m_EK.resize(52);
    m_DK.resize(52);
@@ -530,28 +538,30 @@ void AES_192::aesni_key_schedule(const byte key[], size_t)
 * AES-256 Encryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_256::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_256::aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_EK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_EK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
-   __m128i K11 = _mm_loadu_si128(key_mm + 11);
-   __m128i K12 = _mm_loadu_si128(key_mm + 12);
-   __m128i K13 = _mm_loadu_si128(key_mm + 13);
-   __m128i K14 = _mm_loadu_si128(key_mm + 14);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K11 = _mm_loadu_si128(key_mm + 11);
+   const __m128i K12 = _mm_loadu_si128(key_mm + 12);
+   const __m128i K13 = _mm_loadu_si128(key_mm + 13);
+   const __m128i K14 = _mm_loadu_si128(key_mm + 14);
 
    while(blocks >= 4)
       {
@@ -619,28 +629,30 @@ void AES_256::aesni_encrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-256 Decryption
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_256::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_256::aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   BOTAN_ASSERT(m_DK.empty() == false, "Key was set");
+
    const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
    __m128i* out_mm = reinterpret_cast<__m128i*>(out);
 
    const __m128i* key_mm = reinterpret_cast<const __m128i*>(m_DK.data());
 
-   __m128i K0  = _mm_loadu_si128(key_mm);
-   __m128i K1  = _mm_loadu_si128(key_mm + 1);
-   __m128i K2  = _mm_loadu_si128(key_mm + 2);
-   __m128i K3  = _mm_loadu_si128(key_mm + 3);
-   __m128i K4  = _mm_loadu_si128(key_mm + 4);
-   __m128i K5  = _mm_loadu_si128(key_mm + 5);
-   __m128i K6  = _mm_loadu_si128(key_mm + 6);
-   __m128i K7  = _mm_loadu_si128(key_mm + 7);
-   __m128i K8  = _mm_loadu_si128(key_mm + 8);
-   __m128i K9  = _mm_loadu_si128(key_mm + 9);
-   __m128i K10 = _mm_loadu_si128(key_mm + 10);
-   __m128i K11 = _mm_loadu_si128(key_mm + 11);
-   __m128i K12 = _mm_loadu_si128(key_mm + 12);
-   __m128i K13 = _mm_loadu_si128(key_mm + 13);
-   __m128i K14 = _mm_loadu_si128(key_mm + 14);
+   const __m128i K0  = _mm_loadu_si128(key_mm);
+   const __m128i K1  = _mm_loadu_si128(key_mm + 1);
+   const __m128i K2  = _mm_loadu_si128(key_mm + 2);
+   const __m128i K3  = _mm_loadu_si128(key_mm + 3);
+   const __m128i K4  = _mm_loadu_si128(key_mm + 4);
+   const __m128i K5  = _mm_loadu_si128(key_mm + 5);
+   const __m128i K6  = _mm_loadu_si128(key_mm + 6);
+   const __m128i K7  = _mm_loadu_si128(key_mm + 7);
+   const __m128i K8  = _mm_loadu_si128(key_mm + 8);
+   const __m128i K9  = _mm_loadu_si128(key_mm + 9);
+   const __m128i K10 = _mm_loadu_si128(key_mm + 10);
+   const __m128i K11 = _mm_loadu_si128(key_mm + 11);
+   const __m128i K12 = _mm_loadu_si128(key_mm + 12);
+   const __m128i K13 = _mm_loadu_si128(key_mm + 13);
+   const __m128i K14 = _mm_loadu_si128(key_mm + 14);
 
    while(blocks >= 4)
       {
@@ -708,33 +720,33 @@ void AES_256::aesni_decrypt_n(const byte in[], byte out[], size_t blocks) const
 * AES-256 Key Schedule
 */
 BOTAN_FUNC_ISA("ssse3,aes")
-void AES_256::aesni_key_schedule(const byte key[], size_t)
+void AES_256::aesni_key_schedule(const uint8_t key[], size_t)
    {
    m_EK.resize(60);
    m_DK.resize(60);
 
-   __m128i K0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key));
-   __m128i K1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key + 16));
+   const __m128i K0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key));
+   const __m128i K1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key + 16));
 
-   __m128i K2 = aes_128_key_expansion(K0, _mm_aeskeygenassist_si128(K1, 0x01));
-   __m128i K3 = aes_256_key_expansion(K1, K2);
+   const __m128i K2 = aes_128_key_expansion(K0, _mm_aeskeygenassist_si128(K1, 0x01));
+   const __m128i K3 = aes_256_key_expansion(K1, K2);
 
-   __m128i K4 = aes_128_key_expansion(K2, _mm_aeskeygenassist_si128(K3, 0x02));
-   __m128i K5 = aes_256_key_expansion(K3, K4);
+   const __m128i K4 = aes_128_key_expansion(K2, _mm_aeskeygenassist_si128(K3, 0x02));
+   const __m128i K5 = aes_256_key_expansion(K3, K4);
 
-   __m128i K6 = aes_128_key_expansion(K4, _mm_aeskeygenassist_si128(K5, 0x04));
-   __m128i K7 = aes_256_key_expansion(K5, K6);
+   const __m128i K6 = aes_128_key_expansion(K4, _mm_aeskeygenassist_si128(K5, 0x04));
+   const __m128i K7 = aes_256_key_expansion(K5, K6);
 
-   __m128i K8 = aes_128_key_expansion(K6, _mm_aeskeygenassist_si128(K7, 0x08));
-   __m128i K9 = aes_256_key_expansion(K7, K8);
+   const __m128i K8 = aes_128_key_expansion(K6, _mm_aeskeygenassist_si128(K7, 0x08));
+   const __m128i K9 = aes_256_key_expansion(K7, K8);
 
-   __m128i K10 = aes_128_key_expansion(K8, _mm_aeskeygenassist_si128(K9, 0x10));
-   __m128i K11 = aes_256_key_expansion(K9, K10);
+   const __m128i K10 = aes_128_key_expansion(K8, _mm_aeskeygenassist_si128(K9, 0x10));
+   const __m128i K11 = aes_256_key_expansion(K9, K10);
 
-   __m128i K12 = aes_128_key_expansion(K10, _mm_aeskeygenassist_si128(K11, 0x20));
-   __m128i K13 = aes_256_key_expansion(K11, K12);
+   const __m128i K12 = aes_128_key_expansion(K10, _mm_aeskeygenassist_si128(K11, 0x20));
+   const __m128i K13 = aes_256_key_expansion(K11, K12);
 
-   __m128i K14 = aes_128_key_expansion(K12, _mm_aeskeygenassist_si128(K13, 0x40));
+   const __m128i K14 = aes_128_key_expansion(K12, _mm_aeskeygenassist_si128(K13, 0x40));
 
    __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
    _mm_storeu_si128(EK_mm     , K0);

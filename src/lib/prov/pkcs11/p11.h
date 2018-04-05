@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_P11_H__
-#define BOTAN_P11_H__
+#ifndef BOTAN_P11_H_
+#define BOTAN_P11_H_
 
 #include <botan/secmem.h>
 #include <botan/exceptn.h>
@@ -58,7 +58,7 @@ static_assert(CRYPTOKI_VERSION_MAJOR == 2 && CRYPTOKI_VERSION_MINOR == 40,
 namespace Botan {
 namespace PKCS11 {
 
-using secure_string = secure_vector<byte>;
+using secure_string = secure_vector<uint8_t>;
 
 enum class AttributeType : CK_ATTRIBUTE_TYPE
    {
@@ -850,7 +850,7 @@ using RsaPkcsPssParams = CK_RSA_PKCS_PSS_PARAMS;
 using Ecdh1DeriveParams = CK_ECDH1_DERIVE_PARAMS;
 using Date = CK_DATE;
 
-BOTAN_DLL extern ReturnValue* ThrowException;
+BOTAN_PUBLIC_API(2,0) extern ReturnValue* ThrowException;
 
 const Bbool True = CK_TRUE;
 const Bbool False = CK_FALSE;
@@ -869,7 +869,7 @@ class Slot;
 * @param so_pin PIN of the security officer. Will be set if the token is uninitialized other this has to be the current SO_PIN
 * @param pin The user PIN that will be set
 */
-BOTAN_DLL void initialize_token(Slot& slot, const std::string& label, const secure_string& so_pin,
+BOTAN_PUBLIC_API(2,0) void initialize_token(Slot& slot, const std::string& label, const secure_string& so_pin,
                                 const secure_string& pin);
 
 /**
@@ -879,7 +879,7 @@ BOTAN_DLL void initialize_token(Slot& slot, const std::string& label, const secu
 * @param new_pin The new user PIN
 */
 
-BOTAN_DLL void change_pin(Slot& slot, const secure_string& old_pin, const secure_string& new_pin);
+BOTAN_PUBLIC_API(2,0) void change_pin(Slot& slot, const secure_string& old_pin, const secure_string& new_pin);
 
 /**
 * Change SO_PIN with old SO_PIN to new SO_PIN
@@ -887,7 +887,7 @@ BOTAN_DLL void change_pin(Slot& slot, const secure_string& old_pin, const secure
 * @param old_so_pin The old SO_PIN
 * @param new_so_pin The new SO_PIN
 */
-BOTAN_DLL void change_so_pin(Slot& slot, const secure_string& old_so_pin, const secure_string& new_so_pin);
+BOTAN_PUBLIC_API(2,0) void change_so_pin(Slot& slot, const secure_string& old_so_pin, const secure_string& new_so_pin);
 
 /**
 * Sets user PIN with SO_PIN
@@ -895,17 +895,14 @@ BOTAN_DLL void change_so_pin(Slot& slot, const secure_string& old_so_pin, const 
 * @param so_pin PIN of the security officer
 * @param pin The user PIN that should be set
 */
-BOTAN_DLL void set_pin(Slot& slot, const secure_string& so_pin, const secure_string& pin);
+BOTAN_PUBLIC_API(2,0) void set_pin(Slot& slot, const secure_string& so_pin, const secure_string& pin);
 
 /// Provides access to all PKCS#11 functions
-class BOTAN_DLL LowLevel
+class BOTAN_PUBLIC_API(2,0) LowLevel
    {
    public:
-
       /// @param ptr the functon list pointer to use. Can be retrieved via `LowLevel::C_GetFunctionList`
       explicit LowLevel(FunctionListPtr ptr);
-
-      ~LowLevel() BOTAN_NOEXCEPT;
 
       /****************************** General purpose functions ******************************/
 
@@ -1149,7 +1146,7 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_InitToken(SlotId slot_id,
-                       const std::vector<byte, TAlloc>& so_pin,
+                       const std::vector<uint8_t, TAlloc>& so_pin,
                        const std::string& label,
                        ReturnValue* return_value = ThrowException) const
          {
@@ -1159,7 +1156,7 @@ class BOTAN_DLL LowLevel
             padded_label.insert(padded_label.end(), 32 - label.size(), ' ');
             }
 
-         return C_InitToken(slot_id, reinterpret_cast< Utf8Char* >(const_cast< byte* >(so_pin.data())),
+         return C_InitToken(slot_id, reinterpret_cast< Utf8Char* >(const_cast< uint8_t* >(so_pin.data())),
                             so_pin.size(), reinterpret_cast< Utf8Char* >(const_cast< char* >(padded_label.c_str())), return_value);
          }
 
@@ -1201,10 +1198,10 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_InitPIN(SessionHandle session,
-                     const std::vector<byte, TAlloc>& pin,
+                     const std::vector<uint8_t, TAlloc>& pin,
                      ReturnValue* return_value = ThrowException) const
          {
-         return C_InitPIN(session, reinterpret_cast< Utf8Char* >(const_cast< byte* >(pin.data())), pin.size(), return_value);
+         return C_InitPIN(session, reinterpret_cast< Utf8Char* >(const_cast< uint8_t* >(pin.data())), pin.size(), return_value);
          }
 
       /**
@@ -1250,13 +1247,13 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_SetPIN(SessionHandle session,
-                    const std::vector<byte, TAlloc>& old_pin,
-                    const std::vector<byte, TAlloc>& new_pin,
+                    const std::vector<uint8_t, TAlloc>& old_pin,
+                    const std::vector<uint8_t, TAlloc>& new_pin,
                     ReturnValue* return_value = ThrowException) const
          {
          return C_SetPIN(session,
-                         reinterpret_cast< Utf8Char* >(const_cast< byte* >(old_pin.data())), old_pin.size(),
-                         reinterpret_cast< Utf8Char* >(const_cast< byte* >(new_pin.data())), new_pin.size(),
+                         reinterpret_cast< Utf8Char* >(const_cast< uint8_t* >(old_pin.data())), old_pin.size(),
+                         reinterpret_cast< Utf8Char* >(const_cast< uint8_t* >(new_pin.data())), new_pin.size(),
                          return_value);
          }
 
@@ -1423,10 +1420,10 @@ class BOTAN_DLL LowLevel
       template<typename TAlloc>
       bool C_Login(SessionHandle session,
                    UserType user_type,
-                   const std::vector<byte, TAlloc>& pin,
+                   const std::vector<uint8_t, TAlloc>& pin,
                    ReturnValue* return_value = ThrowException) const
          {
-         return C_Login(session, user_type, reinterpret_cast< Utf8Char* >(const_cast< byte* >(pin.data())), pin.size(),
+         return C_Login(session, user_type, reinterpret_cast< Utf8Char* >(const_cast< uint8_t* >(pin.data())), pin.size(),
                         return_value);
          }
 
@@ -1576,7 +1573,7 @@ class BOTAN_DLL LowLevel
       template<typename TAlloc>
       bool C_GetAttributeValue(SessionHandle session,
                                ObjectHandle object,
-                               std::map<AttributeType, std::vector<byte, TAlloc>>& attribute_values,
+                               std::map<AttributeType, std::vector<uint8_t, TAlloc>>& attribute_values,
                                ReturnValue* return_value = ThrowException) const
          {
          std::vector<Attribute> getter_template;
@@ -1599,7 +1596,7 @@ class BOTAN_DLL LowLevel
             {
             entry.second.clear();
             entry.second.resize(getter_template.at(i).ulValueLen);
-            getter_template.at(i).pValue = const_cast< byte* >(entry.second.data());
+            getter_template.at(i).pValue = const_cast< uint8_t* >(entry.second.data());
             i++;
             }
 
@@ -1651,7 +1648,7 @@ class BOTAN_DLL LowLevel
       template<typename TAlloc>
       bool C_SetAttributeValue(SessionHandle session,
                                ObjectHandle object,
-                               std::map<AttributeType, std::vector<byte, TAlloc>>& attribute_values,
+                               std::map<AttributeType, std::vector<uint8_t, TAlloc>>& attribute_values,
                                ReturnValue* return_value = ThrowException) const
          {
          std::vector<Attribute> setter_template;
@@ -1788,8 +1785,8 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAllocA, typename TAllocB>
       bool C_Encrypt(SessionHandle session,
-                     const std::vector<byte, TAllocA>& plaintext_data,
-                     std::vector<byte, TAllocB>& encrypted_data,
+                     const std::vector<uint8_t, TAllocA>& plaintext_data,
+                     std::vector<uint8_t, TAllocB>& encrypted_data,
                      ReturnValue* return_value = ThrowException) const
          {
          Ulong encrypted_size = 0;
@@ -1915,8 +1912,8 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAllocA, typename TAllocB>
       bool C_Decrypt(SessionHandle session,
-                     const std::vector<byte, TAllocA>& encrypted_data,
-                     std::vector<byte, TAllocB>& decrypted_data,
+                     const std::vector<uint8_t, TAllocA>& encrypted_data,
+                     std::vector<uint8_t, TAllocB>& decrypted_data,
                      ReturnValue* return_value = ThrowException) const
          {
          Ulong decrypted_size = 0;
@@ -2064,7 +2061,7 @@ class BOTAN_DLL LowLevel
       * C_DigestFinal finishes a multiple-part message-digesting operation.
       * @param session the session's handle
       * @param digest_ptr gets the message digest
-      * @param digest_len_ptr gets byte count of digest
+      * @param digest_len_ptr gets uint8_t count of digest
       * @param return_value default value (`ThrowException`): throw exception on error.
       * if a non-NULL pointer is passed: return_value receives the return value of the PKCS#11 function and no exception is thrown.
       * At least the following PKCS#11 return values may be returned:
@@ -2147,8 +2144,8 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAllocA, typename TAllocB>
       bool C_Sign(SessionHandle session,
-                  const std::vector<byte, TAllocA>& data,
-                  std::vector<byte, TAllocB>& signature,
+                  const std::vector<uint8_t, TAllocA>& data,
+                  std::vector<uint8_t, TAllocB>& signature,
                   ReturnValue* return_value = ThrowException) const
          {
          Ulong signature_size = 0;
@@ -2197,7 +2194,7 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_SignUpdate(SessionHandle session,
-                        const std::vector<byte, TAlloc>& part,
+                        const std::vector<uint8_t, TAlloc>& part,
                         ReturnValue* return_value = ThrowException) const
          {
          return C_SignUpdate(session, const_cast<Byte*>(part.data()), part.size(), return_value);
@@ -2241,7 +2238,7 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_SignFinal(SessionHandle session,
-                       std::vector<byte, TAlloc>& signature,
+                       std::vector<uint8_t, TAlloc>& signature,
                        ReturnValue* return_value = ThrowException) const
          {
          Ulong signature_size = 0;
@@ -2368,8 +2365,8 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAllocA, typename TAllocB>
       bool C_Verify(SessionHandle session,
-                    const std::vector<byte, TAllocA>& data,
-                    std::vector<byte, TAllocB>& signature,
+                    const std::vector<uint8_t, TAllocA>& data,
+                    std::vector<uint8_t, TAllocB>& signature,
                     ReturnValue* return_value = ThrowException) const
          {
          return C_Verify(session, const_cast<Byte*>(data.data()), data.size(), signature.data(), signature.size(), return_value);
@@ -2411,7 +2408,7 @@ class BOTAN_DLL LowLevel
       */
       template<typename TAlloc>
       bool C_VerifyUpdate(SessionHandle session,
-                          std::vector<byte, TAlloc> part,
+                          std::vector<uint8_t, TAlloc> part,
                           ReturnValue* return_value = ThrowException) const
          {
          return C_VerifyUpdate(session, part.data(), part.size(), return_value);
@@ -2824,7 +2821,7 @@ class BOTAN_DLL LowLevel
       const FunctionListPtr m_func_list_ptr;
    };
 
-class PKCS11_Error : public Exception
+class BOTAN_PUBLIC_API(2,0) PKCS11_Error : public Exception
    {
    public:
       explicit PKCS11_Error(const std::string& what) :
@@ -2833,7 +2830,7 @@ class PKCS11_Error : public Exception
          }
    };
 
-class PKCS11_ReturnError : public PKCS11_Error
+class BOTAN_PUBLIC_API(2,0) PKCS11_ReturnError final : public PKCS11_Error
    {
    public:
       explicit PKCS11_ReturnError(ReturnValue return_val) :

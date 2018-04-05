@@ -1,6 +1,6 @@
 /*
 * HKDF
-* (C) 2013,2015 Jack Lloyd
+* (C) 2013,2015,2017 Jack Lloyd
 * (C) 2016 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -10,28 +10,28 @@
 
 namespace Botan {
 
-size_t HKDF::kdf(byte key[], size_t key_len,
-                 const byte secret[], size_t secret_len,
-                 const byte salt[], size_t salt_len,
-                 const byte label[], size_t label_len) const
+size_t HKDF::kdf(uint8_t key[], size_t key_len,
+                 const uint8_t secret[], size_t secret_len,
+                 const uint8_t salt[], size_t salt_len,
+                 const uint8_t label[], size_t label_len) const
    {
    HKDF_Extract extract(m_prf->clone());
    HKDF_Expand expand(m_prf->clone());
-   secure_vector<byte> prk(m_prf->output_length());
+   secure_vector<uint8_t> prk(m_prf->output_length());
 
    extract.kdf(prk.data(), prk.size(), secret, secret_len, salt, salt_len, nullptr, 0);
    return expand.kdf(key, key_len, prk.data(), prk.size(), nullptr, 0, label, label_len);
    }
 
-size_t HKDF_Extract::kdf(byte key[], size_t key_len,
-                         const byte secret[], size_t secret_len,
-                         const byte salt[], size_t salt_len,
-                         const byte[], size_t) const
+size_t HKDF_Extract::kdf(uint8_t key[], size_t key_len,
+                         const uint8_t secret[], size_t secret_len,
+                         const uint8_t salt[], size_t salt_len,
+                         const uint8_t[], size_t) const
    {
-   secure_vector<byte> prk;
+   secure_vector<uint8_t> prk;
    if(salt_len == 0)
       {
-      m_prf->set_key(std::vector<byte>(m_prf->output_length()));
+      m_prf->set_key(std::vector<uint8_t>(m_prf->output_length()));
       }
    else
       {
@@ -46,15 +46,15 @@ size_t HKDF_Extract::kdf(byte key[], size_t key_len,
    return written;
    }
 
-size_t HKDF_Expand::kdf(byte key[], size_t key_len,
-                        const byte secret[], size_t secret_len,
-                        const byte salt[], size_t salt_len,
-                        const byte label[], size_t label_len) const
+size_t HKDF_Expand::kdf(uint8_t key[], size_t key_len,
+                        const uint8_t secret[], size_t secret_len,
+                        const uint8_t salt[], size_t salt_len,
+                        const uint8_t label[], size_t label_len) const
    {
    m_prf->set_key(secret, secret_len);
 
-   byte counter = 1;
-   secure_vector<byte> h;
+   uint8_t counter = 1;
+   secure_vector<uint8_t> h;
    size_t offset = 0;
 
    while(offset != key_len && counter != 0)
@@ -71,6 +71,54 @@ size_t HKDF_Expand::kdf(byte key[], size_t key_len,
       }
 
    return offset;
+   }
+
+secure_vector<uint8_t>
+hkdf_expand_label(const std::string& hash_fn,
+                  const uint8_t secret[], size_t secret_len,
+                  const std::string& label,
+                  const uint8_t hash_val[], size_t hash_val_len,
+                  size_t length)
+   {
+   if(length > 0xFFFF)
+      throw Invalid_Argument("HKDF-Expand-Label requested output too large");
+   if(label.size() > 0xFF)
+      throw Invalid_Argument("HKDF-Expand-Label label too long");
+   if(hash_val_len > 0xFF)
+      throw Invalid_Argument("HKDF-Expand-Label hash too long");
+
+   const uint16_t length16 = static_cast<uint16_t>(length);
+
+   auto mac = MessageAuthenticationCode::create("HMAC(" + hash_fn + ")");
+   if(!mac)
+      throw Invalid_Argument("HKDF-Expand-Label with HMAC(" + hash_fn + ") not available");
+
+   HKDF_Expand hkdf(mac.release());
+
+   secure_vector<uint8_t> output(length16);
+   std::vector<uint8_t> prefix(3 + label.size() + 1);
+
+   prefix[0] = get_byte(0, length16);
+   prefix[1] = get_byte(1, length16);
+   prefix[2] = static_cast<uint8_t>(label.size());
+
+   copy_mem(prefix.data() + 3,
+            cast_char_ptr_to_uint8(label.data()),
+            label.size());
+
+   prefix[3 + label.size()] = static_cast<uint8_t>(hash_val_len);
+
+   /*
+   * We do something a little dirty here to avoid copying the hash_val,
+   * making use of the fact that Botan's KDF interface supports label+salt,
+   * and knowing that our HKDF hashes first param label then param salt.
+   */
+   hkdf.kdf(output.data(), output.size(),
+            secret, secret_len,
+            hash_val, hash_val_len,
+            prefix.data(), prefix.size());
+
+   return output;
    }
 
 }

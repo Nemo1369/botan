@@ -6,7 +6,6 @@
 */
 
 #include <botan/credentials_manager.h>
-#include <botan/x509path.h>
 
 namespace Botan {
 
@@ -54,10 +53,19 @@ bool Credentials_Manager::srp_verifier(const std::string&,
                                        const std::string&,
                                        std::string&,
                                        BigInt&,
-                                       std::vector<byte>&,
+                                       std::vector<uint8_t>&,
                                        bool)
    {
    return false;
+   }
+
+std::vector<X509_Certificate> Credentials_Manager::find_cert_chain(
+   const std::vector<std::string>& key_types,
+   const std::vector<X509_DN>&,
+   const std::string& type,
+   const std::string& context)
+   {
+   return cert_chain(key_types, type, context);
    }
 
 std::vector<X509_Certificate> Credentials_Manager::cert_chain(
@@ -75,7 +83,7 @@ std::vector<X509_Certificate> Credentials_Manager::cert_chain_single_type(
    {
    std::vector<std::string> cert_types;
    cert_types.push_back(cert_key_type);
-   return cert_chain(cert_types, type, context);
+   return find_cert_chain(cert_types, std::vector<X509_DN>(), type, context);
    }
 
 Private_Key* Credentials_Manager::private_key_for(const X509_Certificate&,
@@ -91,55 +99,6 @@ Credentials_Manager::trusted_certificate_authorities(
    const std::string&)
    {
    return std::vector<Certificate_Store*>();
-   }
-
-namespace {
-
-bool cert_in_some_store(const std::vector<Certificate_Store*>& trusted_CAs,
-                        const X509_Certificate& trust_root)
-   {
-   for(auto CAs : trusted_CAs)
-      if(CAs->certificate_known(trust_root))
-         return true;
-   return false;
-   }
-
-Usage_Type choose_leaf_usage(const std::string& ctx)
-   {
-   // These are reversed because ctx is denoting the current perspective
-   if(ctx == "tls-client")
-      return Usage_Type::TLS_SERVER_AUTH;
-   else if(ctx == "tls-server")
-      return Usage_Type::TLS_CLIENT_AUTH;
-   else
-      return Usage_Type::UNSPECIFIED;
-   }
-
-}
-
-void Credentials_Manager::verify_certificate_chain(
-   const std::string& type,
-   const std::string& purported_hostname,
-   const std::vector<X509_Certificate>& cert_chain)
-   {
-   if(cert_chain.empty())
-      throw Invalid_Argument("Certificate chain was empty");
-
-   auto trusted_CAs = trusted_certificate_authorities(type, purported_hostname);
-
-   Path_Validation_Restrictions restrictions;
-
-   Path_Validation_Result result = x509_path_validate(cert_chain,
-                                                      restrictions,
-                                                      trusted_CAs,
-                                                      purported_hostname,
-                                                      choose_leaf_usage(type));
-
-   if(!result.successful_validation())
-      throw Exception("Certificate validation failure: " + result.result_string());
-
-   if(!cert_in_some_store(trusted_CAs, result.trust_root()))
-      throw Exception("Certificate chain roots in unknown/untrusted CA");
    }
 
 }

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MDX_BASE_H__
-#define BOTAN_MDX_BASE_H__
+#ifndef BOTAN_MDX_BASE_H_
+#define BOTAN_MDX_BASE_H_
 
 #include <botan/hash.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * MDx Hash Function Base Class
 */
-class BOTAN_DLL MDx_HashFunction : public HashFunction
+class BOTAN_PUBLIC_API(2,0) MDx_HashFunction : public HashFunction
    {
    public:
       /**
@@ -29,17 +29,17 @@ class BOTAN_DLL MDx_HashFunction : public HashFunction
                        bool big_bit_endian,
                        size_t counter_size = 8);
 
-      size_t hash_block_size() const override { return m_buffer.size(); }
+      size_t hash_block_size() const override final { return m_buffer.size(); }
    protected:
-      void add_data(const byte input[], size_t length) override;
-      void final_result(byte output[]) override;
+      void add_data(const uint8_t input[], size_t length) override final;
+      void final_result(uint8_t output[]) override final;
 
       /**
       * Run the hash's compression function over a set of blocks
       * @param blocks the input
       * @param block_n the number of blocks
       */
-      virtual void compress_n(const byte blocks[], size_t block_n) = 0;
+      virtual void compress_n(const uint8_t blocks[], size_t block_n) = 0;
 
       void clear() override;
 
@@ -47,16 +47,16 @@ class BOTAN_DLL MDx_HashFunction : public HashFunction
       * Copy the output to the buffer
       * @param buffer to put the output into
       */
-      virtual void copy_out(byte buffer[]) = 0;
+      virtual void copy_out(uint8_t buffer[]) = 0;
 
       /**
       * Write the count, if used, to this spot
       * @param out where to write the counter to
       */
-      virtual void write_count(byte out[]);
+      virtual void write_count(uint8_t out[]);
    private:
-      secure_vector<byte> m_buffer;
-      u64bit m_count;
+      secure_vector<uint8_t> m_buffer;
+      uint64_t m_count;
       size_t m_position;
 
       const bool BIG_BYTE_ENDIAN, BIG_BIT_ENDIAN;

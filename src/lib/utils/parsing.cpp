@@ -1,7 +1,8 @@
 /*
 * Various string utils and parsing functions
-* (C) 1999-2007,2013,2014,2015 Jack Lloyd
+* (C) 1999-2007,2013,2014,2015,2018 Jack Lloyd
 * (C) 2015 Simon Warta (Kullo GmbH)
+* (C) 2017 René Korthaus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -10,48 +11,53 @@
 #include <botan/exceptn.h>
 #include <botan/charset.h>
 #include <botan/loadstor.h>
+#include <algorithm>
+#include <cctype>
 #include <limits>
 #include <set>
 
 namespace Botan {
 
-u32bit to_u32bit(const std::string& str)
+uint16_t to_uint16(const std::string& str)
    {
-   try
+   const uint32_t x = to_u32bit(str);
+
+   if(x >> 16)
+      throw Invalid_Argument("Integer value exceeds 16 bit range");
+
+   return static_cast<uint16_t>(x);
+   }
+
+uint32_t to_u32bit(const std::string& str)
+   {
+   // std::stoul is not strict enough. Ensure that str is digit only [0-9]*
+   for(const char chr : str)
       {
-      // std::stoul is not strict enough. Ensure that str is digit only [0-9]*
-      for (const char chr : str)
+      if(chr < '0' || chr > '9')
          {
-         if (chr < '0' || chr > '9')
-            {
-            auto chrAsString = std::string(1, chr);
-            throw Invalid_Argument("String contains non-digit char: " + chrAsString);
-            }
+         std::string chrAsString(1, chr);
+         throw Invalid_Argument("String contains non-digit char: " + chrAsString);
          }
-
-      const auto integerValue = std::stoul(str);
-
-      // integerValue might be uint64
-      if (integerValue > std::numeric_limits<u32bit>::max())
-         {
-         throw Invalid_Argument("Integer value exceeds 32 bit range: " + std::to_string(integerValue));
-         }
-
-      return integerValue;
       }
-   catch(std::exception& e)
+
+   const unsigned long int x = std::stoul(str);
+
+   if(sizeof(unsigned long int) > 4)
       {
-      auto message = std::string("Could not read '" + str + "' as decimal string");
-      auto exceptionMessage = std::string(e.what());
-      if (!exceptionMessage.empty()) message += ": " + exceptionMessage;
-      throw Exception(message);
+      // x might be uint64
+      if (x > std::numeric_limits<uint32_t>::max())
+         {
+         throw Invalid_Argument("Integer value of " + str + " exceeds 32 bit range");
+         }
       }
+
+   return static_cast<uint32_t>(x);
    }
 
 /*
 * Convert a string into a time duration
 */
-u32bit timespec_to_u32bit(const std::string& timespec)
+uint32_t timespec_to_u32bit(const std::string& timespec)
    {
    if(timespec.empty())
       return 0;
@@ -59,7 +65,7 @@ u32bit timespec_to_u32bit(const std::string& timespec)
    const char suffix = timespec[timespec.size()-1];
    std::string value = timespec.substr(0, timespec.size()-1);
 
-   u32bit scale = 1;
+   uint32_t scale = 1;
 
    if(Charset::is_digit(suffix))
       value += suffix;
@@ -186,10 +192,10 @@ std::string string_join(const std::vector<std::string>& strs, char delim)
 /*
 * Parse an ASN.1 OID string
 */
-std::vector<u32bit> parse_asn1_oid(const std::string& oid)
+std::vector<uint32_t> parse_asn1_oid(const std::string& oid)
    {
    std::string substring;
-   std::vector<u32bit> oid_elems;
+   std::vector<uint32_t> oid_elems;
 
    for(auto i = oid.begin(); i != oid.end(); ++i)
       {
@@ -239,6 +245,8 @@ bool x500_name_cmp(const std::string& name1, const std::string& name2)
 
          if(p1 == name1.end() && p2 == name2.end())
             return true;
+         if(p1 == name1.end() || p2 == name2.end())
+            return false;
          }
 
       if(!Charset::caseless_cmp(*p1, *p2))
@@ -258,18 +266,18 @@ bool x500_name_cmp(const std::string& name1, const std::string& name2)
 /*
 * Convert a decimal-dotted string to binary IP
 */
-u32bit string_to_ipv4(const std::string& str)
+uint32_t string_to_ipv4(const std::string& str)
    {
    std::vector<std::string> parts = split_on(str, '.');
 
    if(parts.size() != 4)
       throw Decoding_Error("Invalid IP string " + str);
 
-   u32bit ip = 0;
+   uint32_t ip = 0;
 
    for(auto part = parts.begin(); part != parts.end(); ++part)
       {
-      u32bit octet = to_u32bit(*part);
+      uint32_t octet = to_u32bit(*part);
 
       if(octet > 255)
          throw Decoding_Error("Invalid IP string " + str);
@@ -283,7 +291,7 @@ u32bit string_to_ipv4(const std::string& str)
 /*
 * Convert an IP address to decimal-dotted string
 */
-std::string ipv4_to_string(u32bit ip)
+std::string ipv4_to_string(uint32_t ip)
    {
    std::string str;
 
@@ -332,25 +340,138 @@ std::string replace_char(const std::string& str, char from_char, char to_char)
    return out;
    }
 
-bool host_wildcard_match(const std::string& issued, const std::string& host)
+namespace {
+
+std::string tolower_string(const std::string& in)
    {
-   if(issued == host)
-      return true;
-
-   if(issued.size() > 2 && issued[0] == '*' && issued[1] == '.')
+   std::string s = in;
+   for(size_t i = 0; i != s.size(); ++i)
       {
-      size_t host_i = host.find('.');
-      if(host_i == std::string::npos || host_i == host.size() - 1)
-         return false;
+      if(std::isalpha(static_cast<unsigned char>(s[i])))
+         s[i] = std::tolower(static_cast<unsigned char>(s[i]));
+      }
+   return s;
+   }
 
-      const std::string host_base = host.substr(host_i + 1);
-      const std::string issued_base = issued.substr(2);
+}
 
-      if(host_base == issued_base)
-         return true;
+bool host_wildcard_match(const std::string& issued_, const std::string& host_)
+   {
+   const std::string issued = tolower_string(issued_);
+   const std::string host = tolower_string(host_);
+
+   if(host.empty() || issued.empty())
+      return false;
+
+   /*
+   If there are embedded nulls in your issued name
+   Well I feel bad for you son
+   */
+   if(std::count(issued.begin(), issued.end(), char(0)) > 0)
+      return false;
+
+   // If more than one wildcard, then issued name is invalid
+   const size_t stars = std::count(issued.begin(), issued.end(), '*');
+   if(stars > 1)
+      return false;
+
+   // '*' is not a valid character in DNS names so should not appear on the host side
+   if(std::count(host.begin(), host.end(), '*') != 0)
+      return false;
+
+   // Similarly a DNS name can't end in .
+   if(host[host.size() - 1] == '.')
+      return false;
+
+   // And a host can't have an empty name component, so reject that
+   if(host.find("..") != std::string::npos)
+      return false;
+
+   // Exact match: accept
+   if(issued == host)
+      {
+      return true;
+      }
+
+   /*
+   Otherwise it might be a wildcard
+
+   If the issued size is strictly longer than the hostname size it
+   couldn't possibly be a match, even if the issued value is a
+   wildcard. The only exception is when the wildcard ends up empty
+   (eg www.example.com matches www*.example.com)
+   */
+   if(issued.size() > host.size() + 1)
+      {
+      return false;
+      }
+
+   // If no * at all then not a wildcard, and so not a match
+   if(stars != 1)
+      {
+      return false;
+      }
+
+   /*
+   Now walk through the issued string, making sure every character
+   matches. When we come to the (singular) '*', jump forward in the
+   hostname by the cooresponding amount. We know exactly how much
+   space the wildcard takes because it must be exactly `len(host) -
+   len(issued) + 1 chars`.
+
+   We also verify that the '*' comes in the leftmost component, and
+   doesn't skip over any '.' in the hostname.
+   */
+   size_t dots_seen = 0;
+   size_t host_idx = 0;
+
+   for(size_t i = 0; i != issued.size(); ++i)
+      {
+      dots_seen += (issued[i] == '.');
+
+      if(issued[i] == '*')
+         {
+         // Fail: wildcard can only come in leftmost component
+         if(dots_seen > 0)
+            {
+            return false;
+            }
+
+         /*
+         Since there is only one * we know the tail of the issued and
+         hostname must be an exact match. In this case advance host_idx
+         to match.
+         */
+         const size_t advance = (host.size() - issued.size() + 1);
+
+         if(host_idx + advance > host.size()) // shouldn't happen
+            return false;
+
+         // Can't be any intervening .s that we would have skipped
+         if(std::count(host.begin() + host_idx,
+                       host.begin() + host_idx + advance, '.') != 0)
+            return false;
+
+         host_idx += advance;
          }
+      else
+         {
+         if(issued[i] != host[host_idx])
+            {
+            return false;
+            }
 
-   return false;
+         host_idx += 1;
+         }
+      }
+
+   // Wildcard issued name must have at least 3 components
+   if(dots_seen < 2)
+      {
+      return false;
+      }
+
+   return true;
    }
 
 }

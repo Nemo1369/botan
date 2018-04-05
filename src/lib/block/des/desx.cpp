@@ -12,8 +12,10 @@ namespace Botan {
 /*
 * DESX Encryption
 */
-void DESX::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void DESX::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_K1.empty() == false);
+
    for(size_t i = 0; i != blocks; ++i)
       {
       xor_buf(out, in, m_K1.data(), BLOCK_SIZE);
@@ -28,8 +30,10 @@ void DESX::encrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * DESX Decryption
 */
-void DESX::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void DESX::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_K1.empty() == false);
+
    for(size_t i = 0; i != blocks; ++i)
       {
       xor_buf(out, in, m_K2.data(), BLOCK_SIZE);
@@ -44,7 +48,7 @@ void DESX::decrypt_n(const byte in[], byte out[], size_t blocks) const
 /*
 * DESX Key Schedule
 */
-void DESX::key_schedule(const byte key[], size_t)
+void DESX::key_schedule(const uint8_t key[], size_t)
    {
    m_K1.assign(key, key + 8);
    m_des.set_key(key + 8, 8);

@@ -1,5 +1,6 @@
 /*
 * (C) 2009,2015 Jack Lloyd
+* (C) 2017 Ribose Inc
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -14,39 +15,37 @@
 #include <botan/pk_algs.h>
 #include <botan/x509_key.h>
 #include <botan/pkcs8.h>
-#include <botan/oids.h>
 #include <botan/hex.h>
+#include <botan/data_src.h>
 
 namespace Botan_Tests {
-
-namespace {
-
-std::vector<std::string> possible_pk_providers()
-   {
-   return { "base", "openssl", "tpm" };
-   }
-
-}
 
 void check_invalid_signatures(Test::Result& result,
                               Botan::PK_Verifier& verifier,
                               const std::vector<uint8_t>& message,
                               const std::vector<uint8_t>& signature)
    {
+   const size_t tests_to_run = (Test::run_long_tests() ? 20 : 5);
+
    const std::vector<uint8_t> zero_sig(signature.size());
    result.test_eq("all zero signature invalid", verifier.verify_message(message, zero_sig), false);
 
-   std::vector<uint8_t> bad_sig = signature;
-
-   for(size_t i = 0; i < Test::soak_level(); ++i)
+   for(size_t i = 0; i < tests_to_run; ++i)
       {
-      while(bad_sig == signature)
-         bad_sig = Test::mutate_vec(bad_sig, true);
+      const std::vector<uint8_t> bad_sig = Test::mutate_vec(signature);
 
-      if(!result.test_eq("incorrect signature invalid",
-                         verifier.verify_message(message, bad_sig), false))
+      try
+         {
+         if(!result.test_eq("incorrect signature invalid",
+                            verifier.verify_message(message, bad_sig), false))
+            {
+            result.test_note("Accepted invalid signature " + Botan::hex_encode(bad_sig));
+            }
+         }
+      catch(std::exception& e)
          {
          result.test_note("Accepted invalid signature " + Botan::hex_encode(bad_sig));
+         result.test_failure("Modified signature rejected with exception", e.what());
          }
       }
    }
@@ -56,14 +55,13 @@ void check_invalid_ciphertexts(Test::Result& result,
                                const std::vector<uint8_t>& plaintext,
                                const std::vector<uint8_t>& ciphertext)
    {
-   std::vector<uint8_t> bad_ctext = ciphertext;
+   const size_t tests_to_run = (Test::run_long_tests() ? 20 : 5);
 
    size_t ciphertext_accepted = 0, ciphertext_rejected = 0;
 
-   for(size_t i = 0; i < Test::soak_level(); ++i)
+   for(size_t i = 0; i < tests_to_run; ++i)
       {
-      while(bad_ctext == ciphertext)
-         bad_ctext = Test::mutate_vec(bad_ctext, true);
+      const std::vector<uint8_t> bad_ctext = Test::mutate_vec(ciphertext);
 
       try
          {
@@ -85,25 +83,80 @@ void check_invalid_ciphertexts(Test::Result& result,
                     " invalid ciphertexts, rejected " + std::to_string(ciphertext_rejected));
    }
 
+std::string PK_Test::choose_padding(const VarMap& vars,
+                                    const std::string& pad_hdr)
+   {
+   if(pad_hdr != "")
+      return pad_hdr;
+   return get_opt_str(vars, "Padding", this->default_padding(vars));
+   }
+
+std::vector<std::string> PK_Test::possible_providers(const std::string& /*params*/)
+   {
+   return Test::provider_filter({ "base", "bearssl", "openssl", "tpm" });
+   }
+
 Test::Result
-PK_Signature_Generation_Test::run_one_test(const std::string&, const VarMap& vars)
+PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
    {
    const std::vector<uint8_t> message   = get_req_bin(vars, "Msg");
    const std::vector<uint8_t> signature = get_req_bin(vars, "Signature");
-   const std::string padding = get_opt_str(vars, "Padding", default_padding(vars));
+   const std::string padding = choose_padding(vars, pad_hdr);
 
    Test::Result result(algo_name() + "/" + padding + " signature generation");
 
-   std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
+   std::unique_ptr<Botan::Private_Key> privkey;
+   try
+      {
+      privkey = load_private_key(vars);
+      }
+   catch(Botan::Lookup_Error& e)
+      {
+      result.note_missing(e.what());
+      return result;
+      }
+
    std::unique_ptr<Botan::Public_Key> pubkey(Botan::X509::load_key(Botan::X509::BER_encode(*privkey)));
 
-   for(auto&& sign_provider : possible_pk_providers())
+   std::vector<std::unique_ptr<Botan::PK_Verifier>> verifiers;
+
+   for(auto const& verify_provider : possible_providers(algo_name()))
       {
+      std::unique_ptr<Botan::PK_Verifier> verifier;
+
+      try
+         {
+         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
+         }
+      catch(Botan::Lookup_Error&)
+         {
+         //result.test_note("Skipping verifying with " + verify_provider);
+         continue;
+         }
+
+      result.test_eq("KAT signature valid", verifier->verify_message(message, signature), true);
+
+      check_invalid_signatures(result, *verifier, message, signature);
+      verifiers.push_back(std::move(verifier));
+      }
+
+   for(auto const& sign_provider : possible_providers(algo_name()))
+      {
+      std::unique_ptr<Botan::RandomNumberGenerator> rng;
+      if(vars.count("Nonce"))
+         {
+         rng.reset(test_rng(get_req_bin(vars, "Nonce")));
+         }
+
       std::unique_ptr<Botan::PK_Signer> signer;
+
+      std::vector<uint8_t> generated_signature;
 
       try
          {
          signer.reset(new Botan::PK_Signer(*privkey, Test::rng(), padding, Botan::IEEE_1363, sign_provider));
+
+         generated_signature = signer->sign_message(message, rng ? *rng : Test::rng());
          }
       catch(Botan::Lookup_Error&)
          {
@@ -111,42 +164,20 @@ PK_Signature_Generation_Test::run_one_test(const std::string&, const VarMap& var
          continue;
          }
 
-      std::unique_ptr<Botan::RandomNumberGenerator> rng;
-      if(vars.count("Nonce"))
-         {
-         rng.reset(test_rng(get_req_bin(vars, "Nonce")));
-         }
-
-      const std::vector<uint8_t> generated_signature =
-         signer->sign_message(message, rng ? *rng : Test::rng());
-
       if(sign_provider == "base")
          {
          result.test_eq("generated signature matches KAT", generated_signature, signature);
          }
-
-      for(auto&& verify_provider : possible_pk_providers())
+      else if(generated_signature != signature)
          {
-         std::unique_ptr<Botan::PK_Verifier> verifier;
-
-         try
+         for(std::unique_ptr<Botan::PK_Verifier>& verifier : verifiers)
             {
-            verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
+            if(!result.test_eq("generated signature valid",
+                               verifier->verify_message(message, generated_signature), true))
+               {
+               result.test_failure("generated signature", generated_signature);
+               }
             }
-         catch(Botan::Lookup_Error&)
-            {
-            //result.test_note("Skipping verifying with " + verify_provider);
-            continue;
-            }
-
-         if(!result.test_eq("generated signature valid",
-                            verifier->verify_message(message, generated_signature), true))
-            {
-            result.test_failure("generated signature", generated_signature);
-            }
-
-         check_invalid_signatures(result, *verifier, message, signature);
-         result.test_eq("KAT signature valid", verifier->verify_message(message, signature), true);
          }
       }
 
@@ -154,24 +185,67 @@ PK_Signature_Generation_Test::run_one_test(const std::string&, const VarMap& var
    }
 
 Test::Result
-PK_Signature_Verification_Test::run_one_test(const std::string&, const VarMap& vars)
+PK_Signature_Verification_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
    {
    const std::vector<uint8_t> message   = get_req_bin(vars, "Msg");
    const std::vector<uint8_t> signature = get_req_bin(vars, "Signature");
-   const std::string padding = get_opt_str(vars, "Padding", default_padding(vars));
+   const std::string padding = choose_padding(vars, pad_hdr);
+
+   const bool expected_valid = (get_opt_sz(vars, "Valid", 1) == 1);
+
    std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
 
    Test::Result result(algo_name() + "/" + padding + " signature verification");
 
-   for(auto&& verify_provider : possible_pk_providers())
+   for(auto const& verify_provider : possible_providers(algo_name()))
       {
       std::unique_ptr<Botan::PK_Verifier> verifier;
 
       try
          {
          verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
-         result.test_eq("correct signature valid", verifier->verify_message(message, signature), true);
-         check_invalid_signatures(result, *verifier, message, signature);
+         }
+      catch(Botan::Lookup_Error&)
+         {
+         result.test_note("Skipping verifying with " + verify_provider);
+         }
+
+      if(verifier)
+         {
+         const bool verified = verifier->verify_message(message, signature);
+
+         if(expected_valid)
+            {
+            result.test_eq("correct signature valid", verified, true);
+            check_invalid_signatures(result, *verifier, message, signature);
+            }
+         else
+            result.test_eq("incorrect signature invalid", verified, false);
+         }
+      }
+
+   return result;
+   }
+
+Test::Result
+PK_Signature_NonVerification_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
+   {
+   const std::string padding = choose_padding(vars, pad_hdr);
+   const std::vector<uint8_t> message   = get_req_bin(vars, "Msg");
+   std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
+
+   const std::vector<uint8_t> invalid_signature = get_req_bin(vars, "InvalidSignature");
+
+   Test::Result result(algo_name() + "/" + padding + " verify invalid signature");
+
+   for(auto const& verify_provider : possible_providers(algo_name()))
+      {
+      std::unique_ptr<Botan::PK_Verifier> verifier;
+
+      try
+         {
+         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::IEEE_1363, verify_provider));
+         result.test_eq("incorrect signature rejected", verifier->verify_message(message, invalid_signature), false);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -183,14 +257,13 @@ PK_Signature_Verification_Test::run_one_test(const std::string&, const VarMap& v
    }
 
 Test::Result
-PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& vars)
+PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
    {
    const std::vector<uint8_t> plaintext  = get_req_bin(vars, "Msg");
    const std::vector<uint8_t> ciphertext = get_req_bin(vars, "Ciphertext");
+   const std::string padding = choose_padding(vars, pad_hdr);
 
-   const std::string padding = get_opt_str(vars, "Padding", default_padding(vars));
-
-   Test::Result result(algo_name() + "/" + padding + " decryption");
+   Test::Result result(algo_name() + (padding.empty() ? padding : "/" + padding) + " encryption");
 
    std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
 
@@ -198,13 +271,43 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& va
    //std::unique_ptr<Botan::Public_Key> pubkey(Botan::X509::load_key(Botan::X509::BER_encode(*privkey)));
    Botan::Public_Key* pubkey = privkey.get();
 
-   for(auto&& enc_provider : possible_pk_providers())
+   std::vector<std::unique_ptr<Botan::PK_Decryptor>> decryptors;
+
+   for(auto const& dec_provider : possible_providers(algo_name()))
+      {
+      std::unique_ptr<Botan::PK_Decryptor> decryptor;
+
+      try
+         {
+         decryptor.reset(new Botan::PK_Decryptor_EME(*privkey, Test::rng(), padding, dec_provider));
+         }
+      catch(Botan::Lookup_Error&)
+         {
+         continue;
+         }
+
+      Botan::secure_vector<uint8_t> decrypted;
+      try
+         {
+         decrypted = decryptor->decrypt(ciphertext);
+         }
+      catch(Botan::Exception& e)
+         {
+         result.test_failure("Failed to decrypt KAT ciphertext", e.what());
+         }
+
+      result.test_eq(dec_provider, "decryption of KAT", decrypted, plaintext);
+      check_invalid_ciphertexts(result, *decryptor, plaintext, ciphertext);
+      }
+
+
+   for(auto const& enc_provider : possible_providers(algo_name()))
       {
       std::unique_ptr<Botan::PK_Encryptor> encryptor;
 
       try
          {
-         encryptor.reset(new Botan::PK_Encryptor_EME(*pubkey, Test::rng(),padding, enc_provider));
+         encryptor.reset(new Botan::PK_Encryptor_EME(*pubkey, Test::rng(), padding, enc_provider));
          }
       catch(Botan::Lookup_Error&)
          {
@@ -214,7 +317,22 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& va
       std::unique_ptr<Botan::RandomNumberGenerator> kat_rng;
       if(vars.count("Nonce"))
          {
-         kat_rng.reset(new Fixed_Output_RNG(get_req_bin(vars, "Nonce")));
+         kat_rng.reset(test_rng(get_req_bin(vars, "Nonce")));
+         }
+
+      if(padding == "Raw")
+         {
+         /*
+         Hack for RSA with no padding since sometimes one more bit will fit in but maximum_input_size
+         rounds down to nearest byte
+         */
+         result.test_lte("Input within accepted bounds",
+                         plaintext.size(), encryptor->maximum_input_size() + 1);
+         }
+      else
+         {
+         result.test_lte("Input within accepted bounds",
+                         plaintext.size(), encryptor->maximum_input_size());
          }
 
       const std::vector<uint8_t> generated_ciphertext =
@@ -225,29 +343,58 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string&, const VarMap& va
          result.test_eq(enc_provider, "generated ciphertext matches KAT",
                         generated_ciphertext, ciphertext);
          }
-
-      for(auto&& dec_provider : possible_pk_providers())
+      else if(generated_ciphertext != ciphertext)
          {
-         std::unique_ptr<Botan::PK_Decryptor> decryptor;
-
-         try
+         for(std::unique_ptr<Botan::PK_Decryptor>& dec : decryptors)
             {
-            decryptor.reset(new Botan::PK_Decryptor_EME(*privkey, Test::rng(), padding, dec_provider));
-            }
-         catch(Botan::Lookup_Error&)
-            {
-            continue;
-            }
-
-         result.test_eq(dec_provider, "decryption of KAT", decryptor->decrypt(ciphertext), plaintext);
-         check_invalid_ciphertexts(result, *decryptor, plaintext, ciphertext);
-
-         if(generated_ciphertext != ciphertext)
-            {
-            result.test_eq(dec_provider, "decryption of generated ciphertext",
-                           decryptor->decrypt(generated_ciphertext), plaintext);
+            result.test_eq("decryption of generated ciphertext",
+                           dec->decrypt(generated_ciphertext), plaintext);
             }
          }
+
+      }
+
+   return result;
+   }
+
+Test::Result
+PK_Decryption_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
+   {
+   const std::vector<uint8_t> plaintext  = get_req_bin(vars, "Msg");
+   const std::vector<uint8_t> ciphertext = get_req_bin(vars, "Ciphertext");
+   const std::string padding = choose_padding(vars, pad_hdr);
+
+   Test::Result result(algo_name() + (padding.empty() ? padding : "/" + padding) + " decryption");
+
+   std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
+
+   std::vector<std::unique_ptr<Botan::PK_Decryptor>> decryptors;
+
+   for(auto const& dec_provider : possible_providers(algo_name()))
+      {
+      std::unique_ptr<Botan::PK_Decryptor> decryptor;
+
+      try
+         {
+         decryptor.reset(new Botan::PK_Decryptor_EME(*privkey, Test::rng(), padding, dec_provider));
+         }
+      catch(Botan::Lookup_Error&)
+         {
+         continue;
+         }
+
+      Botan::secure_vector<uint8_t> decrypted;
+      try
+         {
+         decrypted = decryptor->decrypt(ciphertext);
+         }
+      catch(Botan::Exception& e)
+         {
+         result.test_failure("Failed to decrypt KAT ciphertext", e.what());
+         }
+
+      result.test_eq(dec_provider, "decryption of KAT", decrypted, plaintext);
+      check_invalid_ciphertexts(result, *decryptor, plaintext, ciphertext);
       }
 
    return result;
@@ -281,7 +428,7 @@ Test::Result PK_KEM_Test::run_one_test(const std::string&, const VarMap& vars)
 
    Fixed_Output_RNG fixed_output_rng(get_req_bin(vars, "R"));
 
-   Botan::secure_vector<byte> produced_encap_key, shared_key;
+   Botan::secure_vector<uint8_t> produced_encap_key, shared_key;
    enc->encrypt(produced_encap_key,
                 shared_key,
                 desired_key_len,
@@ -327,7 +474,7 @@ Test::Result PK_Key_Agreement_Test::run_one_test(const std::string& header, cons
 
    const size_t key_len = get_opt_sz(vars, "OutLen", 0);
 
-   for(auto&& provider : possible_pk_providers())
+   for(auto const& provider : possible_providers(algo_name()))
       {
       std::unique_ptr<Botan::PK_Key_Agreement> kas;
 
@@ -345,120 +492,179 @@ Test::Result PK_Key_Agreement_Test::run_one_test(const std::string& header, cons
    return result;
    }
 
+std::vector<std::string> PK_Key_Generation_Test::possible_providers(
+   const std::string& algo)
+   {
+   std::vector<std::string> pk_provider =
+      Botan::probe_provider_private_key(algo, { "base", "openssl", "tpm" });
+   return Test::provider_filter(pk_provider);
+   }
+
 std::vector<Test::Result> PK_Key_Generation_Test::run()
    {
    std::vector<Test::Result> results;
 
-   for(auto&& param : keygen_params())
+   for(auto const& param : keygen_params())
       {
       const std::string report_name = algo_name() + (param.empty() ? param : " " + param);
 
       Test::Result result(report_name + " keygen");
 
+      const std::vector<std::string> providers = possible_providers(algo_name());
+
+      if(providers.empty())
+         {
+         result.note_missing("provider key generation " + algo_name());
+         }
+
       result.start_timer();
-      std::unique_ptr<Botan::Private_Key> key_p =
-         Botan::create_private_key(algo_name(), Test::rng(), param);
-
-      const Botan::Private_Key& key = *key_p;
-
-      result.confirm("Key passes self tests", key.check_key(Test::rng(), true));
-
-      // Test PEM public key round trips OK
-      try
+      for(auto&& prov : providers)
          {
-         Botan::DataSource_Memory data_src(Botan::X509::PEM_encode(key));
-         std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
+         std::unique_ptr<Botan::Private_Key> key_p =
+            Botan::create_private_key(algo_name(), Test::rng(), param, prov);
 
-         result.confirm("recovered public key from private", loaded.get() != nullptr);
-         result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("public key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip PEM public key", e.what());
-         }
+         const Botan::Private_Key& key = *key_p;
 
-      // Test DER public key round trips OK
-      try
-         {
-         Botan::DataSource_Memory data_src(Botan::X509::BER_encode(key));
-         std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
+         try
+            {
+            result.confirm("Key passes self tests", key.check_key(Test::rng(), true));
+            }
+         catch(Botan::Lookup_Error&) {}
 
-         result.confirm("recovered public key from private", loaded.get() != nullptr);
-         result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("public key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip BER public key", e.what());
-         }
+         result.test_gte("Key has reasonable estimated strength (lower)", key.estimated_strength(), 64);
+         result.test_lt("Key has reasonable estimated strength (upper)", key.estimated_strength(), 512);
 
-      // Test PEM private key round trips OK
-      try
-         {
-         Botan::DataSource_Memory data_src(Botan::PKCS8::PEM_encode(key));
-         std::unique_ptr<Botan::Private_Key> loaded(
-            Botan::PKCS8::load_key(data_src, Test::rng()));
+         // Test PEM public key round trips OK
+         try
+            {
+            Botan::DataSource_Memory data_src(Botan::X509::PEM_encode(key));
+            std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
 
-         result.confirm("recovered private key from PEM blob", loaded.get() != nullptr);
-         result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("private key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip PEM private key", e.what());
-         }
+            result.confirm("recovered public key from private", loaded.get() != nullptr);
+            result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
 
-      try
-         {
-         Botan::DataSource_Memory data_src(Botan::PKCS8::BER_encode(key));
-         std::unique_ptr<Botan::Public_Key> loaded(Botan::PKCS8::load_key(data_src, Test::rng()));
+            try
+               {
+               result.test_eq("public key passes checks", loaded->check_key(Test::rng(), false), true);
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip PEM public key", e.what());
+            }
 
-         result.confirm("recovered public key from private", loaded.get() != nullptr);
-         result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("public key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip BER private key", e.what());
-         }
+         // Test DER public key round trips OK
+         try
+            {
+            Botan::DataSource_Memory data_src(Botan::X509::BER_encode(key));
+            std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
 
-      const std::string passphrase = Test::random_password();
+            result.confirm("recovered public key from private", loaded.get() != nullptr);
+            result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
 
-      try
-         {
-         Botan::DataSource_Memory data_src(
-            Botan::PKCS8::PEM_encode(key, Test::rng(), passphrase,
-                                     std::chrono::milliseconds(10)));
+            try
+               {
+               result.confirm("public key passes self tests", loaded->check_key(Test::rng(), true));
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip BER public key", e.what());
+            }
 
-         std::unique_ptr<Botan::Private_Key> loaded(
-            Botan::PKCS8::load_key(data_src, Test::rng(), passphrase));
+         // Test PEM private key round trips OK
+         try
+            {
+            Botan::DataSource_Memory data_src(Botan::PKCS8::PEM_encode(key));
+            std::unique_ptr<Botan::Private_Key> loaded(
+               Botan::PKCS8::load_key(data_src, Test::rng()));
 
-         result.confirm("recovered private key from encrypted blob", loaded.get() != nullptr);
-         result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("private key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip encrypted PEM private key", e.what());
-         }
+            result.confirm("recovered private key from PEM blob", loaded.get() != nullptr);
+            result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
 
-      try
-         {
-         Botan::DataSource_Memory data_src(
-            Botan::PKCS8::BER_encode(key, Test::rng(), passphrase,
-                                     std::chrono::milliseconds(10)));
+            try
+               {
+               result.confirm("private key passes self tests", loaded->check_key(Test::rng(), true));
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip PEM private key", e.what());
+            }
 
-         std::unique_ptr<Botan::Private_Key> loaded(
-            Botan::PKCS8::load_key(data_src, Test::rng(), passphrase));
+         try
+            {
+            Botan::DataSource_Memory data_src(Botan::PKCS8::BER_encode(key));
+            std::unique_ptr<Botan::Public_Key> loaded(Botan::PKCS8::load_key(data_src, Test::rng()));
 
-         result.confirm("recovered private key from BER blob", loaded.get() != nullptr);
-         result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
-         result.test_eq("private key passes checks", loaded->check_key(Test::rng(), false), true);
-         }
-      catch(std::exception& e)
-         {
-         result.test_failure("roundtrip encrypted BER private key", e.what());
+            result.confirm("recovered public key from private", loaded.get() != nullptr);
+            result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
+            try
+               {
+               result.confirm("private key passes self tests", loaded->check_key(Test::rng(), true));
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip BER private key", e.what());
+            }
+
+#if defined(BOTAN_HAS_PKCS5_PBE2) && defined(BOTAN_HAS_AES) && defined(BOTAN_HAS_SHA2_32)
+
+         const std::string pbe_algo = "PBE-PKCS5v20(AES-128,SHA-256)";
+         const std::string passphrase = Test::random_password();
+
+         try
+            {
+            Botan::DataSource_Memory data_src(
+               Botan::PKCS8::PEM_encode(key, Test::rng(), passphrase,
+                                        std::chrono::milliseconds(10),
+                                        pbe_algo));
+
+            std::unique_ptr<Botan::Private_Key> loaded(
+               Botan::PKCS8::load_key(data_src, Test::rng(), passphrase));
+
+            result.confirm("recovered private key from encrypted blob", loaded.get() != nullptr);
+            result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
+            try
+               {
+               result.confirm("private key passes self tests", loaded->check_key(Test::rng(), true));
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip encrypted PEM private key", e.what());
+            }
+
+         try
+            {
+            Botan::DataSource_Memory data_src(
+               Botan::PKCS8::BER_encode(key, Test::rng(), passphrase,
+                                        std::chrono::milliseconds(10),
+                                        pbe_algo));
+
+            std::unique_ptr<Botan::Private_Key> loaded(
+               Botan::PKCS8::load_key(data_src, Test::rng(), passphrase));
+
+            result.confirm("recovered private key from BER blob", loaded.get() != nullptr);
+            result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
+
+            try
+               {
+               result.confirm("private key passes self tests", loaded->check_key(Test::rng(), true));
+               }
+            catch(Botan::Lookup_Error&) {}
+            }
+         catch(std::exception& e)
+            {
+            result.test_failure("roundtrip encrypted BER private key", e.what());
+            }
+#endif
          }
 
       result.end_timer();

@@ -8,7 +8,7 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_AEAD_MODES)
-  #include <botan/aead.h>
+   #include <botan/aead.h>
 #endif
 
 namespace Botan_Tests {
@@ -17,12 +17,10 @@ namespace {
 
 #if defined(BOTAN_HAS_AEAD_MODES)
 
-class AEAD_Tests : public Text_Based_Test
+class AEAD_Tests final : public Text_Based_Test
    {
    public:
-      AEAD_Tests() :
-         Text_Based_Test("aead", {"Key", "Nonce", "In", "Out"}, {"AD"})
-         {}
+      AEAD_Tests() : Text_Based_Test("aead", "Key,Nonce,In,Out", "AD") {}
 
       Test::Result test_enc(const std::vector<uint8_t>& key, const std::vector<uint8_t>& nonce,
                             const std::vector<uint8_t>& input, const std::vector<uint8_t>& expected,
@@ -32,13 +30,18 @@ class AEAD_Tests : public Text_Based_Test
 
          std::unique_ptr<Botan::AEAD_Mode> enc(Botan::get_aead(algo, Botan::ENCRYPTION));
 
+         result.test_eq("AEAD encrypt output_length is correct", enc->output_length(input.size()), expected.size());
+
+         result.confirm("AEAD name is not empty", !enc->name().empty());
+         result.confirm("AEAD default nonce size is accepted", enc->valid_nonce_length(enc->default_nonce_length()));
+
          // First some tests for reset() to make sure it resets what we need it to
          // set garbage values
          enc->set_key(mutate_vec(key));
          enc->set_ad(mutate_vec(ad));
          enc->start(mutate_vec(nonce));
 
-         Botan::secure_vector<byte> garbage = Test::rng().random_vec(enc->update_granularity());
+         Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(enc->update_granularity());
          enc->update(garbage);
 
          // reset message specific state
@@ -61,7 +64,7 @@ class AEAD_Tests : public Text_Based_Test
             {
             // test finish() with full input
             enc->finish(buf);
-            result.test_eq("encrypt", buf, expected);
+            result.test_eq("encrypt full", buf, expected);
 
             // additionally test update() if possible
             const size_t update_granularity = enc->update_granularity();
@@ -86,7 +89,7 @@ class AEAD_Tests : public Text_Based_Test
                   p += update_granularity;
                   input_length -= update_granularity;
                   buffer_insert(ciphertext, 0 + offset, block);
-                  offset += update_granularity;
+                  offset += block.size();
                   }
 
                // encrypt remaining bytes
@@ -94,7 +97,7 @@ class AEAD_Tests : public Text_Based_Test
                enc->finish(block);
                buffer_insert(ciphertext, 0 + offset, block);
 
-               result.test_eq("encrypt", ciphertext, expected);
+               result.test_eq("encrypt update", ciphertext, expected);
                }
 
             // additionally test process() if possible
@@ -115,10 +118,19 @@ class AEAD_Tests : public Text_Based_Test
 
                const size_t bytes_written = enc->process(buf.data(), bytes_to_process);
 
-               result.test_eq("correct number of bytes processed", bytes_written, bytes_to_process);
+               if(bytes_written == 0)
+                  {
+                  // SIV case
+                  buf.erase(buf.begin(), buf.begin() + bytes_to_process);
+                  enc->finish(buf);
+                  }
+               else
+                  {
+                  result.test_eq("correct number of bytes processed", bytes_written, bytes_to_process);
+                  enc->finish(buf, bytes_written);
+                  }
 
-               enc->finish(buf, bytes_to_process);
-               result.test_eq("encrypt", buf, expected);
+               result.test_eq("encrypt process", buf, expected);
                }
             }
          return result;
@@ -132,13 +144,15 @@ class AEAD_Tests : public Text_Based_Test
 
          std::unique_ptr<Botan::AEAD_Mode> dec(Botan::get_aead(algo, Botan::DECRYPTION));
 
+         result.test_eq("AEAD decrypt output_length is correct", dec->output_length(input.size()), expected.size());
+
          // First some tests for reset() to make sure it resets what we need it to
          // set garbage values
          dec->set_key(mutate_vec(key));
          dec->set_ad(mutate_vec(ad));
          dec->start(mutate_vec(nonce));
 
-         Botan::secure_vector<byte> garbage = Test::rng().random_vec(dec->update_granularity());
+         Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(dec->update_granularity());
          dec->update(garbage);
 
          // reset message specific state
@@ -154,7 +168,7 @@ class AEAD_Tests : public Text_Based_Test
 
             // test finish() with full input
             dec->finish(buf);
-            result.test_eq("decrypt", buf, expected);
+            result.test_eq("decrypt full", buf, expected);
 
             // additionally test update() if possible
             const size_t update_granularity = dec->update_granularity();
@@ -179,7 +193,7 @@ class AEAD_Tests : public Text_Based_Test
                   p += update_granularity;
                   input_length -= update_granularity;
                   buffer_insert(plaintext, 0 + offset, block);
-                  offset += update_granularity;
+                  offset += block.size();
                   }
 
                // decrypt remaining bytes
@@ -187,7 +201,7 @@ class AEAD_Tests : public Text_Based_Test
                dec->finish(block);
                buffer_insert(plaintext, 0 + offset, block);
 
-               result.test_eq("decrypt", plaintext, expected);
+               result.test_eq("decrypt update", plaintext, expected);
                }
 
             // additionally test process() if possible
@@ -208,10 +222,19 @@ class AEAD_Tests : public Text_Based_Test
 
                const size_t bytes_written = dec->process(buf.data(), bytes_to_process);
 
-               result.test_eq("correct number of bytes processed", bytes_written, bytes_to_process);
+               if(bytes_written == 0)
+                  {
+                  // SIV case
+                  buf.erase(buf.begin(), buf.begin() + bytes_to_process);
+                  dec->finish(buf);
+                  }
+               else
+                  {
+                  result.test_eq("correct number of bytes processed", bytes_written, bytes_to_process);
+                  dec->finish(buf, bytes_to_process);
+                  }
 
-               dec->finish(buf, bytes_to_process);
-               result.test_eq("decrypt", buf, expected);
+               result.test_eq("decrypt process", buf, expected);
                }
 
             }
@@ -221,7 +244,7 @@ class AEAD_Tests : public Text_Based_Test
             }
 
          // test decryption with modified ciphertext
-         const std::vector<byte> mutated_input = mutate_vec(input, true);
+         const std::vector<uint8_t> mutated_input = mutate_vec(input, true);
          buf.assign(mutated_input.begin(), mutated_input.end());
 
          dec->reset();
@@ -247,7 +270,7 @@ class AEAD_Tests : public Text_Based_Test
          if(nonce.size() > 0)
             {
             buf.assign(input.begin(), input.end());
-            std::vector<byte> bad_nonce = mutate_vec(nonce);
+            std::vector<uint8_t> bad_nonce = mutate_vec(nonce);
 
             dec->reset();
             dec->set_ad(ad);
@@ -269,7 +292,7 @@ class AEAD_Tests : public Text_Based_Test
             }
 
          // test decryption with modified associated_data
-         const std::vector<byte> bad_ad = mutate_vec(ad, true);
+         const std::vector<uint8_t> bad_ad = mutate_vec(ad, true);
 
          dec->reset();
          dec->set_ad(bad_ad);
@@ -316,6 +339,17 @@ class AEAD_Tests : public Text_Based_Test
          // must be authenticated
          result.test_eq("Encryption algo is an authenticated mode", enc->authenticated(), true);
          result.test_eq("Decryption algo is an authenticated mode", dec->authenticated(), true);
+
+         const std::string enc_provider = enc->provider();
+         result.test_is_nonempty("enc provider", enc_provider);
+         const std::string dec_provider = enc->provider();
+         result.test_is_nonempty("dec provider", dec_provider);
+
+         result.test_eq("same provider", enc_provider, dec_provider);
+
+         // FFI currently requires this, so assure it is true for all modes
+         result.test_gte("enc buffer sizes ok", enc->update_granularity(), enc->minimum_final_size());
+         result.test_gte("dec buffer sizes ok", dec->update_granularity(), dec->minimum_final_size());
 
          // test enc
          result.merge(test_enc(key, nonce, input, expected, ad, algo));

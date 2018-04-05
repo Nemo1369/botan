@@ -10,6 +10,12 @@ snail-mail address (S), and Bitcoin address (B).
 
 ::
 
+  N: Alexander Bluhm
+  W: https://www.genua.de/
+  P: 1E3B BEA4 6C20 EA00 2FFC  DE4D C5F4 83AD DEE8 6380
+  D: improve support for OpenBSD
+  S: Kirchheim, Germany
+
   N: Charles Brockman
   W: http://www.securitygenetics.com/
   D: documentation editing
@@ -28,6 +34,13 @@ snail-mail address (S), and Bitcoin address (B).
 
   N: Olivier de Gaalon
   D: SQLite encryption codec (src/contrib/sqlite)
+
+  N: Matthias Gierlings
+  E: matthias.gierlings@hackmanit.de
+  W: https://www.hackmanit.de/
+  P: 39E0 D270 19A4 B356 05D0 29AE 1BD3 49CF 744A 02FF
+  D: GMAC, Extended Hash-Based Signatures (XMSS)
+  S: Bochum, Germany
 
   N: Matthew Gregan
   D: Binary file I/O support, allocator fixes
@@ -124,7 +137,7 @@ snail-mail address (S), and Bitcoin address (B).
   W: https://sirrix.com/
   D: KDF1-18033, ECIES
   S: Saarland, Germany
-  
+
   N: Daniel Neus
   E: d.neus@sirrix.com
   W: https://sirrix.com/

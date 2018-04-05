@@ -28,6 +28,8 @@ Compression_Filter::Compression_Filter(const std::string& type, size_t level, si
       }
    }
 
+Compression_Filter::~Compression_Filter() { /* for unique_ptr */ }
+
 std::string Compression_Filter::name() const
    {
    return m_comp->name();
@@ -38,7 +40,7 @@ void Compression_Filter::start_msg()
    m_comp->start(m_level);
    }
 
-void Compression_Filter::write(const byte input[], size_t input_length)
+void Compression_Filter::write(const uint8_t input[], size_t input_length)
    {
    while(input_length)
       {
@@ -79,6 +81,8 @@ Decompression_Filter::Decompression_Filter(const std::string& type, size_t bs) :
       }
    }
 
+Decompression_Filter::~Decompression_Filter() { /* for unique_ptr */ }
+
 std::string Decompression_Filter::name() const
    {
    return m_comp->name();
@@ -89,7 +93,7 @@ void Decompression_Filter::start_msg()
    m_comp->start();
    }
 
-void Decompression_Filter::write(const byte input[], size_t input_length)
+void Decompression_Filter::write(const uint8_t input[], size_t input_length)
    {
    while(input_length)
       {

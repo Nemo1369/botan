@@ -6,21 +6,23 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BIGINT_H__
-#define BOTAN_BIGINT_H__
+#ifndef BOTAN_BIGINT_H_
+#define BOTAN_BIGINT_H_
 
-#include <botan/rng.h>
+#include <botan/types.h>
 #include <botan/secmem.h>
-#include <botan/mp_types.h>
+#include <botan/exceptn.h>
 #include <botan/loadstor.h>
 #include <iosfwd>
 
 namespace Botan {
 
+class RandomNumberGenerator;
+
 /**
 * Arbitrary precision integer
 */
-class BOTAN_DLL BigInt
+class BOTAN_PUBLIC_API(2,0) BigInt final
    {
    public:
      /**
@@ -36,19 +38,22 @@ class BOTAN_DLL BigInt
      /**
      * DivideByZero Exception
      */
-     struct BOTAN_DLL DivideByZero : public Exception
-        { DivideByZero() : Exception("BigInt divide by zero") {} };
+     class BOTAN_PUBLIC_API(2,0) DivideByZero final : public Exception
+        {
+        public:
+           DivideByZero() : Exception("BigInt divide by zero") {}
+        };
 
      /**
      * Create empty BigInt
      */
-     BigInt() {}
+     BigInt() = default;
 
      /**
      * Create BigInt from 64 bit integer
      * @param n initial value of this BigInt
      */
-     BigInt(u64bit n);
+     BigInt(uint64_t n);
 
      /**
      * Copy Constructor
@@ -63,7 +68,14 @@ class BOTAN_DLL BigInt
      *
      * @param str the string to parse for an integer value
      */
-     BigInt(const std::string& str);
+     explicit BigInt(const std::string& str);
+
+     /**
+     * Create a BigInt from an integer in a byte array
+     * @param buf the byte array holding the value
+     * @param length size of buf
+     */
+     BigInt(const uint8_t buf[], size_t length);
 
      /**
      * Create a BigInt from an integer in a byte array
@@ -71,7 +83,23 @@ class BOTAN_DLL BigInt
      * @param length size of buf
      * @param base is the number base of the integer in buf
      */
-     BigInt(const byte buf[], size_t length, Base base = Binary);
+     BigInt(const uint8_t buf[], size_t length, Base base);
+
+     /**
+     * Create a BigInt from an integer in a byte array
+     * @param buf the byte array holding the value
+     * @param length size of buf
+     * @param max_bits if the resulting integer is more than max_bits,
+     *        it will be shifted so it is at most max_bits in length.
+     */
+     BigInt(const uint8_t buf[], size_t length, size_t max_bits);
+
+     /**
+     * Create a BigInt from an array of words
+     * @param words the words
+     * @param length number of words
+     */
+     BigInt(const word words[], size_t length);
 
      /**
      * \brief Create a random BigInt of the specified size
@@ -149,6 +177,12 @@ class BOTAN_DLL BigInt
      BigInt& operator*=(const BigInt& y);
 
      /**
+     * *= operator
+     * @param y the word to multiply with this
+     */
+     BigInt& operator*=(word y);
+
+     /**
      * /= operator
      * @param y the BigInt to divide this by
      */
@@ -211,6 +245,30 @@ class BOTAN_DLL BigInt
      bool operator !() const { return (!is_nonzero()); }
 
      /**
+     * Multiply this with y
+     * @param y the BigInt to multiply with this
+     * @param ws a temp workspace
+     */
+     BigInt& mul(const BigInt& y, secure_vector<word>& ws);
+
+     /**
+     * Set *this to y - *this
+     * @param y the BigInt to subtract from as a sequence of words
+     * @param y_size length of y in words
+     * @param ws a temp workspace
+     */
+     BigInt& rev_sub(const word y[], size_t y_size, secure_vector<word>& ws);
+
+     /**
+     * Return *this below mod
+     *
+     * Assumes that *this is (if anything) only slightly larger than
+     * mod and performs repeated subtractions. It should not be used if
+     * *this is much larger than mod, instead of modulo operator.
+     */
+     void reduce_below(const BigInt& mod, secure_vector<word> &ws);
+
+     /**
      * Zeroize the BigInt. The size of the underlying register is not
      * modified.
      */
@@ -223,7 +281,7 @@ class BOTAN_DLL BigInt
      * @result if (this<n) return -1, if (this>n) return 1, if both
      * values are identical return 0 [like Perl's <=> operator]
      */
-     s32bit cmp(const BigInt& n, bool check_signs = true) const;
+     int32_t cmp(const BigInt& n, bool check_signs = true) const;
 
      /**
      * Test if the integer has an even value
@@ -308,20 +366,20 @@ class BOTAN_DLL BigInt
      * @result the integer extracted from the register starting at
      * offset with specified length
      */
-     u32bit get_substring(size_t offset, size_t length) const;
+     uint32_t get_substring(size_t offset, size_t length) const;
 
      /**
-     * Convert this value into a u32bit, if it is in the range
+     * Convert this value into a uint32_t, if it is in the range
      * [0 ... 2**32-1], or otherwise throw an exception.
-     * @result the value as a u32bit if conversion is possible
+     * @result the value as a uint32_t if conversion is possible
      */
-     u32bit to_u32bit() const;
+     uint32_t to_u32bit() const;
 
      /**
      * @param n the offset to get a byte from
      * @result byte at offset n
      */
-     byte byte_at(size_t n) const
+     uint8_t byte_at(size_t n) const
         {
         return get_byte(sizeof(word) - (n % sizeof(word)) - 1,
                         word_at(n / sizeof(word)));
@@ -337,7 +395,8 @@ class BOTAN_DLL BigInt
 
      void set_word_at(size_t i, word w)
         {
-        grow_to(i + 1);
+        if(i >= m_reg.size())
+           grow_to(i + 1);
         m_reg[i] = w;
         }
 
@@ -362,18 +421,32 @@ class BOTAN_DLL BigInt
      /**
      * @result the opposite sign of the represented integer value
      */
-     Sign reverse_sign() const;
+     Sign reverse_sign() const
+        {
+        if(sign() == Positive)
+           return Negative;
+        return Positive;
+        }
 
      /**
      * Flip the sign of this BigInt
      */
-     void flip_sign();
+     void flip_sign()
+        {
+        set_sign(reverse_sign());
+        }
 
      /**
      * Set sign of the integer
      * @param sign new Sign to set
      */
-     void set_sign(Sign sign);
+     void set_sign(Sign sign)
+        {
+        if(is_zero())
+           m_signedness = Positive;
+        else
+           m_signedness = sign;
+        }
 
      /**
      * @result absolute (positive) value of this
@@ -434,6 +507,12 @@ class BOTAN_DLL BigInt
      void grow_to(size_t n);
 
      /**
+     * Resize the vector to the minimum word size to hold the integer, or
+     * min_size words, whichever is larger
+     */
+     void shrink_to_fit(size_t min_size = 0);
+
+     /**
      * Fill BigInt with a random number with size of bitsize
      *
      * If \p set_high_bit is true, the highest bit will be set, which causes
@@ -450,20 +529,20 @@ class BOTAN_DLL BigInt
      * Store BigInt-value in a given byte array
      * @param buf destination byte array for the integer value
      */
-     void binary_encode(byte buf[]) const;
+     void binary_encode(uint8_t buf[]) const;
 
      /**
      * Read integer value from a byte array with given size
      * @param buf byte array buffer containing the integer
      * @param length size of buf
      */
-     void binary_decode(const byte buf[], size_t length);
+     void binary_decode(const uint8_t buf[], size_t length);
 
      /**
-     * Read integer value from a byte array (secure_vector<byte>)
+     * Read integer value from a byte array (secure_vector<uint8_t>)
      * @param buf the array to load from
      */
-     void binary_decode(const secure_vector<byte>& buf)
+     void binary_decode(const secure_vector<uint8_t>& buf)
         {
         binary_decode(buf.data(), buf.size());
         }
@@ -473,6 +552,12 @@ class BOTAN_DLL BigInt
      * @return size of this integer in base base
      */
      size_t encoded_size(Base base = Binary) const;
+
+     /**
+     * Place the value into out, zero-padding up to size words
+     * Throw if *this cannot be represented in size words
+     */
+     void encode_words(word out[], size_t size) const;
 
      /**
      * @param rng a random number generator
@@ -502,7 +587,7 @@ class BOTAN_DLL BigInt
      * @param base number-base of resulting byte array representation
      * @result secure_vector of bytes containing the integer with given base
      */
-     static std::vector<byte> encode(const BigInt& n, Base base = Binary);
+     static std::vector<uint8_t> encode(const BigInt& n, Base base = Binary);
 
      /**
      * Encode the integer value from a BigInt to a secure_vector of bytes
@@ -510,7 +595,7 @@ class BOTAN_DLL BigInt
      * @param base number-base of resulting byte array representation
      * @result secure_vector of bytes containing the integer with given base
      */
-     static secure_vector<byte> encode_locked(const BigInt& n,
+     static secure_vector<uint8_t> encode_locked(const BigInt& n,
                                               Base base = Binary);
 
      /**
@@ -520,7 +605,7 @@ class BOTAN_DLL BigInt
      * @param n the BigInt to use as integer source
      * @param base number-base of resulting byte array representation
      */
-     static void encode(byte buf[], const BigInt& n, Base base = Binary);
+     static void encode(uint8_t buf[], const BigInt& n, Base base = Binary);
 
      /**
      * Create a BigInt from an integer in a byte array
@@ -529,7 +614,7 @@ class BOTAN_DLL BigInt
      * @param base number-base of the integer in buf
      * @result BigInt representing the integer in the byte array
      */
-     static BigInt decode(const byte buf[], size_t length,
+     static BigInt decode(const uint8_t buf[], size_t length,
                           Base base = Binary);
 
      /**
@@ -538,7 +623,7 @@ class BOTAN_DLL BigInt
      * @param base number-base of the integer in buf
      * @result BigInt representing the integer in the byte array
      */
-     static BigInt decode(const secure_vector<byte>& buf,
+     static BigInt decode(const secure_vector<uint8_t>& buf,
                           Base base = Binary)
         {
         return BigInt::decode(buf.data(), buf.size(), base);
@@ -550,7 +635,7 @@ class BOTAN_DLL BigInt
      * @param base number-base of the integer in buf
      * @result BigInt representing the integer in the byte array
      */
-     static BigInt decode(const std::vector<byte>& buf,
+     static BigInt decode(const std::vector<uint8_t>& buf,
                           Base base = Binary)
         {
         return BigInt::decode(buf.data(), buf.size(), base);
@@ -559,21 +644,30 @@ class BOTAN_DLL BigInt
      /**
      * Encode a BigInt to a byte array according to IEEE 1363
      * @param n the BigInt to encode
-     * @param bytes the length of the resulting secure_vector<byte>
-     * @result a secure_vector<byte> containing the encoded BigInt
+     * @param bytes the length of the resulting secure_vector<uint8_t>
+     * @result a secure_vector<uint8_t> containing the encoded BigInt
      */
-     static secure_vector<byte> encode_1363(const BigInt& n, size_t bytes);
+     static secure_vector<uint8_t> encode_1363(const BigInt& n, size_t bytes);
 
-     static void encode_1363(byte out[], size_t bytes, const BigInt& n);
+     static void encode_1363(uint8_t out[], size_t bytes, const BigInt& n);
 
      /**
      * Encode two BigInt to a byte array according to IEEE 1363
      * @param n1 the first BigInt to encode
      * @param n2 the second BigInt to encode
      * @param bytes the length of the encoding of each single BigInt
-     * @result a secure_vector<byte> containing the concatenation of the two encoded BigInt
+     * @result a secure_vector<uint8_t> containing the concatenation of the two encoded BigInt
      */
-     static secure_vector<byte> encode_fixed_length_int_pair(const BigInt& n1, const BigInt& n2, size_t bytes);
+     static secure_vector<uint8_t> encode_fixed_length_int_pair(const BigInt& n1, const BigInt& n2, size_t bytes);
+
+     /**
+     * Set output = vec[idx].m_reg in constant time
+     * All words of vec must have the same size
+     */
+     static void const_time_lookup(
+        secure_vector<word>& output,
+        const std::vector<BigInt>& vec,
+        size_t idx);
 
    private:
       secure_vector<word> m_reg;
@@ -583,14 +677,14 @@ class BOTAN_DLL BigInt
 /*
 * Arithmetic Operators
 */
-BigInt BOTAN_DLL operator+(const BigInt& x, const BigInt& y);
-BigInt BOTAN_DLL operator-(const BigInt& x, const BigInt& y);
-BigInt BOTAN_DLL operator*(const BigInt& x, const BigInt& y);
-BigInt BOTAN_DLL operator/(const BigInt& x, const BigInt& d);
-BigInt BOTAN_DLL operator%(const BigInt& x, const BigInt& m);
-word   BOTAN_DLL operator%(const BigInt& x, word m);
-BigInt BOTAN_DLL operator<<(const BigInt& x, size_t n);
-BigInt BOTAN_DLL operator>>(const BigInt& x, size_t n);
+BigInt BOTAN_PUBLIC_API(2,0) operator+(const BigInt& x, const BigInt& y);
+BigInt BOTAN_PUBLIC_API(2,0) operator-(const BigInt& x, const BigInt& y);
+BigInt BOTAN_PUBLIC_API(2,0) operator*(const BigInt& x, const BigInt& y);
+BigInt BOTAN_PUBLIC_API(2,0) operator/(const BigInt& x, const BigInt& d);
+BigInt BOTAN_PUBLIC_API(2,0) operator%(const BigInt& x, const BigInt& m);
+word   BOTAN_PUBLIC_API(2,0) operator%(const BigInt& x, word m);
+BigInt BOTAN_PUBLIC_API(2,0) operator<<(const BigInt& x, size_t n);
+BigInt BOTAN_PUBLIC_API(2,0) operator>>(const BigInt& x, size_t n);
 
 /*
 * Comparison Operators
@@ -611,8 +705,8 @@ inline bool operator>(const BigInt& a, const BigInt& b)
 /*
 * I/O Operators
 */
-BOTAN_DLL std::ostream& operator<<(std::ostream&, const BigInt&);
-BOTAN_DLL std::istream& operator>>(std::istream&, BigInt&);
+BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream&, const BigInt&);
+BOTAN_PUBLIC_API(2,0) std::istream& operator>>(std::istream&, BigInt&);
 
 }
 

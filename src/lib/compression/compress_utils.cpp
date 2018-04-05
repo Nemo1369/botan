@@ -7,18 +7,14 @@
 
 #include <botan/internal/compress_utils.h>
 #include <botan/exceptn.h>
+#include <cstdlib>
 
 namespace Botan {
 
 void* Compression_Alloc_Info::do_malloc(size_t n, size_t size)
    {
-   const size_t total_size = n * size;
-
-   BOTAN_ASSERT_EQUAL(total_size / size, n, "Overflow check");
-
    // TODO maximum length check here?
-
-   void* ptr = std::malloc(total_size);
+   void* ptr = std::calloc(n, size);
 
    /*
    * Return null rather than throwing here as we are being called by a
@@ -30,8 +26,7 @@ void* Compression_Alloc_Info::do_malloc(size_t n, size_t size)
 
    if(ptr)
       {
-      std::memset(ptr, 0, total_size);
-      m_current_allocs[ptr] = total_size;
+      m_current_allocs[ptr] = n * size;
       }
 
    return ptr;
@@ -62,10 +57,16 @@ void Stream_Compression::start(size_t level)
    m_stream.reset(make_stream(level));
    }
 
-void Stream_Compression::process(secure_vector<byte>& buf, size_t offset, u32bit flags)
+void Stream_Compression::process(secure_vector<uint8_t>& buf, size_t offset, uint32_t flags)
    {
    BOTAN_ASSERT(m_stream, "Initialized");
    BOTAN_ASSERT(buf.size() >= offset, "Offset is sane");
+
+   // bzip doesn't like being called with no input and BZ_RUN
+   if(buf.size() == offset && flags == m_stream->run_flag())
+      {
+      return;
+      }
 
    if(m_buffer.size() < buf.size() + offset)
       m_buffer.resize(buf.size() + offset);
@@ -83,9 +84,15 @@ void Stream_Compression::process(secure_vector<byte>& buf, size_t offset, u32bit
 
    while(true)
       {
-      m_stream->run(flags);
+      const bool stream_end = m_stream->run(flags);
 
-      if(m_stream->avail_out() == 0)
+      if(stream_end)
+         {
+         BOTAN_ASSERT(m_stream->avail_in() == 0, "After stream is done, no input remains to be processed");
+         m_buffer.resize(m_buffer.size() - m_stream->avail_out());
+         break;
+         }
+      else if(m_stream->avail_out() == 0)
          {
          const size_t added = 8 + m_buffer.size();
          m_buffer.resize(m_buffer.size() + added);
@@ -102,13 +109,13 @@ void Stream_Compression::process(secure_vector<byte>& buf, size_t offset, u32bit
    buf.swap(m_buffer);
    }
 
-void Stream_Compression::update(secure_vector<byte>& buf, size_t offset, bool flush)
+void Stream_Compression::update(secure_vector<uint8_t>& buf, size_t offset, bool flush)
    {
    BOTAN_ASSERT(m_stream, "Initialized");
    process(buf, offset, flush ? m_stream->flush_flag() : m_stream->run_flag());
    }
 
-void Stream_Compression::finish(secure_vector<byte>& buf, size_t offset)
+void Stream_Compression::finish(secure_vector<uint8_t>& buf, size_t offset)
    {
    BOTAN_ASSERT(m_stream, "Initialized");
    process(buf, offset, m_stream->finish_flag());
@@ -125,7 +132,7 @@ void Stream_Decompression::start()
    m_stream.reset(make_stream());
    }
 
-void Stream_Decompression::process(secure_vector<byte>& buf, size_t offset, u32bit flags)
+void Stream_Decompression::process(secure_vector<uint8_t>& buf, size_t offset, uint32_t flags)
    {
    BOTAN_ASSERT(m_stream, "Initialized");
    BOTAN_ASSERT(buf.size() >= offset, "Offset is sane");
@@ -172,12 +179,12 @@ void Stream_Decompression::process(secure_vector<byte>& buf, size_t offset, u32b
    buf.swap(m_buffer);
    }
 
-void Stream_Decompression::update(secure_vector<byte>& buf, size_t offset)
+void Stream_Decompression::update(secure_vector<uint8_t>& buf, size_t offset)
    {
    process(buf, offset, m_stream->run_flag());
    }
 
-void Stream_Decompression::finish(secure_vector<byte>& buf, size_t offset)
+void Stream_Decompression::finish(secure_vector<uint8_t>& buf, size_t offset)
    {
    if(buf.size() != offset || m_stream.get())
       process(buf, offset, m_stream->finish_flag());

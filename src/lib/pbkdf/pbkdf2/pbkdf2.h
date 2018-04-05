@@ -5,27 +5,26 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PBKDF2_H__
-#define BOTAN_PBKDF2_H__
+#ifndef BOTAN_PBKDF2_H_
+#define BOTAN_PBKDF2_H_
 
 #include <botan/pbkdf.h>
 #include <botan/mac.h>
-#include <botan/hash.h>
 
 namespace Botan {
 
-BOTAN_DLL size_t pbkdf2(MessageAuthenticationCode& prf,
-                        byte out[],
+BOTAN_PUBLIC_API(2,0) size_t pbkdf2(MessageAuthenticationCode& prf,
+                        uint8_t out[],
                         size_t out_len,
                         const std::string& passphrase,
-                        const byte salt[], size_t salt_len,
+                        const uint8_t salt[], size_t salt_len,
                         size_t iterations,
                         std::chrono::milliseconds msec);
 
 /**
 * PKCS #5 PBKDF2
 */
-class BOTAN_DLL PKCS5_PBKDF2 final : public PBKDF
+class BOTAN_PUBLIC_API(2,0) PKCS5_PBKDF2 final : public PBKDF
    {
    public:
       std::string name() const override
@@ -38,9 +37,9 @@ class BOTAN_DLL PKCS5_PBKDF2 final : public PBKDF
          return new PKCS5_PBKDF2(m_mac->clone());
          }
 
-      size_t pbkdf(byte output_buf[], size_t output_len,
+      size_t pbkdf(uint8_t output_buf[], size_t output_len,
                    const std::string& passphrase,
-                   const byte salt[], size_t salt_len,
+                   const uint8_t salt[], size_t salt_len,
                    size_t iterations,
                    std::chrono::milliseconds msec) const override;
 

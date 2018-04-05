@@ -61,15 +61,22 @@ void X509_Cert_Options::CA_key(size_t limit)
    path_limit = limit;
    }
 
+void X509_Cert_Options::set_padding_scheme(const std::string& scheme)
+   {
+      padding_scheme = scheme;
+   }
+
 /*
 * Initialize the certificate options
 */
 X509_Cert_Options::X509_Cert_Options(const std::string& initial_opts,
-                                     u32bit expiration_time)
+                                     uint32_t expiration_time)
    {
    is_CA = false;
    path_limit = 0;
    constraints = NO_CONSTRAINTS;
+   // use default for chosen algorithm
+   padding_scheme = "";
 
    auto now = std::chrono::system_clock::now();
 

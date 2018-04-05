@@ -14,7 +14,7 @@ namespace Botan {
 /*
 * Read data from a message
 */
-size_t Output_Buffers::read(byte output[], size_t length,
+size_t Output_Buffers::read(uint8_t output[], size_t length,
                             Pipe::message_id msg)
    {
    SecureQueue* q = get(msg);
@@ -26,7 +26,7 @@ size_t Output_Buffers::read(byte output[], size_t length,
 /*
 * Peek at data in a message
 */
-size_t Output_Buffers::peek(byte output[], size_t length,
+size_t Output_Buffers::peek(uint8_t output[], size_t length,
                             size_t stream_offset,
                             Pipe::message_id msg) const
    {
@@ -68,7 +68,7 @@ void Output_Buffers::add(SecureQueue* queue)
    BOTAN_ASSERT(m_buffers.size() < m_buffers.max_size(),
                 "Room was available in container");
 
-   m_buffers.push_back(queue);
+   m_buffers.push_back(std::unique_ptr<SecureQueue>(queue));
    }
 
 /*
@@ -79,8 +79,7 @@ void Output_Buffers::retire()
    for(size_t i = 0; i != m_buffers.size(); ++i)
       if(m_buffers[i] && m_buffers[i]->size() == 0)
          {
-         delete m_buffers[i];
-         m_buffers[i] = nullptr;
+         m_buffers[i].reset();
          }
 
    while(m_buffers.size() && !m_buffers[0])
@@ -100,7 +99,7 @@ SecureQueue* Output_Buffers::get(Pipe::message_id msg) const
 
    BOTAN_ASSERT(msg < message_count(), "Message number is in range");
 
-   return m_buffers[msg-m_offset];
+   return m_buffers[msg-m_offset].get();
    }
 
 /*
@@ -117,15 +116,6 @@ Pipe::message_id Output_Buffers::message_count() const
 Output_Buffers::Output_Buffers()
    {
    m_offset = 0;
-   }
-
-/*
-* Output_Buffers Destructor
-*/
-Output_Buffers::~Output_Buffers()
-   {
-   for(size_t j = 0; j != m_buffers.size(); ++j)
-      delete m_buffers[j];
    }
 
 }

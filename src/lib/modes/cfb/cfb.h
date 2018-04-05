@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MODE_CFB_H__
-#define BOTAN_MODE_CFB_H__
+#ifndef BOTAN_MODE_CFB_H_
+#define BOTAN_MODE_CFB_H_
 
 #include <botan/cipher_mode.h>
 #include <botan/block_cipher.h>
@@ -17,51 +17,52 @@ namespace Botan {
 /**
 * CFB Mode
 */
-class BOTAN_DLL CFB_Mode : public Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) CFB_Mode : public Cipher_Mode
    {
    public:
-      std::string name() const override;
+      std::string name() const override final;
 
-      size_t update_granularity() const override;
+      size_t update_granularity() const override final;
 
-      size_t minimum_final_size() const override;
+      size_t minimum_final_size() const override final;
 
-      Key_Length_Specification key_spec() const override;
+      Key_Length_Specification key_spec() const override final;
 
-      size_t output_length(size_t input_length) const override;
+      size_t output_length(size_t input_length) const override final;
 
-      size_t default_nonce_length() const override;
+      size_t default_nonce_length() const override final;
 
-      bool valid_nonce_length(size_t n) const override;
+      bool valid_nonce_length(size_t n) const override final;
 
-      void clear() override;
+      void clear() override final;
 
-      void reset() override;
+      void reset() override final;
    protected:
       CFB_Mode(BlockCipher* cipher, size_t feedback_bits);
 
-      const BlockCipher& cipher() const { return *m_cipher; }
+      void shift_register();
 
       size_t feedback() const { return m_feedback_bytes; }
+      const BlockCipher& cipher() const { return *m_cipher; }
+      size_t block_size() const { return m_block_size; }
 
-      secure_vector<byte>& shift_register() { return m_shift_register; }
-
-      secure_vector<byte>& keystream_buf() { return m_keystream_buf; }
+      secure_vector<uint8_t> m_state;
+      secure_vector<uint8_t> m_keystream;
+      size_t m_keystream_pos = 0;
 
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override;
-      void key_schedule(const byte key[], size_t length) override;
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override;
+      void key_schedule(const uint8_t key[], size_t length) override;
 
       std::unique_ptr<BlockCipher> m_cipher;
-      secure_vector<byte> m_shift_register;
-      secure_vector<byte> m_keystream_buf;
-      size_t m_feedback_bytes;
+      const size_t m_block_size;
+      const size_t m_feedback_bytes;
    };
 
 /**
 * CFB Encryption
 */
-class BOTAN_DLL CFB_Encryption final : public CFB_Mode
+class BOTAN_PUBLIC_API(2,0) CFB_Encryption final : public CFB_Mode
    {
    public:
       /**
@@ -75,13 +76,13 @@ class BOTAN_DLL CFB_Encryption final : public CFB_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 /**
 * CFB Decryption
 */
-class BOTAN_DLL CFB_Decryption final : public CFB_Mode
+class BOTAN_PUBLIC_API(2,0) CFB_Decryption final : public CFB_Mode
    {
    public:
       /**
@@ -95,7 +96,7 @@ class BOTAN_DLL CFB_Decryption final : public CFB_Mode
 
       size_t process(uint8_t buf[], size_t size) override;
 
-      void finish(secure_vector<byte>& final_block, size_t offset = 0) override;
+      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 }

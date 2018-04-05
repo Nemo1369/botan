@@ -1,12 +1,13 @@
 /*
 * TLS Handshake State
 * (C) 2004-2006,2011,2012 Jack Lloyd
+*     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_HANDSHAKE_STATE_H__
-#define BOTAN_TLS_HANDSHAKE_STATE_H__
+#ifndef BOTAN_TLS_HANDSHAKE_STATE_H_
+#define BOTAN_TLS_HANDSHAKE_STATE_H_
 
 #include <botan/internal/tls_handshake_hash.h>
 #include <botan/internal/tls_handshake_io.h>
@@ -14,6 +15,7 @@
 #include <botan/tls_ciphersuite.h>
 #include <botan/tls_exceptn.h>
 #include <botan/tls_handshake_msg.h>
+#include <botan/tls_callbacks.h>
 #include <botan/pk_keys.h>
 #include <botan/pubkey.h>
 #include <functional>
@@ -31,6 +33,7 @@ class Hello_Verify_Request;
 class Client_Hello;
 class Server_Hello;
 class Certificate;
+class Certificate_Status;
 class Server_Key_Exchange;
 class Certificate_Req;
 class Server_Hello_Done;
@@ -48,7 +51,7 @@ class Handshake_State
    public:
       Handshake_State(Handshake_IO* io, Callbacks& callbacks);
 
-      virtual ~Handshake_State();
+      virtual ~Handshake_State() = default;
 
       Handshake_State(const Handshake_State&) = delete;
       Handshake_State& operator=(const Handshake_State&) = delete;
@@ -73,22 +76,20 @@ class Handshake_State
       */
       void set_expected_next(Handshake_Type msg_type);
 
-      std::pair<Handshake_Type, std::vector<byte>>
+      std::pair<Handshake_Type, std::vector<uint8_t>>
          get_next_handshake_msg();
 
-      std::vector<byte> session_ticket() const;
+      std::vector<uint8_t> session_ticket() const;
 
       std::pair<std::string, Signature_Format>
          parse_sig_format(const Public_Key& key,
-                          const std::string& hash_algo,
-                          const std::string& sig_algo,
+                          Signature_Scheme scheme,
                           bool for_client_auth,
                           const Policy& policy) const;
 
       std::pair<std::string, Signature_Format>
          choose_sig_format(const Private_Key& key,
-                           std::string& hash_algo,
-                           std::string& sig_algo,
+                           Signature_Scheme& scheme,
                            bool for_client_auth,
                            const Policy& policy) const;
 
@@ -105,6 +106,7 @@ class Handshake_State
       void client_hello(Client_Hello* client_hello);
       void server_hello(Server_Hello* server_hello);
       void server_certs(Certificate* server_certs);
+      void server_cert_status(Certificate_Status* server_cert_status);
       void server_kex(Server_Key_Exchange* server_kex);
       void cert_req(Certificate_Req* cert_req);
       void server_hello_done(Server_Hello_Done* server_hello_done);
@@ -142,6 +144,9 @@ class Handshake_State
       const Certificate_Verify* client_verify() const
          { return m_client_verify.get(); }
 
+      const Certificate_Status* server_cert_status() const
+         { return m_server_cert_status.get(); }
+
       const New_Session_Ticket* new_session_ticket() const
          { return m_new_session_ticket.get(); }
 
@@ -155,9 +160,11 @@ class Handshake_State
 
       const Session_Keys& session_keys() const { return m_session_keys; }
 
+      Callbacks& callbacks() const { return m_callbacks; }
+
       void compute_session_keys();
 
-      void compute_session_keys(const secure_vector<byte>& resume_master_secret);
+      void compute_session_keys(const secure_vector<uint8_t>& resume_master_secret);
 
       Handshake_Hash& hash() { return m_handshake_hash; }
 
@@ -170,8 +177,8 @@ class Handshake_State
 
       std::unique_ptr<Handshake_IO> m_handshake_io;
 
-      u32bit m_hand_expecting_mask = 0;
-      u32bit m_hand_received_mask = 0;
+      uint32_t m_hand_expecting_mask = 0;
+      uint32_t m_hand_received_mask = 0;
       Protocol_Version m_version;
       Ciphersuite m_ciphersuite;
       Session_Keys m_session_keys;
@@ -180,6 +187,7 @@ class Handshake_State
       std::unique_ptr<Client_Hello> m_client_hello;
       std::unique_ptr<Server_Hello> m_server_hello;
       std::unique_ptr<Certificate> m_server_certs;
+      std::unique_ptr<Certificate_Status> m_server_cert_status;
       std::unique_ptr<Server_Key_Exchange> m_server_kex;
       std::unique_ptr<Certificate_Req> m_cert_req;
       std::unique_ptr<Server_Hello_Done> m_server_hello_done;

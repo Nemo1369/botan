@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CIPHER_MODE_H__
-#define BOTAN_CIPHER_MODE_H__
+#ifndef BOTAN_CIPHER_MODE_H_
+#define BOTAN_CIPHER_MODE_H_
 
 #include <botan/secmem.h>
 #include <botan/key_spec.h>
@@ -20,22 +20,28 @@ namespace Botan {
 /**
 * Interface for cipher modes
 */
-class BOTAN_DLL Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) Cipher_Mode
    {
    public:
-      virtual ~Cipher_Mode() {}
+      virtual ~Cipher_Mode() = default;
+
+      /**
+      * @return list of available providers for this algorithm, empty if not available
+      * @param algo_spec algorithm name
+      */
+      static std::vector<std::string> providers(const std::string& algo_spec);
 
       /*
       * Prepare for processing a message under the specified nonce
       */
-      virtual void start_msg(const byte nonce[], size_t nonce_len) = 0;
+      virtual void start_msg(const uint8_t nonce[], size_t nonce_len) = 0;
 
       /**
       * Begin processing a message.
       * @param nonce the per message nonce
       */
       template<typename Alloc>
-      void start(const std::vector<byte, Alloc>& nonce)
+      void start(const std::vector<uint8_t, Alloc>& nonce)
          {
          start_msg(nonce.data(), nonce.size());
          }
@@ -45,7 +51,7 @@ class BOTAN_DLL Cipher_Mode
       * @param nonce the per message nonce
       * @param nonce_len length of nonce
       */
-      void start(const byte nonce[], size_t nonce_len)
+      void start(const uint8_t nonce[], size_t nonce_len)
          {
          start_msg(nonce, nonce_len);
          }
@@ -74,14 +80,14 @@ class BOTAN_DLL Cipher_Mode
       virtual size_t process(uint8_t msg[], size_t msg_len) = 0;
 
       /**
-      * Process some data. Input must be in size update_granularity() byte blocks.
+      * Process some data. Input must be in size update_granularity() uint8_t blocks.
       * @param buffer in/out parameter which will possibly be resized
       * @param offset an offset into blocks to begin processing
       */
-      void update(secure_vector<byte>& buffer, size_t offset = 0)
+      void update(secure_vector<uint8_t>& buffer, size_t offset = 0)
          {
          BOTAN_ASSERT(buffer.size() >= offset, "Offset ok");
-         byte* buf = buffer.data() + offset;
+         uint8_t* buf = buffer.data() + offset;
          const size_t buf_size = buffer.size() - offset;
 
          const size_t written = process(buf, buf_size);
@@ -95,7 +101,7 @@ class BOTAN_DLL Cipher_Mode
       *        minimum_final_size() bytes, and will be set to any final output
       * @param offset an offset into final_block to begin processing
       */
-      virtual void finish(secure_vector<byte>& final_block, size_t offset = 0) = 0;
+      virtual void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) = 0;
 
       /**
       * Returns the size of the output if this transform is used to process a
@@ -169,7 +175,7 @@ class BOTAN_DLL Cipher_Mode
       * @param key contains the key material
       */
       template<typename Alloc>
-      void set_key(const std::vector<byte, Alloc>& key)
+      void set_key(const std::vector<uint8_t, Alloc>& key)
          {
          set_key(key.data(), key.size());
          }
@@ -188,7 +194,7 @@ class BOTAN_DLL Cipher_Mode
       * @param key contains the key material
       * @param length in bytes of key param
       */
-      void set_key(const byte key[], size_t length)
+      void set_key(const uint8_t key[], size_t length)
          {
          if(!valid_keylength(length))
             throw Invalid_Key_Length(name(), length);
@@ -202,21 +208,25 @@ class BOTAN_DLL Cipher_Mode
       virtual std::string provider() const { return "base"; }
 
    private:
-      virtual void key_schedule(const byte key[], size_t length) = 0;
+      virtual void key_schedule(const uint8_t key[], size_t length) = 0;
    };
 
 /**
 * The two possible directions for cipher filters, determining whether they
 * actually perform encryption or decryption.
 */
-enum Cipher_Dir { ENCRYPTION, DECRYPTION };
+enum Cipher_Dir : int { ENCRYPTION, DECRYPTION };
 
 /**
 * Get a cipher mode by name (eg "AES-128/CBC" or "Serpent/XTS")
 * @param algo_spec cipher name
 * @param direction ENCRYPTION or DECRYPTION
+* @param provider provider implementation to choose
 */
-BOTAN_DLL Cipher_Mode* get_cipher_mode(const std::string& algo_spec, Cipher_Dir direction);
+BOTAN_PUBLIC_API(2,2)
+Cipher_Mode* get_cipher_mode(const std::string& algo_spec,
+                             Cipher_Dir direction,
+                             const std::string& provider = "");
 
 }
 

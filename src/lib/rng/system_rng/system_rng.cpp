@@ -1,124 +1,142 @@
 /*
 * System RNG
-* (C) 2014,2015 Jack Lloyd
+* (C) 2014,2015,2017,2018 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 #include <botan/system_rng.h>
 
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
+#if defined(BOTAN_TARGET_OS_HAS_RTLGENRANDOM)
+  #include <botan/dyn_load.h>
+  #define NOMINMAX 1
+  #define _WINSOCKAPI_ // stop windows.h including winsock.h
+  #include <windows.h>
 
-#include <windows.h>
-#include <wincrypt.h>
-#undef min
-#undef max
+#elif defined(BOTAN_TARGET_OS_HAS_ARC4RANDOM)
+   #include <stdlib.h>
 
-#else
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-
+#elif defined(BOTAN_TARGET_OS_HAS_DEV_RANDOM)
+   #include <sys/types.h>
+   #include <sys/stat.h>
+   #include <fcntl.h>
+   #include <unistd.h>
+   #include <errno.h>
 #endif
 
 namespace Botan {
 
 namespace {
 
+#if defined(BOTAN_TARGET_OS_HAS_RTLGENRANDOM)
+
 class System_RNG_Impl final : public RandomNumberGenerator
    {
    public:
-      System_RNG_Impl();
-      ~System_RNG_Impl();
+      System_RNG_Impl() : m_advapi("advapi32.dll")
+         {
+         // This throws if the function is not found
+         m_rtlgenrandom = m_advapi.resolve<RtlGenRandom_f>("SystemFunction036");
+         }
 
+      void randomize(uint8_t buf[], size_t len) override
+         {
+         if(m_rtlgenrandom(buf, len) == false)
+            throw Exception("RtlGenRandom failed");
+         }
+
+      void add_entropy(const uint8_t[], size_t) override { /* ignored */ }
       bool is_seeded() const override { return true; }
-
-      void clear() override {}
-
-      void randomize(uint8_t out[], size_t len) override;
-
-      void add_entropy(const uint8_t in[], size_t length) override;
-
-      std::string name() const override;
-
+      void clear() override { /* not possible */ }
+      std::string name() const override { return "RtlGenRandom"; }
    private:
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
-      HCRYPTPROV m_prov;
-#else
-      int m_fd;
-#endif
+      typedef BOOL (*RtlGenRandom_f)(PVOID, ULONG);
+
+      Dynamically_Loaded_Library m_advapi;
+      RtlGenRandom_f m_rtlgenrandom;
    };
 
-std::string System_RNG_Impl::name() const
+#elif defined(BOTAN_TARGET_OS_HAS_ARC4RANDOM)
+
+class System_RNG_Impl final : public RandomNumberGenerator
    {
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
-   return "cryptoapi";
-#else
-   return BOTAN_SYSTEM_RNG_DEVICE;
-#endif
-   }
+   public:
+      // No constructor or destructor needed as no userland state maintained
 
-System_RNG_Impl::System_RNG_Impl()
+      void randomize(uint8_t buf[], size_t len) override
+         {
+         ::arc4random_buf(buf, len);
+         }
+
+      void add_entropy(const uint8_t[], size_t) override { /* ignored */ }
+      bool is_seeded() const override { return true; }
+      void clear() override { /* not possible */ }
+      std::string name() const override { return "arc4random"; }
+   };
+
+#elif defined(BOTAN_TARGET_OS_HAS_DEV_RANDOM)
+
+// Read a random device
+
+class System_RNG_Impl final : public RandomNumberGenerator
    {
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
+   public:
+      System_RNG_Impl()
+         {
+         #ifndef O_NOCTTY
+            #define O_NOCTTY 0
+         #endif
 
-   if(!CryptAcquireContext(&m_prov, 0, 0, BOTAN_SYSTEM_RNG_CRYPTOAPI_PROV_TYPE, CRYPT_VERIFYCONTEXT))
-      throw Exception("System_RNG failed to acquire crypto provider");
+         m_fd = ::open(BOTAN_SYSTEM_RNG_DEVICE, O_RDWR | O_NOCTTY);
 
-#else
+         /*
+         Cannot open in read-write mode. Fall back to read-only,
+         calls to add_entropy will fail, but randomize will work
+         */
+         if(m_fd < 0)
+            m_fd = ::open(BOTAN_SYSTEM_RNG_DEVICE, O_RDONLY | O_NOCTTY);
 
-#ifndef O_NOCTTY
-  #define O_NOCTTY 0
-#endif
+         if(m_fd < 0)
+            throw Exception("System_RNG failed to open RNG device");
+         }
 
-   m_fd = ::open(BOTAN_SYSTEM_RNG_DEVICE, O_RDWR | O_NOCTTY);
-   
-   // Cannot open in read-write mode. Fall back to read-only
-   // Calls to add_entropy will fail, but randomize will work
-   if(m_fd < 0)
-      m_fd = ::open(BOTAN_SYSTEM_RNG_DEVICE, O_RDONLY | O_NOCTTY);
+      ~System_RNG_Impl()
+         {
+         ::close(m_fd);
+         m_fd = -1;
+         }
 
-   if(m_fd < 0)
-      throw Exception("System_RNG failed to open RNG device");
-#endif
-   }
+      void randomize(uint8_t buf[], size_t len) override;
+      void add_entropy(const uint8_t in[], size_t length) override;
+      bool is_seeded() const override { return true; }
+      void clear() override { /* not possible */ }
+      std::string name() const override { return BOTAN_SYSTEM_RNG_DEVICE; }
+   private:
+      int m_fd;
+   };
 
-System_RNG_Impl::~System_RNG_Impl()
+void System_RNG_Impl::randomize(uint8_t buf[], size_t len)
    {
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
-   ::CryptReleaseContext(m_prov, 0);
-#else
-   ::close(m_fd);
-   m_fd = -1;
-#endif
+   while(len)
+      {
+      ssize_t got = ::read(m_fd, buf, len);
+
+      if(got < 0)
+         {
+         if(errno == EINTR)
+            continue;
+         throw Exception("System_RNG read failed error " + std::to_string(errno));
+         }
+      if(got == 0)
+         throw Exception("System_RNG EOF on device"); // ?!?
+
+      buf += got;
+      len -= got;
+      }
    }
 
 void System_RNG_Impl::add_entropy(const uint8_t input[], size_t len)
    {
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
-   /*
-   There is no explicit ConsumeRandom, but all values provided in
-   the call are incorporated into the state.
-
-   TODO: figure out a way to avoid this copy. Byte at a time updating
-   seems worse than the allocation.
-
-   for(size_t i = 0; i != len; ++i)
-      {
-      uint8_t b = input[i];
-      ::CryptGenRandom(m_prov, 1, &b);
-      }
-   */
-
-   if(len > 0)
-      {
-      secure_vector<uint8_t> buf(input, input + len);
-      ::CryptGenRandom(m_prov, static_cast<DWORD>(buf.size()), buf.data());
-      }
-#else
    while(len)
       {
       ssize_t got = ::write(m_fd, input, len);
@@ -136,8 +154,11 @@ void System_RNG_Impl::add_entropy(const uint8_t input[], size_t len)
          * by the OS or sysadmin that additional entropy is not wanted
          * in the system pool, so we accept that and return here,
          * since there is no corrective action possible.
+	 *
+	 * In Linux EBADF or EPERM is returned if m_fd is not opened for
+	 * writing.
          */
-         if(errno == EPERM)
+         if(errno == EPERM || errno == EBADF)
             return;
 
          // maybe just ignore any failure here and return?
@@ -147,32 +168,9 @@ void System_RNG_Impl::add_entropy(const uint8_t input[], size_t len)
       input += got;
       len -= got;
       }
-#endif
    }
 
-void System_RNG_Impl::randomize(uint8_t buf[], size_t len)
-   {
-#if defined(BOTAN_TARGET_OS_HAS_CRYPTGENRANDOM)
-   ::CryptGenRandom(m_prov, static_cast<DWORD>(len), buf);
-#else
-   while(len)
-      {
-      ssize_t got = ::read(m_fd, buf, len);
-
-      if(got < 0)
-         {
-         if(errno == EINTR)
-            continue;
-         throw Exception("System_RNG read failed error " + std::to_string(errno));
-         }
-      if(got == 0)
-         throw Exception("System_RNG EOF on device"); // ?!?
-
-      buf += got;
-      len -= got;
-      }
 #endif
-   }
 
 }
 

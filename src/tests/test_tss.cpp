@@ -7,9 +7,11 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_THRESHOLD_SECRET_SHARING)
-  #include <botan/tss.h>
-  #include <botan/hex.h>
+   #include <botan/tss.h>
+   #include <botan/hex.h>
 #endif
+
+#include <numeric>
 
 namespace Botan_Tests {
 
@@ -17,7 +19,7 @@ namespace {
 
 #if defined(BOTAN_HAS_THRESHOLD_SECRET_SHARING)
 
-class TSS_Tests : public Test
+class TSS_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -25,17 +27,16 @@ class TSS_Tests : public Test
          std::vector<Test::Result> results;
 
          Test::Result result("TSS");
-         byte id[16];
-         for(int i = 0; i != 16; ++i)
-            id[i] = i;
+         uint8_t id[16];
+         std::iota(id, id + sizeof(id), static_cast<uint8_t>(0));
 
-         const std::vector<byte> S = Botan::hex_decode("7465737400");
+         const std::vector<uint8_t> S = Botan::hex_decode("7465737400");
 
          std::vector<Botan::RTSS_Share> shares =
             Botan::RTSS_Share::split(2, 4, S.data(), S.size(), id, Test::rng());
 
          result.test_eq("reconstruction", Botan::RTSS_Share::reconstruct(shares), S);
-         shares.resize(shares.size()-1);
+         shares.resize(shares.size() - 1);
          result.test_eq("reconstruction after removal", Botan::RTSS_Share::reconstruct(shares), S);
 
          results.push_back(result);

@@ -1,21 +1,9 @@
-define PIPE_UNIXFD_IO 20131128
+<defines>
+PIPE_UNIXFD_IO -> 20131128
+</defines>
 
 load_on auto
 
-<os>
-android
-aix
-cygwin
-darwin
-dragonfly
-freebsd
-haiku
-hpux
-irix
-linux
-mingw
-netbsd
-openbsd
-qnx
-solaris
-</os>
+<os_features>
+posix1
+</os_features>

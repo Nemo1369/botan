@@ -1,6 +1,6 @@
 /*
 * AES
-* (C) 1999-2010,2015 Jack Lloyd
+* (C) 1999-2010,2015,2017 Jack Lloyd
 *
 * Based on the public domain reference implementation by Paulo Baretto
 *
@@ -10,14 +10,16 @@
 #include <botan/aes.h>
 #include <botan/loadstor.h>
 #include <botan/cpuid.h>
-#include <botan/internal/bit_ops.h>
+#include <type_traits>
 
 /*
 * This implementation is based on table lookups which are known to be
 * vulnerable to timing and cache based side channel attacks. Some
 * countermeasures are used which may be helpful in some situations:
 *
-* - Small tables are used in the first and last rounds.
+* - Only a single 256-word T-table is used, with rotations applied.
+*   Most implementations use 4 T-tables which leaks much more
+*   information via cache usage.
 *
 * - The TE and TD tables are computed at runtime to avoid flush+reload
 *   attacks using clflush. As different processes will not share the
@@ -47,7 +49,8 @@ namespace Botan {
 
 namespace {
 
-const byte SE[256] = {
+BOTAN_ALIGNAS(64)
+const uint8_t SE[256] = {
    0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B,
    0xFE, 0xD7, 0xAB, 0x76, 0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0,
    0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0, 0xB7, 0xFD, 0x93, 0x26,
@@ -71,7 +74,8 @@ const byte SE[256] = {
    0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F,
    0xB0, 0x54, 0xBB, 0x16 };
 
-const byte SD[256] = {
+BOTAN_ALIGNAS(64)
+const uint8_t SD[256] = {
    0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38, 0xBF, 0x40, 0xA3, 0x9E,
    0x81, 0xF3, 0xD7, 0xFB, 0x7C, 0xE3, 0x39, 0x82, 0x9B, 0x2F, 0xFF, 0x87,
    0x34, 0x8E, 0x43, 0x44, 0xC4, 0xDE, 0xE9, 0xCB, 0x54, 0x7B, 0x94, 0x32,
@@ -95,173 +99,173 @@ const byte SD[256] = {
    0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63,
    0x55, 0x21, 0x0C, 0x7D };
 
-inline byte xtime(byte s) { return (s << 1) ^ ((s >> 7) * 0x1B); }
-inline byte xtime4(byte s) { return xtime(xtime(s)); }
-inline byte xtime8(byte s) { return xtime(xtime(xtime(s))); }
+inline uint8_t xtime(uint8_t s) { return static_cast<uint8_t>(s << 1) ^ ((s >> 7) * 0x1B); }
+inline uint8_t xtime4(uint8_t s) { return xtime(xtime(s)); }
+inline uint8_t xtime8(uint8_t s) { return xtime(xtime(xtime(s))); }
 
-inline byte xtime3(byte s) { return xtime(s) ^ s; }
-inline byte xtime9(byte s) { return xtime8(s) ^ s; }
-inline byte xtime11(byte s) { return xtime8(s) ^ xtime(s) ^ s; }
-inline byte xtime13(byte s) { return xtime8(s) ^ xtime4(s) ^ s; }
-inline byte xtime14(byte s) { return xtime8(s) ^ xtime4(s) ^ xtime(s); }
+inline uint8_t xtime3(uint8_t s) { return xtime(s) ^ s; }
+inline uint8_t xtime9(uint8_t s) { return xtime8(s) ^ s; }
+inline uint8_t xtime11(uint8_t s) { return xtime8(s) ^ xtime(s) ^ s; }
+inline uint8_t xtime13(uint8_t s) { return xtime8(s) ^ xtime4(s) ^ s; }
+inline uint8_t xtime14(uint8_t s) { return xtime8(s) ^ xtime4(s) ^ xtime(s); }
 
-const std::vector<u32bit>& AES_TE()
+inline uint32_t SE_word(uint32_t x)
    {
-   auto compute_TE = []() {
-      std::vector<u32bit> TE(1024);
-      for(size_t i = 0; i != 256; ++i)
-         {
-         const byte s = SE[i];
-         const u32bit x = make_u32bit(xtime(s), s, s, xtime3(s));
-
-         TE[i] = x;
-         TE[i+256] = rotate_right(x, 8);
-         TE[i+512] = rotate_right(x, 16);
-         TE[i+768] = rotate_right(x, 24);
-         }
-      return TE;
-   };
-
-   static const std::vector<u32bit> TE = compute_TE();
-   return TE;
+   return make_uint32(SE[get_byte(0, x)],
+                      SE[get_byte(1, x)],
+                      SE[get_byte(2, x)],
+                      SE[get_byte(3, x)]);
    }
 
-const std::vector<u32bit>& AES_TD()
+const uint32_t* AES_TE()
    {
-   auto compute_TD = []() {
-      std::vector<u32bit> TD(1024);
-      for(size_t i = 0; i != 256; ++i)
-         {
-         const byte s = SD[i];
-         const u32bit x = make_u32bit(xtime14(s), xtime9(s), xtime13(s), xtime11(s));
+   class TE_Table final
+      {
+      public:
+         TE_Table()
+            {
+            uint32_t* p = reinterpret_cast<uint32_t*>(&data);
+            for(size_t i = 0; i != 256; ++i)
+               {
+               const uint8_t s = SE[i];
+               p[i] = make_uint32(xtime(s), s, s, xtime3(s));
+               }
+            }
 
-         TD[i] = x;
-         TD[i+256] = rotate_right(x, 8);
-         TD[i+512] = rotate_right(x, 16);
-         TD[i+768] = rotate_right(x, 24);
-         }
-      return TD;
-   };
-   static const std::vector<u32bit> TD = compute_TD();
-   return TD;
+         const uint32_t* ptr() const
+            {
+            return reinterpret_cast<const uint32_t*>(&data);
+            }
+      private:
+         std::aligned_storage<256*sizeof(uint32_t), 64>::type data;
+      };
+
+   static TE_Table table;
+   return table.ptr();
    }
+
+const uint32_t* AES_TD()
+   {
+   class TD_Table final
+      {
+      public:
+         TD_Table()
+            {
+            uint32_t* p = reinterpret_cast<uint32_t*>(&data);
+            for(size_t i = 0; i != 256; ++i)
+               {
+               const uint8_t s = SD[i];
+               p[i] = make_uint32(xtime14(s), xtime9(s), xtime13(s), xtime11(s));
+               }
+            }
+
+         const uint32_t* ptr() const
+            {
+            return reinterpret_cast<const uint32_t*>(&data);
+            }
+      private:
+         std::aligned_storage<256*sizeof(uint32_t), 64>::type data;
+      };
+
+   static TD_Table table;
+   return table.ptr();
+   }
+
+#define AES_T(T, K, V0, V1, V2, V3)                                     \
+   (K ^ T[get_byte(0, V0)] ^                                            \
+    rotr< 8>(T[get_byte(1, V1)]) ^                                      \
+    rotr<16>(T[get_byte(2, V2)]) ^                                      \
+    rotr<24>(T[get_byte(3, V3)]))
 
 /*
 * AES Encryption
 */
-void aes_encrypt_n(const byte in[], byte out[],
+void aes_encrypt_n(const uint8_t in[], uint8_t out[],
                    size_t blocks,
-                   const secure_vector<u32bit>& EK,
-                   const secure_vector<byte>& ME)
+                   const secure_vector<uint32_t>& EK,
+                   const secure_vector<uint8_t>& ME)
    {
    BOTAN_ASSERT(EK.size() && ME.size() == 16, "Key was set");
 
    const size_t cache_line_size = CPUID::cache_line_size();
 
-   const std::vector<u32bit>& TE = AES_TE();
+   const uint32_t* TE = AES_TE();
 
    // Hit every cache line of TE
-   u32bit Z = 0;
-   for(size_t i = 0; i < TE.size(); i += cache_line_size / sizeof(u32bit))
+   volatile uint32_t Z = 0;
+   for(size_t i = 0; i < 256; i += cache_line_size / sizeof(uint32_t))
       {
       Z |= TE[i];
       }
    Z &= TE[82]; // this is zero, which hopefully the compiler cannot deduce
 
-   for(size_t i = 0; i != blocks; ++i)
+   for(size_t i = 0; i < blocks; ++i)
       {
-      u32bit T0 = load_be<u32bit>(in, 0) ^ EK[0];
-      u32bit T1 = load_be<u32bit>(in, 1) ^ EK[1];
-      u32bit T2 = load_be<u32bit>(in, 2) ^ EK[2];
-      u32bit T3 = load_be<u32bit>(in, 3) ^ EK[3];
+      uint32_t T0, T1, T2, T3;
+      load_be(in + 16*i, T0, T1, T2, T3);
+
+      T0 ^= EK[0];
+      T1 ^= EK[1];
+      T2 ^= EK[2];
+      T3 ^= EK[3];
 
       T0 ^= Z;
 
-      /* Use only the first 256 entries of the TE table and do the
-      * rotations directly in the code. This reduces the number of
-      * cache lines potentially used in the first round from 64 to 16
-      * (assuming a typical 64 byte cache line), which makes timing
-      * attacks a little harder; the first round is particularly
-      * vulnerable.
-      */
-
-      u32bit B0 = TE[get_byte(0, T0)] ^
-                  rotate_right(TE[get_byte(1, T1)],  8) ^
-                  rotate_right(TE[get_byte(2, T2)], 16) ^
-                  rotate_right(TE[get_byte(3, T3)], 24) ^ EK[4];
-
-      u32bit B1 = TE[get_byte(0, T1)] ^
-                  rotate_right(TE[get_byte(1, T2)],  8) ^
-                  rotate_right(TE[get_byte(2, T3)], 16) ^
-                  rotate_right(TE[get_byte(3, T0)], 24) ^ EK[5];
-
-      u32bit B2 = TE[get_byte(0, T2)] ^
-                  rotate_right(TE[get_byte(1, T3)],  8) ^
-                  rotate_right(TE[get_byte(2, T0)], 16) ^
-                  rotate_right(TE[get_byte(3, T1)], 24) ^ EK[6];
-
-      u32bit B3 = TE[get_byte(0, T3)] ^
-                  rotate_right(TE[get_byte(1, T0)],  8) ^
-                  rotate_right(TE[get_byte(2, T1)], 16) ^
-                  rotate_right(TE[get_byte(3, T2)], 24) ^ EK[7];
+      uint32_t B0 = AES_T(TE, EK[4], T0, T1, T2, T3);
+      uint32_t B1 = AES_T(TE, EK[5], T1, T2, T3, T0);
+      uint32_t B2 = AES_T(TE, EK[6], T2, T3, T0, T1);
+      uint32_t B3 = AES_T(TE, EK[7], T3, T0, T1, T2);
 
       for(size_t r = 2*4; r < EK.size(); r += 2*4)
          {
-         T0 = EK[r  ] ^ TE[get_byte(0, B0)      ] ^ TE[get_byte(1, B1) + 256] ^
-                        TE[get_byte(2, B2) + 512] ^ TE[get_byte(3, B3) + 768];
-         T1 = EK[r+1] ^ TE[get_byte(0, B1)      ] ^ TE[get_byte(1, B2) + 256] ^
-                        TE[get_byte(2, B3) + 512] ^ TE[get_byte(3, B0) + 768];
-         T2 = EK[r+2] ^ TE[get_byte(0, B2)      ] ^ TE[get_byte(1, B3) + 256] ^
-                        TE[get_byte(2, B0) + 512] ^ TE[get_byte(3, B1) + 768];
-         T3 = EK[r+3] ^ TE[get_byte(0, B3)      ] ^ TE[get_byte(1, B0) + 256] ^
-                        TE[get_byte(2, B1) + 512] ^ TE[get_byte(3, B2) + 768];
+         T0 = AES_T(TE, EK[r  ], B0, B1, B2, B3);
+         T1 = AES_T(TE, EK[r+1], B1, B2, B3, B0);
+         T2 = AES_T(TE, EK[r+2], B2, B3, B0, B1);
+         T3 = AES_T(TE, EK[r+3], B3, B0, B1, B2);
 
-         B0 = EK[r+4] ^ TE[get_byte(0, T0)      ] ^ TE[get_byte(1, T1) + 256] ^
-                        TE[get_byte(2, T2) + 512] ^ TE[get_byte(3, T3) + 768];
-         B1 = EK[r+5] ^ TE[get_byte(0, T1)      ] ^ TE[get_byte(1, T2) + 256] ^
-                        TE[get_byte(2, T3) + 512] ^ TE[get_byte(3, T0) + 768];
-         B2 = EK[r+6] ^ TE[get_byte(0, T2)      ] ^ TE[get_byte(1, T3) + 256] ^
-                        TE[get_byte(2, T0) + 512] ^ TE[get_byte(3, T1) + 768];
-         B3 = EK[r+7] ^ TE[get_byte(0, T3)      ] ^ TE[get_byte(1, T0) + 256] ^
-                        TE[get_byte(2, T1) + 512] ^ TE[get_byte(3, T2) + 768];
+         B0 = AES_T(TE, EK[r+4], T0, T1, T2, T3);
+         B1 = AES_T(TE, EK[r+5], T1, T2, T3, T0);
+         B2 = AES_T(TE, EK[r+6], T2, T3, T0, T1);
+         B3 = AES_T(TE, EK[r+7], T3, T0, T1, T2);
          }
 
-      out[ 0] = SE[get_byte(0, B0)] ^ ME[0];
-      out[ 1] = SE[get_byte(1, B1)] ^ ME[1];
-      out[ 2] = SE[get_byte(2, B2)] ^ ME[2];
-      out[ 3] = SE[get_byte(3, B3)] ^ ME[3];
-      out[ 4] = SE[get_byte(0, B1)] ^ ME[4];
-      out[ 5] = SE[get_byte(1, B2)] ^ ME[5];
-      out[ 6] = SE[get_byte(2, B3)] ^ ME[6];
-      out[ 7] = SE[get_byte(3, B0)] ^ ME[7];
-      out[ 8] = SE[get_byte(0, B2)] ^ ME[8];
-      out[ 9] = SE[get_byte(1, B3)] ^ ME[9];
-      out[10] = SE[get_byte(2, B0)] ^ ME[10];
-      out[11] = SE[get_byte(3, B1)] ^ ME[11];
-      out[12] = SE[get_byte(0, B3)] ^ ME[12];
-      out[13] = SE[get_byte(1, B0)] ^ ME[13];
-      out[14] = SE[get_byte(2, B1)] ^ ME[14];
-      out[15] = SE[get_byte(3, B2)] ^ ME[15];
-
-      in += 16;
-      out += 16;
+      /*
+      * Use TE[x] >> 8 instead of SE[] so encryption only references a single
+      * lookup table.
+      */
+      out[16*i+ 0] = static_cast<uint8_t>(TE[get_byte(0, B0)] >> 8) ^ ME[0];
+      out[16*i+ 1] = static_cast<uint8_t>(TE[get_byte(1, B1)] >> 8) ^ ME[1];
+      out[16*i+ 2] = static_cast<uint8_t>(TE[get_byte(2, B2)] >> 8) ^ ME[2];
+      out[16*i+ 3] = static_cast<uint8_t>(TE[get_byte(3, B3)] >> 8) ^ ME[3];
+      out[16*i+ 4] = static_cast<uint8_t>(TE[get_byte(0, B1)] >> 8) ^ ME[4];
+      out[16*i+ 5] = static_cast<uint8_t>(TE[get_byte(1, B2)] >> 8) ^ ME[5];
+      out[16*i+ 6] = static_cast<uint8_t>(TE[get_byte(2, B3)] >> 8) ^ ME[6];
+      out[16*i+ 7] = static_cast<uint8_t>(TE[get_byte(3, B0)] >> 8) ^ ME[7];
+      out[16*i+ 8] = static_cast<uint8_t>(TE[get_byte(0, B2)] >> 8) ^ ME[8];
+      out[16*i+ 9] = static_cast<uint8_t>(TE[get_byte(1, B3)] >> 8) ^ ME[9];
+      out[16*i+10] = static_cast<uint8_t>(TE[get_byte(2, B0)] >> 8) ^ ME[10];
+      out[16*i+11] = static_cast<uint8_t>(TE[get_byte(3, B1)] >> 8) ^ ME[11];
+      out[16*i+12] = static_cast<uint8_t>(TE[get_byte(0, B3)] >> 8) ^ ME[12];
+      out[16*i+13] = static_cast<uint8_t>(TE[get_byte(1, B0)] >> 8) ^ ME[13];
+      out[16*i+14] = static_cast<uint8_t>(TE[get_byte(2, B1)] >> 8) ^ ME[14];
+      out[16*i+15] = static_cast<uint8_t>(TE[get_byte(3, B2)] >> 8) ^ ME[15];
       }
    }
 
 /*
 * AES Decryption
 */
-void aes_decrypt_n(const byte in[], byte out[], size_t blocks,
-                   const secure_vector<u32bit>& DK,
-                   const secure_vector<byte>& MD)
+void aes_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks,
+                   const secure_vector<uint32_t>& DK,
+                   const secure_vector<uint8_t>& MD)
    {
    BOTAN_ASSERT(DK.size() && MD.size() == 16, "Key was set");
 
    const size_t cache_line_size = CPUID::cache_line_size();
-   const std::vector<u32bit>& TD = AES_TD();
+   const uint32_t* TD = AES_TD();
 
-   u32bit Z = 0;
-   for(size_t i = 0; i < TD.size(); i += cache_line_size / sizeof(u32bit))
+   volatile uint32_t Z = 0;
+   for(size_t i = 0; i < 256; i += cache_line_size / sizeof(uint32_t))
       {
       Z |= TD[i];
       }
@@ -269,52 +273,29 @@ void aes_decrypt_n(const byte in[], byte out[], size_t blocks,
 
    for(size_t i = 0; i != blocks; ++i)
       {
-      u32bit T0 = load_be<u32bit>(in, 0) ^ DK[0];
-      u32bit T1 = load_be<u32bit>(in, 1) ^ DK[1];
-      u32bit T2 = load_be<u32bit>(in, 2) ^ DK[2];
-      u32bit T3 = load_be<u32bit>(in, 3) ^ DK[3];
+      uint32_t T0 = load_be<uint32_t>(in, 0) ^ DK[0];
+      uint32_t T1 = load_be<uint32_t>(in, 1) ^ DK[1];
+      uint32_t T2 = load_be<uint32_t>(in, 2) ^ DK[2];
+      uint32_t T3 = load_be<uint32_t>(in, 3) ^ DK[3];
 
       T0 ^= Z;
 
-      u32bit B0 = TD[get_byte(0, T0)] ^
-                  rotate_right(TD[get_byte(1, T3)],  8) ^
-                  rotate_right(TD[get_byte(2, T2)], 16) ^
-                  rotate_right(TD[get_byte(3, T1)], 24) ^ DK[4];
-
-      u32bit B1 = TD[get_byte(0, T1)] ^
-                  rotate_right(TD[get_byte(1, T0)],  8) ^
-                  rotate_right(TD[get_byte(2, T3)], 16) ^
-                  rotate_right(TD[get_byte(3, T2)], 24) ^ DK[5];
-
-      u32bit B2 = TD[get_byte(0, T2)] ^
-                  rotate_right(TD[get_byte(1, T1)],  8) ^
-                  rotate_right(TD[get_byte(2, T0)], 16) ^
-                  rotate_right(TD[get_byte(3, T3)], 24) ^ DK[6];
-
-      u32bit B3 = TD[get_byte(0, T3)] ^
-                  rotate_right(TD[get_byte(1, T2)],  8) ^
-                  rotate_right(TD[get_byte(2, T1)], 16) ^
-                  rotate_right(TD[get_byte(3, T0)], 24) ^ DK[7];
+      uint32_t B0 = AES_T(TD, DK[4], T0, T3, T2, T1);
+      uint32_t B1 = AES_T(TD, DK[5], T1, T0, T3, T2);
+      uint32_t B2 = AES_T(TD, DK[6], T2, T1, T0, T3);
+      uint32_t B3 = AES_T(TD, DK[7], T3, T2, T1, T0);
 
       for(size_t r = 2*4; r < DK.size(); r += 2*4)
          {
-         T0 = DK[r  ] ^ TD[get_byte(0, B0)      ] ^ TD[get_byte(1, B3) + 256] ^
-                        TD[get_byte(2, B2) + 512] ^ TD[get_byte(3, B1) + 768];
-         T1 = DK[r+1] ^ TD[get_byte(0, B1)      ] ^ TD[get_byte(1, B0) + 256] ^
-                        TD[get_byte(2, B3) + 512] ^ TD[get_byte(3, B2) + 768];
-         T2 = DK[r+2] ^ TD[get_byte(0, B2)      ] ^ TD[get_byte(1, B1) + 256] ^
-                        TD[get_byte(2, B0) + 512] ^ TD[get_byte(3, B3) + 768];
-         T3 = DK[r+3] ^ TD[get_byte(0, B3)      ] ^ TD[get_byte(1, B2) + 256] ^
-                        TD[get_byte(2, B1) + 512] ^ TD[get_byte(3, B0) + 768];
+         T0 = AES_T(TD, DK[r  ], B0, B3, B2, B1);
+         T1 = AES_T(TD, DK[r+1], B1, B0, B3, B2);
+         T2 = AES_T(TD, DK[r+2], B2, B1, B0, B3);
+         T3 = AES_T(TD, DK[r+3], B3, B2, B1, B0);
 
-         B0 = DK[r+4] ^ TD[get_byte(0, T0)      ] ^ TD[get_byte(1, T3) + 256] ^
-                        TD[get_byte(2, T2) + 512] ^ TD[get_byte(3, T1) + 768];
-         B1 = DK[r+5] ^ TD[get_byte(0, T1)      ] ^ TD[get_byte(1, T0) + 256] ^
-                        TD[get_byte(2, T3) + 512] ^ TD[get_byte(3, T2) + 768];
-         B2 = DK[r+6] ^ TD[get_byte(0, T2)      ] ^ TD[get_byte(1, T1) + 256] ^
-                        TD[get_byte(2, T0) + 512] ^ TD[get_byte(3, T3) + 768];
-         B3 = DK[r+7] ^ TD[get_byte(0, T3)      ] ^ TD[get_byte(1, T2) + 256] ^
-                        TD[get_byte(2, T1) + 512] ^ TD[get_byte(3, T0) + 768];
+         B0 = AES_T(TD, DK[r+4], T0, T3, T2, T1);
+         B1 = AES_T(TD, DK[r+5], T1, T0, T3, T2);
+         B2 = AES_T(TD, DK[r+6], T2, T1, T0, T3);
+         B3 = AES_T(TD, DK[r+7], T3, T2, T1, T0);
          }
 
       out[ 0] = SD[get_byte(0, B0)] ^ MD[0];
@@ -339,53 +320,43 @@ void aes_decrypt_n(const byte in[], byte out[], size_t blocks,
       }
    }
 
-void aes_key_schedule(const byte key[], size_t length,
-                      secure_vector<u32bit>& EK,
-                      secure_vector<u32bit>& DK,
-                      secure_vector<byte>& ME,
-                      secure_vector<byte>& MD)
+void aes_key_schedule(const uint8_t key[], size_t length,
+                      secure_vector<uint32_t>& EK,
+                      secure_vector<uint32_t>& DK,
+                      secure_vector<uint8_t>& ME,
+                      secure_vector<uint8_t>& MD)
    {
-
-   // if length is < 4, X = 0, the first for loop is not entered and in
-   // the second for loop "RC[(i-X)/X]" = division by zero
-   // But obviously valid aes length values are only 16, 24 and 32
-   BOTAN_ASSERT( length >= 4, "aes key length has valid size" );
-
-   static const u32bit RC[10] = {
+   static const uint32_t RC[10] = {
       0x01000000, 0x02000000, 0x04000000, 0x08000000, 0x10000000,
       0x20000000, 0x40000000, 0x80000000, 0x1B000000, 0x36000000 };
 
    const size_t rounds = (length / 4) + 6;
 
-   secure_vector<u32bit> XEK(length + 32), XDK(length + 32);
+   secure_vector<uint32_t> XEK(length + 32), XDK(length + 32);
 
    const size_t X = length / 4;
+
+   // Can't happen, but make static analyzers happy
+   if(X != 4 && X != 6 && X != 8)
+      throw Invalid_Argument("Invalid AES key size");
+
    for(size_t i = 0; i != X; ++i)
-      XEK[i] = load_be<u32bit>(key, i);
+      XEK[i] = load_be<uint32_t>(key, i);
 
    for(size_t i = X; i < 4*(rounds+1); i += X)
       {
-      XEK[i] = XEK[i-X] ^ RC[(i-X)/X] ^
-               make_u32bit(SE[get_byte(1, XEK[i-1])],
-                           SE[get_byte(2, XEK[i-1])],
-                           SE[get_byte(3, XEK[i-1])],
-                           SE[get_byte(0, XEK[i-1])]);
+      XEK[i] = XEK[i-X] ^ RC[(i-X)/X] ^ SE_word(rotl<8>(XEK[i-1]));
 
       for(size_t j = 1; j != X; ++j)
          {
          XEK[i+j] = XEK[i+j-X];
 
          if(X == 8 && j == 4)
-            XEK[i+j] ^= make_u32bit(SE[get_byte(0, XEK[i+j-1])],
-                                    SE[get_byte(1, XEK[i+j-1])],
-                                    SE[get_byte(2, XEK[i+j-1])],
-                                    SE[get_byte(3, XEK[i+j-1])]);
+            XEK[i+j] ^= SE_word(XEK[i+j-1]);
          else
             XEK[i+j] ^= XEK[i+j-1];
          }
       }
-
-   const std::vector<u32bit>& TD = AES_TD();
 
    for(size_t i = 0; i != 4*(rounds+1); i += 4)
       {
@@ -396,10 +367,10 @@ void aes_key_schedule(const byte key[], size_t length,
       }
 
    for(size_t i = 4; i != length + 24; ++i)
-      XDK[i] = TD[SE[get_byte(0, XDK[i])] +   0] ^
-               TD[SE[get_byte(1, XDK[i])] + 256] ^
-               TD[SE[get_byte(2, XDK[i])] + 512] ^
-               TD[SE[get_byte(3, XDK[i])] + 768];
+      {
+      XDK[i] = SE_word(XDK[i]);
+      XDK[i] = AES_T(AES_TD(), 0, XDK[i], XDK[i], XDK[i], XDK[i]);
+      }
 
    ME.resize(16);
    MD.resize(16);
@@ -414,6 +385,33 @@ void aes_key_schedule(const byte key[], size_t length,
    DK.resize(length + 24);
    copy_mem(EK.data(), XEK.data(), EK.size());
    copy_mem(DK.data(), XDK.data(), DK.size());
+
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      // ARM needs the subkeys to be byte reversed
+
+      for(size_t i = 0; i != EK.size(); ++i)
+         EK[i] = reverse_bytes(EK[i]);
+      for(size_t i = 0; i != DK.size(); ++i)
+         DK[i] = reverse_bytes(DK[i]);
+      }
+#endif
+
+   }
+
+#undef AES_T
+
+size_t aes_parallelism()
+   {
+#if defined(BOTAN_HAS_AES_NI)
+   if(CPUID::has_aes_ni())
+      {
+      return 4;
+      }
+#endif
+
+   return 1;
    }
 
 const char* aes_provider()
@@ -432,6 +430,20 @@ const char* aes_provider()
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return "power8";
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return "armv8";
+      }
+#endif
+
    return "base";
    }
 
@@ -441,8 +453,14 @@ std::string AES_128::provider() const { return aes_provider(); }
 std::string AES_192::provider() const { return aes_provider(); }
 std::string AES_256::provider() const { return aes_provider(); }
 
-void AES_128::encrypt_n(const byte in[], byte out[], size_t blocks) const
+size_t AES_128::parallelism() const { return aes_parallelism(); }
+size_t AES_192::parallelism() const { return aes_parallelism(); }
+size_t AES_256::parallelism() const { return aes_parallelism(); }
+
+void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_EK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -457,11 +475,27 @@ void AES_128::encrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_encrypt_n(in, out, blocks, m_EK, m_ME);
    }
 
-void AES_128::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_DK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -476,10 +510,24 @@ void AES_128::decrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_decrypt_n(in, out, blocks, m_DK, m_MD);
    }
 
-void AES_128::key_schedule(const byte key[], size_t length)
+void AES_128::key_schedule(const uint8_t key[], size_t length)
    {
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
@@ -506,8 +554,10 @@ void AES_128::clear()
    zap(m_MD);
    }
 
-void AES_192::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_EK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -522,11 +572,27 @@ void AES_192::encrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_encrypt_n(in, out, blocks, m_EK, m_ME);
    }
 
-void AES_192::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_DK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -541,10 +607,24 @@ void AES_192::decrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_decrypt_n(in, out, blocks, m_DK, m_MD);
    }
 
-void AES_192::key_schedule(const byte key[], size_t length)
+void AES_192::key_schedule(const uint8_t key[], size_t length)
    {
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
@@ -571,8 +651,10 @@ void AES_192::clear()
    zap(m_MD);
    }
 
-void AES_256::encrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_EK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -587,11 +669,27 @@ void AES_256::encrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_encrypt_n(in, out, blocks, m_EK, m_ME);
    }
 
-void AES_256::decrypt_n(const byte in[], byte out[], size_t blocks) const
+void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
+   verify_key_set(m_DK.empty() == false);
+
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())
       {
@@ -606,10 +704,24 @@ void AES_256::decrypt_n(const byte in[], byte out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return armv8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_ppc_crypto())
+      {
+      return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
    aes_decrypt_n(in, out, blocks, m_DK, m_MD);
    }
 
-void AES_256::key_schedule(const byte key[], size_t length)
+void AES_256::key_schedule(const uint8_t key[], size_t length)
    {
 #if defined(BOTAN_HAS_AES_NI)
    if(CPUID::has_aes_ni())

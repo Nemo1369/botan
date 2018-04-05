@@ -6,13 +6,44 @@
 */
 
 #include <botan/pk_keys.h>
-#include <botan/internal/pk_ops.h>
+#include <botan/pk_ops.h>
 #include <botan/der_enc.h>
 #include <botan/oids.h>
 #include <botan/hash.h>
 #include <botan/hex.h>
 
 namespace Botan {
+
+std::string create_hex_fingerprint(const uint8_t bits[],
+                                   size_t bits_len,
+                                   const std::string& hash_name)
+   {
+   std::unique_ptr<HashFunction> hash_fn(HashFunction::create_or_throw(hash_name));
+   const std::string hex_hash = hex_encode(hash_fn->process(bits, bits_len));
+
+   std::string fprint;
+
+   for(size_t i = 0; i != hex_hash.size(); i += 2)
+      {
+      if(i != 0)
+         fprint.push_back(':');
+
+      fprint.push_back(hex_hash[i]);
+      fprint.push_back(hex_hash[i+1]);
+      }
+
+   return fprint;
+   }
+
+std::vector<uint8_t> Public_Key::subject_public_key() const
+   {
+   return DER_Encoder()
+         .start_cons(SEQUENCE)
+            .encode(algorithm_identifier())
+            .encode(public_key_bits(), BIT_STRING)
+         .end_cons()
+      .get_contents_unlocked();
+   }
 
 /*
 * Default OID access
@@ -28,28 +59,33 @@ OID Public_Key::get_oid() const
       }
    }
 
+secure_vector<uint8_t> Private_Key::private_key_info() const
+   {
+   const size_t PKCS8_VERSION = 0;
+
+   return DER_Encoder()
+         .start_cons(SEQUENCE)
+            .encode(PKCS8_VERSION)
+            .encode(pkcs8_algorithm_identifier())
+            .encode(private_key_bits(), OCTET_STRING)
+         .end_cons()
+      .get_contents();
+   }
+
+/*
+* Hash of the X.509 subjectPublicKey encoding
+*/
+std::string Public_Key::fingerprint_public(const std::string& hash_algo) const
+   {
+   return create_hex_fingerprint(subject_public_key(), hash_algo);
+   }
+
 /*
 * Hash of the PKCS #8 encoding for this key object
 */
-std::string Private_Key::fingerprint(const std::string& alg) const
+std::string Private_Key::fingerprint_private(const std::string& hash_algo) const
    {
-   secure_vector<byte> buf = pkcs8_private_key();
-   std::unique_ptr<HashFunction> hash(HashFunction::create(alg));
-   hash->update(buf);
-   const auto hex_print = hex_encode(hash->final());
-
-   std::string formatted_print;
-
-   for(size_t i = 0; i != hex_print.size(); i += 2)
-      {
-      formatted_print.push_back(hex_print[i]);
-      formatted_print.push_back(hex_print[i+1]);
-
-      if(i != hex_print.size() - 2)
-         formatted_print.push_back(':');
-      }
-
-   return formatted_print;
+   return create_hex_fingerprint(private_key_bits(), hash_algo);
    }
 
 std::unique_ptr<PK_Ops::Encryption>

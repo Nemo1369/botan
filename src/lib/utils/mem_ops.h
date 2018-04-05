@@ -5,14 +5,43 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MEMORY_OPS_H__
-#define BOTAN_MEMORY_OPS_H__
+#ifndef BOTAN_MEMORY_OPS_H_
+#define BOTAN_MEMORY_OPS_H_
 
 #include <botan/types.h>
 #include <cstring>
 #include <vector>
 
 namespace Botan {
+
+/**
+* Allocate a memory buffer by some method. This should only be used for
+* primitive types (uint8_t, uint32_t, etc).
+*
+* @param elems the number of elements
+* @param elem_size the size of each element
+* @return pointer to allocated and zeroed memory, or throw std::bad_alloc on failure
+*/
+BOTAN_PUBLIC_API(2,3) BOTAN_MALLOC_FN void* allocate_memory(size_t elems, size_t elem_size);
+
+/**
+* Free a pointer returned by allocate_memory
+* @param p the pointer returned by allocate_memory
+* @param elems the number of elements, as passed to allocate_memory
+* @param elem_size the size of each element, as passed to allocate_memory
+*/
+BOTAN_PUBLIC_API(2,3) void deallocate_memory(void* p, size_t elems, size_t elem_size);
+
+/**
+* Ensure the allocator is initialized
+*/
+void initialize_allocator();
+
+class Allocator_Initializer
+   {
+   public:
+      Allocator_Initializer() { initialize_allocator(); }
+   };
 
 /**
 * Scrub memory contents in a way that a compiler should not elide,
@@ -29,7 +58,18 @@ namespace Botan {
 * @param ptr a pointer to memory to scrub
 * @param n the number of bytes pointed to by ptr
 */
-BOTAN_DLL void secure_scrub_memory(void* ptr, size_t n);
+BOTAN_PUBLIC_API(2,0) void secure_scrub_memory(void* ptr, size_t n);
+
+/**
+* Memory comparison, input insensitive
+* @param x a pointer to an array
+* @param y a pointer to another array
+* @param len the number of Ts in x and y
+* @return true iff x[i] == y[i] forall i in [0...n)
+*/
+BOTAN_PUBLIC_API(2,3) bool constant_time_compare(const uint8_t x[],
+                                     const uint8_t y[],
+                                     size_t len);
 
 /**
 * Zero out some bytes
@@ -80,12 +120,32 @@ template<typename T> inline void copy_mem(T* out, const T* in, size_t n)
 * @param val the value to set each byte to
 */
 template<typename T>
-inline void set_mem(T* ptr, size_t n, byte val)
+inline void set_mem(T* ptr, size_t n, uint8_t val)
    {
    if(n > 0)
       {
       std::memset(ptr, val, sizeof(T)*n);
       }
+   }
+
+inline const uint8_t* cast_char_ptr_to_uint8(const char* s)
+   {
+   return reinterpret_cast<const uint8_t*>(s);
+   }
+
+inline const char* cast_uint8_ptr_to_char(const uint8_t* b)
+   {
+   return reinterpret_cast<const char*>(b);
+   }
+
+inline uint8_t* cast_char_ptr_to_uint8(char* s)
+   {
+   return reinterpret_cast<uint8_t*>(s);
+   }
+
+inline char* cast_uint8_ptr_to_char(uint8_t* b)
+   {
+   return reinterpret_cast<char*>(b);
    }
 
 /**
@@ -106,17 +166,36 @@ template<typename T> inline bool same_mem(const T* p1, const T* p2, size_t n)
    }
 
 /**
-* XOR_ arrays. Postcondition out[i] = in[i] ^ out[i] forall i = 0...length
+* XOR arrays. Postcondition out[i] = in[i] ^ out[i] forall i = 0...length
 * @param out the input/output buffer
 * @param in the read-only input buffer
 * @param length the length of the buffers
 */
-template<typename T>
-void xor_buf(T out[], const T in[], size_t length)
+inline void xor_buf(uint8_t out[],
+                    const uint8_t in[],
+                    size_t length)
    {
-   for(size_t i = 0; i != length; ++i)
+   while(length >= 16)
       {
-      out[i] ^= in[i];
+      uint64_t x0, x1, y0, y1;
+      std::memcpy(&x0, in, 8);
+      std::memcpy(&x1, in + 8, 8);
+      std::memcpy(&y0, out, 8);
+      std::memcpy(&y1, out + 8, 8);
+
+      y0 ^= x0;
+      y1 ^= x1;
+      std::memcpy(out, &y0, 8);
+      std::memcpy(out + 8, &y1, 8);
+      out += 16; in += 16; length -= 16;
+      }
+
+   while(length > 0)
+      {
+      out[0] ^= in[0];
+      out += 1;
+      in += 1;
+      length -= 1;
       }
    }
 
@@ -127,46 +206,59 @@ void xor_buf(T out[], const T in[], size_t length)
 * @param in2 the second output buffer
 * @param length the length of the three buffers
 */
-template<typename T> void xor_buf(T out[],
-                                  const T in[],
-                                  const T in2[],
-                                  size_t length)
+inline void xor_buf(uint8_t out[],
+                    const uint8_t in[],
+                    const uint8_t in2[],
+                    size_t length)
    {
-   for(size_t i = 0; i != length; ++i)
+   while(length >= 16)
       {
-      out[i] = in[i] ^ in2[i];
+      uint64_t x0, x1, y0, y1;
+      std::memcpy(&x0, in, 8);
+      std::memcpy(&x1, in + 8, 8);
+      std::memcpy(&y0, in2, 8);
+      std::memcpy(&y1, in2 + 8, 8);
+
+      x0 ^= y0;
+      x1 ^= y1;
+      std::memcpy(out, &x0, 8);
+      std::memcpy(out + 8, &x1, 8);
+      out += 16; in += 16; in2 += 16; length -= 16;
       }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] = in[i] ^ in2[i];
    }
 
 template<typename Alloc, typename Alloc2>
-void xor_buf(std::vector<byte, Alloc>& out,
-             const std::vector<byte, Alloc2>& in,
+void xor_buf(std::vector<uint8_t, Alloc>& out,
+             const std::vector<uint8_t, Alloc2>& in,
              size_t n)
    {
    xor_buf(out.data(), in.data(), n);
    }
 
 template<typename Alloc>
-void xor_buf(std::vector<byte, Alloc>& out,
-             const byte* in,
+void xor_buf(std::vector<uint8_t, Alloc>& out,
+             const uint8_t* in,
              size_t n)
    {
    xor_buf(out.data(), in, n);
    }
 
 template<typename Alloc, typename Alloc2>
-void xor_buf(std::vector<byte, Alloc>& out,
-             const byte* in,
-             const std::vector<byte, Alloc2>& in2,
+void xor_buf(std::vector<uint8_t, Alloc>& out,
+             const uint8_t* in,
+             const std::vector<uint8_t, Alloc2>& in2,
              size_t n)
    {
    xor_buf(out.data(), in, in2.data(), n);
    }
 
-template<typename T, typename Alloc, typename Alloc2>
-std::vector<T, Alloc>&
-operator^=(std::vector<T, Alloc>& out,
-           const std::vector<T, Alloc2>& in)
+template<typename Alloc, typename Alloc2>
+std::vector<uint8_t, Alloc>&
+operator^=(std::vector<uint8_t, Alloc>& out,
+           const std::vector<uint8_t, Alloc2>& in)
    {
    if(out.size() < in.size())
       out.resize(in.size());

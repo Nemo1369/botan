@@ -1,12 +1,10 @@
-define DIFFIE_HELLMAN 20131128
+<defines>
+DIFFIE_HELLMAN -> 20131128
+</defines>
 
 <header:public>
 dh.h
 </header:public>
-
-<source>
-dh.cpp
-</source>
 
 <requires>
 dl_algo

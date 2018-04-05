@@ -31,9 +31,7 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
                                                  const Ciphersuite& suite,
                                                  const Session_Keys& keys,
                                                  bool uses_encrypt_then_mac) :
-   m_start_time(std::chrono::system_clock::now()),
-   m_nonce_bytes_from_handshake(suite.nonce_bytes_from_handshake()),
-   m_nonce_bytes_from_record(suite.nonce_bytes_from_record())
+   m_start_time(std::chrono::system_clock::now())
    {
    SymmetricKey mac_key, cipher_key;
    InitializationVector iv;
@@ -51,27 +49,11 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       mac_key = keys.server_mac_key();
       }
 
-   BOTAN_ASSERT_EQUAL(iv.length(), nonce_bytes_from_handshake(), "Matching nonce sizes");
-
    m_nonce = unlock(iv.bits_of());
+   m_nonce_bytes_from_handshake = m_nonce.size();
+   m_nonce_format = suite.nonce_format();
 
-   if(suite.mac_algo() == "AEAD")
-      {
-      m_aead.reset(get_aead(suite.cipher_algo(), our_side ? ENCRYPTION : DECRYPTION));
-      BOTAN_ASSERT(m_aead, "Have AEAD");
-
-      m_aead->set_key(cipher_key + mac_key);
-
-      BOTAN_ASSERT(nonce_bytes_from_record() == 0 || nonce_bytes_from_record() == 8,
-                   "Ciphersuite uses implemented IV length");
-
-      m_cbc_nonce = false;
-      if(m_nonce.size() != 12)
-         {
-         m_nonce.resize(m_nonce.size() + 8);
-         }
-      }
-   else
+   if(nonce_format() == Nonce_Format::CBC_MODE)
       {
 #if defined(BOTAN_HAS_TLS_CBC)
       // legacy CBC+HMAC mode
@@ -98,7 +80,8 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
 
       m_aead->set_key(cipher_key + mac_key);
 
-      m_cbc_nonce = true;
+      m_nonce_bytes_from_record = 0;
+
       if(version.supports_explicit_cbc_ivs())
          m_nonce_bytes_from_record = m_nonce_bytes_from_handshake;
       else if(our_side == false)
@@ -107,86 +90,98 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       throw Exception("Negotiated disabled TLS CBC+HMAC ciphersuite");
 #endif
       }
+   else
+      {
+      m_aead.reset(get_aead(suite.cipher_algo(), our_side ? ENCRYPTION : DECRYPTION));
+      BOTAN_ASSERT(m_aead, "Have AEAD");
+
+      m_aead->set_key(cipher_key + mac_key);
+
+      if(nonce_format() == Nonce_Format::AEAD_IMPLICIT_4)
+         {
+         m_nonce_bytes_from_record = 8;
+         m_nonce.resize(m_nonce.size() + 8);
+         }
+      else if(nonce_format() != Nonce_Format::AEAD_XOR_12)
+         {
+         throw Invalid_State("Invalid AEAD nonce format used");
+         }
+      }
    }
 
-std::vector<byte> Connection_Cipher_State::aead_nonce(u64bit seq, RandomNumberGenerator& rng)
+std::vector<uint8_t> Connection_Cipher_State::aead_nonce(uint64_t seq, RandomNumberGenerator& rng)
    {
-   if(m_cbc_nonce)
+   switch(m_nonce_format)
       {
-      if(m_nonce.size())
+      case Nonce_Format::CBC_MODE:
          {
-         std::vector<byte> nonce;
-         nonce.swap(m_nonce);
+         if(m_nonce.size())
+            {
+            std::vector<uint8_t> nonce;
+            nonce.swap(m_nonce);
+            return nonce;
+            }
+         std::vector<uint8_t> nonce(nonce_bytes_from_record());
+         rng.randomize(nonce.data(), nonce.size());
          return nonce;
          }
-      std::vector<byte> nonce(nonce_bytes_from_record());
-      rng.randomize(nonce.data(), nonce.size());
-      return nonce;
+      case Nonce_Format::AEAD_XOR_12:
+         {
+         std::vector<uint8_t> nonce(12);
+         store_be(seq, nonce.data() + 4);
+         xor_buf(nonce, m_nonce.data(), m_nonce.size());
+         return nonce;
+         }
+      case Nonce_Format::AEAD_IMPLICIT_4:
+         {
+         std::vector<uint8_t> nonce = m_nonce;
+         store_be(seq, &nonce[nonce_bytes_from_handshake()]);
+         return nonce;
+         }
       }
-   else if(nonce_bytes_from_handshake() == 12)
-      {
-      std::vector<byte> nonce(12);
-      store_be(seq, nonce.data() + 4);
-      xor_buf(nonce, m_nonce.data(), m_nonce.size());
-      return nonce;
-      }
-   else
-      {
-      std::vector<byte> nonce = m_nonce;
-      store_be(seq, &nonce[nonce_bytes_from_handshake()]);
-      return nonce;
-      }
+
+   throw Invalid_State("Unknown nonce format specified");
    }
 
-std::vector<byte>
-Connection_Cipher_State::aead_nonce(const byte record[], size_t record_len, u64bit seq)
+std::vector<uint8_t>
+Connection_Cipher_State::aead_nonce(const uint8_t record[], size_t record_len, uint64_t seq)
    {
-   if(m_cbc_nonce)
+   switch(m_nonce_format)
       {
-      if(record_len < nonce_bytes_from_record())
-         throw Decoding_Error("Invalid CBC packet too short to be valid");
-      std::vector<byte> nonce(record, record + nonce_bytes_from_record());
-      return nonce;
+      case Nonce_Format::CBC_MODE:
+         {
+         if(record_len < nonce_bytes_from_record())
+            throw Decoding_Error("Invalid CBC packet too short to be valid");
+         std::vector<uint8_t> nonce(record, record + nonce_bytes_from_record());
+         return nonce;
+         }
+      case Nonce_Format::AEAD_XOR_12:
+         {
+         std::vector<uint8_t> nonce(12);
+         store_be(seq, nonce.data() + 4);
+         xor_buf(nonce, m_nonce.data(), m_nonce.size());
+         return nonce;
+         }
+      case Nonce_Format::AEAD_IMPLICIT_4:
+         {
+         if(record_len < nonce_bytes_from_record())
+            throw Decoding_Error("Invalid AEAD packet too short to be valid");
+         std::vector<uint8_t> nonce = m_nonce;
+         copy_mem(&nonce[nonce_bytes_from_handshake()], record, nonce_bytes_from_record());
+         return nonce;
+         }
       }
-   else if(nonce_bytes_from_handshake() == 12)
-      {
-      /*
-      Assumes if the suite specifies 12 bytes come from the handshake then
-      use the XOR nonce construction from draft-ietf-tls-chacha20-poly1305
-      */
 
-      std::vector<byte> nonce(12);
-      store_be(seq, nonce.data() + 4);
-      xor_buf(nonce, m_nonce.data(), m_nonce.size());
-      return nonce;
-      }
-   else if(nonce_bytes_from_record() > 0)
-      {
-      if(record_len < nonce_bytes_from_record())
-         throw Decoding_Error("Invalid AEAD packet too short to be valid");
-      std::vector<byte> nonce = m_nonce;
-      copy_mem(&nonce[nonce_bytes_from_handshake()], record, nonce_bytes_from_record());
-      return nonce;
-      }
-   else
-      {
-      /*
-      nonce_len == 0 is assumed to mean no nonce in the message but
-      instead the AEAD uses the seq number in network order.
-      */
-      std::vector<byte> nonce = m_nonce;
-      store_be(seq, &nonce[nonce_bytes_from_handshake()]);
-      return nonce;
-      }
+   throw Invalid_State("Unknown nonce format specified");
    }
 
-std::vector<byte>
-Connection_Cipher_State::format_ad(u64bit msg_sequence,
-                                   byte msg_type,
+std::vector<uint8_t>
+Connection_Cipher_State::format_ad(uint64_t msg_sequence,
+                                   uint8_t msg_type,
                                    Protocol_Version version,
-                                   u16bit msg_length)
+                                   uint16_t msg_length)
    {
-   std::vector<byte> ad(13);
+   std::vector<uint8_t> ad(13);
 
    store_be(msg_sequence, &ad[0]);
    ad[8] = msg_type;
@@ -200,9 +195,9 @@ Connection_Cipher_State::format_ad(u64bit msg_sequence,
 
 namespace {
 
-inline void append_u16_len(secure_vector<byte>& output, size_t len_field)
+inline void append_u16_len(secure_vector<uint8_t>& output, size_t len_field)
    {
-   const uint16_t len16 = len_field;
+   const uint16_t len16 = static_cast<uint16_t>(len_field);
    BOTAN_ASSERT_EQUAL(len_field, len16, "No truncation");
    output.push_back(get_byte(0, len16));
    output.push_back(get_byte(1, len16));
@@ -210,10 +205,10 @@ inline void append_u16_len(secure_vector<byte>& output, size_t len_field)
 
 }
 
-void write_record(secure_vector<byte>& output,
+void write_record(secure_vector<uint8_t>& output,
                   Record_Message msg,
                   Protocol_Version version,
-                  u64bit seq,
+                  uint64_t seq,
                   Connection_Cipher_State* cs,
                   RandomNumberGenerator& rng)
    {
@@ -237,7 +232,7 @@ void write_record(secure_vector<byte>& output,
       }
 
    AEAD_Mode* aead = cs->aead();
-   std::vector<byte> aad = cs->format_ad(seq, msg.get_type(), version, static_cast<u16bit>(msg.get_size()));
+   std::vector<uint8_t> aad = cs->format_ad(seq, msg.get_type(), version, static_cast<uint16_t>(msg.get_size()));
 
    const size_t ctext_size = aead->output_length(msg.get_size());
 
@@ -245,13 +240,13 @@ void write_record(secure_vector<byte>& output,
 
    aead->set_ad(aad);
 
-   const std::vector<byte> nonce = cs->aead_nonce(seq, rng);
+   const std::vector<uint8_t> nonce = cs->aead_nonce(seq, rng);
 
    append_u16_len(output, rec_size);
 
    if(cs->nonce_bytes_from_record() > 0)
       {
-      if(cs->cbc_nonce())
+      if(cs->nonce_format() == Nonce_Format::CBC_MODE)
          output += nonce;
       else
          output += std::make_pair(&nonce[cs->nonce_bytes_from_handshake()], cs->nonce_bytes_from_record());
@@ -269,8 +264,8 @@ void write_record(secure_vector<byte>& output,
 
 namespace {
 
-size_t fill_buffer_to(secure_vector<byte>& readbuf,
-                      const byte*& input,
+size_t fill_buffer_to(secure_vector<uint8_t>& readbuf,
+                      const uint8_t*& input,
                       size_t& input_size,
                       size_t& input_consumed,
                       size_t desired)
@@ -288,9 +283,9 @@ size_t fill_buffer_to(secure_vector<byte>& readbuf,
    return (desired - readbuf.size()); // how many bytes do we still need?
    }
 
-void decrypt_record(secure_vector<byte>& output,
-                    byte record_contents[], size_t record_len,
-                    u64bit record_sequence,
+void decrypt_record(secure_vector<uint8_t>& output,
+                    uint8_t record_contents[], size_t record_len,
+                    uint64_t record_sequence,
                     Protocol_Version record_version,
                     Record_Type record_type,
                     Connection_Cipher_State& cs)
@@ -298,14 +293,20 @@ void decrypt_record(secure_vector<byte>& output,
    AEAD_Mode* aead = cs.aead();
    BOTAN_ASSERT(aead, "Cannot decrypt without cipher");
 
-   const std::vector<byte> nonce = cs.aead_nonce(record_contents, record_len, record_sequence);
-   const byte* msg = &record_contents[cs.nonce_bytes_from_record()];
+   const std::vector<uint8_t> nonce = cs.aead_nonce(record_contents, record_len, record_sequence);
+   const uint8_t* msg = &record_contents[cs.nonce_bytes_from_record()];
    const size_t msg_length = record_len - cs.nonce_bytes_from_record();
+
+   if(msg_length < aead->minimum_final_size())
+      throw Decoding_Error("AEAD packet is shorter than the tag");
 
    const size_t ptext_size = aead->output_length(msg_length);
 
    aead->set_associated_data_vec(
-      cs.format_ad(record_sequence, record_type, record_version, static_cast<u16bit>(ptext_size))
+      cs.format_ad(record_sequence,
+                   static_cast<uint8_t>(record_type),
+                   record_version,
+                   static_cast<uint16_t>(ptext_size))
       );
 
    aead->start(nonce);
@@ -315,7 +316,7 @@ void decrypt_record(secure_vector<byte>& output,
    aead->finish(output, offset);
    }
 
-size_t read_tls_record(secure_vector<byte>& readbuf,
+size_t read_tls_record(secure_vector<uint8_t>& readbuf,
                        Record_Raw_Input& raw_input,
                        Record& rec,
                        Connection_Sequence_Numbers* sequence_numbers,
@@ -335,7 +336,7 @@ size_t read_tls_record(secure_vector<byte>& readbuf,
 
    BOTAN_ASSERT(!rec.get_protocol_version()->is_datagram_protocol(), "Expected TLS");
 
-   const size_t record_size = make_u16bit(readbuf[TLS_HEADER_SIZE-2],
+   const size_t record_size = make_uint16(readbuf[TLS_HEADER_SIZE-2],
                                          readbuf[TLS_HEADER_SIZE-1]);
 
    if(record_size > MAX_CIPHERTEXT_SIZE)
@@ -357,7 +358,7 @@ size_t read_tls_record(secure_vector<byte>& readbuf,
 
    *rec.get_type() = static_cast<Record_Type>(readbuf[0]);
 
-   u16bit epoch = 0;
+   uint16_t epoch = 0;
 
    if(sequence_numbers)
       {
@@ -371,7 +372,7 @@ size_t read_tls_record(secure_vector<byte>& readbuf,
       epoch = 0;
       }
 
-   byte* record_contents = &readbuf[TLS_HEADER_SIZE];
+   uint8_t* record_contents = &readbuf[TLS_HEADER_SIZE];
 
    if(epoch == 0) // Unencrypted initial handshake
       {
@@ -400,7 +401,7 @@ size_t read_tls_record(secure_vector<byte>& readbuf,
    return 0;
    }
 
-size_t read_dtls_record(secure_vector<byte>& readbuf,
+size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
                         Record_Raw_Input& raw_input,
                         Record& rec,
                         Connection_Sequence_Numbers* sequence_numbers,
@@ -421,7 +422,7 @@ size_t read_dtls_record(secure_vector<byte>& readbuf,
 
    BOTAN_ASSERT(rec.get_protocol_version()->is_datagram_protocol(), "Expected DTLS");
 
-   const size_t record_size = make_u16bit(readbuf[DTLS_HEADER_SIZE-2],
+   const size_t record_size = make_uint16(readbuf[DTLS_HEADER_SIZE-2],
                                           readbuf[DTLS_HEADER_SIZE-1]);
 
    if(record_size > MAX_CIPHERTEXT_SIZE)
@@ -440,9 +441,9 @@ size_t read_dtls_record(secure_vector<byte>& readbuf,
 
    *rec.get_type() = static_cast<Record_Type>(readbuf[0]);
 
-   u16bit epoch = 0;
+   uint16_t epoch = 0;
 
-   *rec.get_sequence() = load_be<u64bit>(&readbuf[3], 0);
+   *rec.get_sequence() = load_be<uint64_t>(&readbuf[3], 0);
    epoch = (*rec.get_sequence() >> 48);
 
    if(sequence_numbers && sequence_numbers->already_seen(*rec.get_sequence()))
@@ -451,7 +452,7 @@ size_t read_dtls_record(secure_vector<byte>& readbuf,
       return 0;
       }
 
-   byte* record_contents = &readbuf[DTLS_HEADER_SIZE];
+   uint8_t* record_contents = &readbuf[DTLS_HEADER_SIZE];
 
    if(epoch == 0) // Unencrypted initial handshake
       {
@@ -475,7 +476,7 @@ size_t read_dtls_record(secure_vector<byte>& readbuf,
                      *rec.get_type(),
                      *cs);
       }
-   catch(std::exception)
+   catch(std::exception&)
       {
       readbuf.clear();
       *rec.get_type() = NO_RECORD;
@@ -491,7 +492,7 @@ size_t read_dtls_record(secure_vector<byte>& readbuf,
 
 }
 
-size_t read_record(secure_vector<byte>& readbuf,
+size_t read_record(secure_vector<uint8_t>& readbuf,
                    Record_Raw_Input& raw_input,
                    Record& rec,
                    Connection_Sequence_Numbers* sequence_numbers,

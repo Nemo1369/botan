@@ -1,5 +1,3 @@
-define CERTSTOR_SQL 20160818
-
-<requires>
-datastor
-</requires>
+<defines>
+CERTSTOR_SQL -> 20160818
+</defines>

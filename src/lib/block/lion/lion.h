@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_LION_H__
-#define BOTAN_LION_H__
+#ifndef BOTAN_LION_H_
+#define BOTAN_LION_H_
 
 #include <botan/block_cipher.h>
 #include <botan/stream_cipher.h>
@@ -20,13 +20,13 @@ namespace Botan {
 * Ciphers: BEAR and LION". It has a variable block size and is
 * designed to encrypt very large blocks (up to a megabyte)
 
-* http://www.cl.cam.ac.uk/~rja14/Papers/bear-lion.pdf
+* https://www.cl.cam.ac.uk/~rja14/Papers/bear-lion.pdf
 */
-class BOTAN_DLL Lion final : public BlockCipher
+class BOTAN_PUBLIC_API(2,0) Lion final : public BlockCipher
    {
    public:
-      void encrypt_n(const byte in[], byte out[], size_t blocks) const override;
-      void decrypt_n(const byte in[], byte out[], size_t blocks) const override;
+      void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
+      void decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;
 
       size_t block_size() const override { return m_block_size; }
 
@@ -48,7 +48,7 @@ class BOTAN_DLL Lion final : public BlockCipher
            StreamCipher* cipher,
            size_t block_size);
    private:
-      void key_schedule(const byte[], size_t) override;
+      void key_schedule(const uint8_t[], size_t) override;
 
       size_t left_size() const { return m_hash->output_length(); }
       size_t right_size() const { return m_block_size - left_size(); }
@@ -56,7 +56,7 @@ class BOTAN_DLL Lion final : public BlockCipher
       const size_t m_block_size;
       std::unique_ptr<HashFunction> m_hash;
       std::unique_ptr<StreamCipher> m_cipher;
-      secure_vector<byte> m_key1, m_key2;
+      secure_vector<uint8_t> m_key1, m_key2;
    };
 
 }

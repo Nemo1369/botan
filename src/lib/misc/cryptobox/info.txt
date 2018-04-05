@@ -1,13 +1,14 @@
-define CRYPTO_BOX 20131128
+<defines>
+CRYPTO_BOX -> 20131128
+</defines>
 
 <requires>
-filters
+base64
 ctr
 hmac
-rng
-serpent
-sha2_64
-base64
+modes
 pbkdf2
 pem
+serpent
+sha2_64
 </requires>

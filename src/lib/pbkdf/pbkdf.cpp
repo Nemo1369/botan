@@ -16,9 +16,11 @@
 #include <botan/pbkdf2.h>
 #endif
 
-namespace Botan {
+#if defined(BOTAN_HAS_PGP_S2K)
+#include <botan/pgp_s2k.h>
+#endif
 
-PBKDF::~PBKDF() {}
+namespace Botan {
 
 std::unique_ptr<PBKDF> PBKDF::create(const std::string& algo_spec,
                                      const std::string& provider)
@@ -52,7 +54,30 @@ std::unique_ptr<PBKDF> PBKDF::create(const std::string& algo_spec,
       }
 #endif
 
+#if defined(BOTAN_HAS_PGP_S2K)
+   if(req.algo_name() == "OpenPGP-S2K" && req.arg_count() == 1)
+      {
+      if(auto hash = HashFunction::create(req.arg(0)))
+         return std::unique_ptr<PBKDF>(new OpenPGP_S2K(hash.release()));
+      }
+#endif
+
+   BOTAN_UNUSED(req);
+   BOTAN_UNUSED(provider);
+
    return nullptr;
+   }
+
+//static
+std::unique_ptr<PBKDF>
+PBKDF::create_or_throw(const std::string& algo,
+                             const std::string& provider)
+   {
+   if(auto pbkdf = PBKDF::create(algo, provider))
+      {
+      return pbkdf;
+      }
+   throw Lookup_Error("PBKDF", algo, provider);
    }
 
 std::vector<std::string> PBKDF::providers(const std::string& algo_spec)
@@ -60,18 +85,18 @@ std::vector<std::string> PBKDF::providers(const std::string& algo_spec)
    return probe_providers_of<PBKDF>(algo_spec, { "base", "openssl" });
    }
 
-void PBKDF::pbkdf_timed(byte out[], size_t out_len,
+void PBKDF::pbkdf_timed(uint8_t out[], size_t out_len,
                         const std::string& passphrase,
-                        const byte salt[], size_t salt_len,
+                        const uint8_t salt[], size_t salt_len,
                         std::chrono::milliseconds msec,
                         size_t& iterations) const
    {
    iterations = pbkdf(out, out_len, passphrase, salt, salt_len, 0, msec);
    }
 
-void PBKDF::pbkdf_iterations(byte out[], size_t out_len,
+void PBKDF::pbkdf_iterations(uint8_t out[], size_t out_len,
                              const std::string& passphrase,
-                             const byte salt[], size_t salt_len,
+                             const uint8_t salt[], size_t salt_len,
                              size_t iterations) const
    {
    if(iterations == 0)
@@ -83,23 +108,23 @@ void PBKDF::pbkdf_iterations(byte out[], size_t out_len,
    BOTAN_ASSERT_EQUAL(iterations, iterations_run, "Expected PBKDF iterations");
    }
 
-secure_vector<byte> PBKDF::pbkdf_iterations(size_t out_len,
+secure_vector<uint8_t> PBKDF::pbkdf_iterations(size_t out_len,
                                             const std::string& passphrase,
-                                            const byte salt[], size_t salt_len,
+                                            const uint8_t salt[], size_t salt_len,
                                             size_t iterations) const
    {
-   secure_vector<byte> out(out_len);
+   secure_vector<uint8_t> out(out_len);
    pbkdf_iterations(out.data(), out_len, passphrase, salt, salt_len, iterations);
    return out;
    }
 
-secure_vector<byte> PBKDF::pbkdf_timed(size_t out_len,
+secure_vector<uint8_t> PBKDF::pbkdf_timed(size_t out_len,
                                        const std::string& passphrase,
-                                       const byte salt[], size_t salt_len,
+                                       const uint8_t salt[], size_t salt_len,
                                        std::chrono::milliseconds msec,
                                        size_t& iterations) const
    {
-   secure_vector<byte> out(out_len);
+   secure_vector<uint8_t> out(out_len);
    pbkdf_timed(out.data(), out_len, passphrase, salt, salt_len, msec, iterations);
    return out;
    }

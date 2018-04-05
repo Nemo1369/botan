@@ -5,15 +5,20 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_STREAM_MODE_H__
-#define BOTAN_STREAM_MODE_H__
+#ifndef BOTAN_STREAM_MODE_H_
+#define BOTAN_STREAM_MODE_H_
 
 #include <botan/cipher_mode.h>
-#include <botan/stream_cipher.h>
+
+#if defined(BOTAN_HAS_STREAM_CIPHER)
+   #include <botan/stream_cipher.h>
+#endif
 
 namespace Botan {
 
-class BOTAN_DLL Stream_Cipher_Mode : public Cipher_Mode
+#if defined(BOTAN_HAS_STREAM_CIPHER)
+
+class BOTAN_PUBLIC_API(2,0) Stream_Cipher_Mode final : public Cipher_Mode
    {
    public:
       /**
@@ -27,7 +32,7 @@ class BOTAN_DLL Stream_Cipher_Mode : public Cipher_Mode
          return sz;
          }
 
-      void finish(secure_vector<byte>& buf, size_t offset) override
+      void finish(secure_vector<uint8_t>& buf, size_t offset) override
          { return update(buf, offset); }
 
       size_t output_length(size_t input_length) const override { return input_length; }
@@ -51,21 +56,26 @@ class BOTAN_DLL Stream_Cipher_Mode : public Cipher_Mode
          reset();
          }
 
-      void reset() override { /* no msg state */ return; }
+      void reset() override { /* no msg state */ }
 
    private:
-      void start_msg(const byte nonce[], size_t nonce_len) override
+      void start_msg(const uint8_t nonce[], size_t nonce_len) override
          {
-         m_cipher->set_iv(nonce, nonce_len);
+         if(nonce_len > 0)
+            {
+            m_cipher->set_iv(nonce, nonce_len);
+            }
          }
 
-      void key_schedule(const byte key[], size_t length) override
+      void key_schedule(const uint8_t key[], size_t length) override
          {
          m_cipher->set_key(key, length);
          }
 
       std::unique_ptr<StreamCipher> m_cipher;
    };
+
+#endif
 
 }
 

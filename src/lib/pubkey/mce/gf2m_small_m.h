@@ -1,4 +1,4 @@
-/**
+/*
  * (C) Copyright Projet SECRET, INRIA, Rocquencourt
  * (C) Bhaskar Biswas and  Nicolas Sendrier
  *
@@ -9,20 +9,20 @@
  *
  */
 
-#ifndef BOTAN_GF2M_SMALL_M_H__
-#define BOTAN_GF2M_SMALL_M_H__
+#ifndef BOTAN_GF2M_SMALL_M_H_
+#define BOTAN_GF2M_SMALL_M_H_
 
 #include <vector>
 #include <botan/types.h>
 
 namespace Botan {
 
-typedef u16bit gf2m;
+typedef uint16_t gf2m;
 
 /**
 * GF(2^m) field for m = [2...16]
 */
-class BOTAN_DLL GF2m_Field
+class BOTAN_PUBLIC_API(2,0) GF2m_Field
    {
    public:
       explicit GF2m_Field(size_t extdeg);
@@ -196,14 +196,14 @@ class BOTAN_DLL GF2m_Field
          }
 
    private:
-      gf2m _gf_modq_1(s32bit d) const
+      gf2m _gf_modq_1(int32_t d) const
          {
          /* residual modulo q-1
          when -q < d < 0, we get (q-1+d)
          when 0 <= d < q, we get (d)
          when q <= d < 2q-1, we get (d-q+1)
          */
-         return (((d) & gf_ord()) + ((d) >> get_extension_degree()));
+         return static_cast<gf2m>(((d) & gf_ord()) + ((d) >> get_extension_degree()));
          }
 
       gf2m m_gf_extension_degree, m_gf_multiplicative_order;
@@ -211,9 +211,9 @@ class BOTAN_DLL GF2m_Field
       const std::vector<gf2m>& m_gf_exp_table;
    };
 
-u32bit encode_gf2m(gf2m to_enc, byte* mem);
+uint32_t encode_gf2m(gf2m to_enc, uint8_t* mem);
 
-gf2m decode_gf2m(const byte* mem);
+gf2m decode_gf2m(const uint8_t* mem);
 
 }
 

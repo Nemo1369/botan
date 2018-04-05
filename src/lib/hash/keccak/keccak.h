@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_KECCAK_H__
-#define BOTAN_KECCAK_H__
+#ifndef BOTAN_KECCAK_H_
+#define BOTAN_KECCAK_H_
 
 #include <botan/hash.h>
 #include <botan/secmem.h>
@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * Keccak[1600], a SHA-3 candidate
 */
-class BOTAN_DLL Keccak_1600 final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) Keccak_1600 final : public HashFunction
    {
    public:
 
@@ -31,15 +31,16 @@ class BOTAN_DLL Keccak_1600 final : public HashFunction
       size_t output_length() const override { return m_output_bits / 8; }
 
       HashFunction* clone() const override;
+      std::unique_ptr<HashFunction> copy_state() const override;
       std::string name() const override;
       void clear() override;
 
    private:
-      void add_data(const byte input[], size_t length) override;
-      void final_result(byte out[]) override;
+      void add_data(const uint8_t input[], size_t length) override;
+      void final_result(uint8_t out[]) override;
 
       size_t m_output_bits, m_bitrate;
-      secure_vector<u64bit> m_S;
+      secure_vector<uint64_t> m_S;
       size_t m_S_pos;
    };
 

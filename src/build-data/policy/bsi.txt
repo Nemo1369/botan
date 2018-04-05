@@ -29,6 +29,7 @@ sp800_56c
 eme_oaep
 emsa_pssr
 emsa1
+iso9796
 
 # pubkey
 dlies
@@ -54,9 +55,14 @@ aes_ssse3
 
 # modes
 clmul
+clmul_ssse3
+pmull
+
+# hash
+sha2_32_x86
+sha2_32_armv8
 
 # entropy sources
-cryptoapi_rng
 darwin_secrandom
 dev_random
 proc_walk
@@ -69,12 +75,14 @@ rdrand_rng
 system_rng
 
 # utils
+http_util # needed by x509 for OCSP online checks
 locking_allocator
 simd
 </if_available>
 
 <prohibited>
 # block
+aria
 blowfish
 camellia
 cascade
@@ -91,8 +99,12 @@ noekeon_simd
 seed
 serpent
 serpent_simd
-threefish
-threefish_avx2
+shacal2
+shacal2_x86
+shacal2_simd
+sm4
+threefish_512
+threefish_512_avx2
 twofish
 xtea
 
@@ -103,27 +115,33 @@ eax
 ocb
 siv
 cfb
-ecb
 
 # stream
 chacha
+chacha_sse2
 ofb
 rc4
 salsa20
+shake_cipher
 
 # kdf
 hkdf
 kdf1
 kdf2
 prf_x942
+sp800_56a
 
 # pubkey
+cecpq1
 curve25519
+ed25519
 elgamal
 gost_3410
 mce
 mceies
 rfc6979
+newhope
+sm2
 
 # pk_pad
 #eme_pkcs1 // needed for tls
@@ -140,14 +158,24 @@ md4
 rmd160
 #sha1 // needed for tls
 #sha1_sse2 // needed for tls
+shake
 skein
+sm3
+streebog
 tiger
 whirlpool
+keccak
+
+# rng
+chacha_rng
 
 # mac
 cbc_mac
 poly1305
 siphash
 x919_mac
+
+# misc
+bcrypt
 
 </prohibited>

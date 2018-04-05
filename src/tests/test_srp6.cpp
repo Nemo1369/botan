@@ -7,15 +7,16 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_SRP6)
-  #include <botan/srp6.h>
+   #include <botan/srp6.h>
 #endif
 
 namespace Botan_Tests {
 
 namespace {
 
-#if defined(BOTAN_HAS_SRP6)
-class SRP6_Unit_Tests : public Test
+#if defined(BOTAN_HAS_SRP6) && defined(BOTAN_HAS_SHA2_32)
+
+class SRP6_Unit_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -28,7 +29,7 @@ class SRP6_Unit_Tests : public Test
          const std::string group_id = "modp/srp/1024";
          const std::string hash_id = "SHA-256";
 
-         const std::vector<byte> salt = unlock(Test::rng().random_vec(16));
+         const std::vector<uint8_t> salt = unlock(Test::rng().random_vec(16));
 
          const Botan::BigInt verifier = Botan::generate_srp6_verifier(username, password, salt, group_id, hash_id);
 

@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_P11_OBJECT_H__
-#define BOTAN_P11_OBJECT_H__
+#ifndef BOTAN_P11_OBJECT_H_
+#define BOTAN_P11_OBJECT_H_
 
 #include <botan/p11.h>
 #include <botan/p11_session.h>
@@ -25,7 +25,7 @@ namespace PKCS11 {
 class Module;
 
 /// Helper class to build the Attribute / CK_ATTRIBUTE structures
-class BOTAN_DLL AttributeContainer
+class BOTAN_PUBLIC_API(2,0) AttributeContainer
    {
    public:
       AttributeContainer() = default;
@@ -83,7 +83,7 @@ class BOTAN_DLL AttributeContainer
       * @param value binary attribute value to add
       * @param length size of the binary attribute value in bytes
       */
-      void add_binary(AttributeType attribute, const byte* value, size_t length);
+      void add_binary(AttributeType attribute, const uint8_t* value, size_t length);
 
       /**
       * Add a binary attribute (e.g. CKA_ID / AttributeType::Id).
@@ -91,7 +91,7 @@ class BOTAN_DLL AttributeContainer
       * @param binary binary attribute value to add
       */
       template<typename TAlloc>
-      void add_binary(AttributeType attribute, const std::vector<byte, TAlloc>& binary)
+      void add_binary(AttributeType attribute, const std::vector<uint8_t, TAlloc>& binary)
          {
          add_binary(attribute, binary.data(), binary.size());
          }
@@ -113,22 +113,22 @@ class BOTAN_DLL AttributeContainer
          {
          static_assert(std::is_integral<T>::value, "Numeric value required.");
          m_numerics.push_back(static_cast< uint64_t >(value));
-         add_attribute(attribute, reinterpret_cast< byte* >(&m_numerics.back()), sizeof(T));
+         add_attribute(attribute, reinterpret_cast< uint8_t* >(&m_numerics.back()), sizeof(T));
          }
 
    protected:
       /// Add an attribute with the given value and size to the attribute collection `m_attributes`
-      void add_attribute(AttributeType attribute, const byte* value, uint32_t size);
+      void add_attribute(AttributeType attribute, const uint8_t* value, uint32_t size);
 
    private:
       std::vector<Attribute> m_attributes;
       std::list<uint64_t> m_numerics;
       std::list<std::string> m_strings;
-      std::list<secure_vector<byte>> m_vectors;
+      std::list<secure_vector<uint8_t>> m_vectors;
    };
 
 /// Manages calls to C_FindObjects* functions (C_FindObjectsInit -> C_FindObjects -> C_FindObjectsFinal)
-class BOTAN_DLL ObjectFinder final
+class BOTAN_PUBLIC_API(2,0) ObjectFinder final
    {
    public:
       /**
@@ -173,7 +173,7 @@ class BOTAN_DLL ObjectFinder final
    };
 
 /// Common attributes of all objects
-class BOTAN_DLL ObjectProperties : public AttributeContainer
+class BOTAN_PUBLIC_API(2,0) ObjectProperties : public AttributeContainer
    {
    public:
       /// @param object_class the object class of the object
@@ -190,7 +190,7 @@ class BOTAN_DLL ObjectProperties : public AttributeContainer
    };
 
 /// Common attributes of all storage objects
-class BOTAN_DLL StorageObjectProperties : public ObjectProperties
+class BOTAN_PUBLIC_API(2,0) StorageObjectProperties : public ObjectProperties
    {
    public:
       /// @param object_class the CK_OBJECT_CLASS this storage object belongs to
@@ -237,7 +237,7 @@ class BOTAN_DLL StorageObjectProperties : public ObjectProperties
    };
 
 /// Common attributes of all data objects
-class BOTAN_DLL DataObjectProperties : public StorageObjectProperties
+class BOTAN_PUBLIC_API(2,0) DataObjectProperties final : public StorageObjectProperties
    {
    public:
       DataObjectProperties();
@@ -249,20 +249,20 @@ class BOTAN_DLL DataObjectProperties : public StorageObjectProperties
          }
 
       /// @param object_id DER-encoding of the object identifier indicating the data object type
-      inline void set_object_id(const std::vector<byte>& object_id)
+      inline void set_object_id(const std::vector<uint8_t>& object_id)
          {
          add_binary(AttributeType::ObjectId, object_id);
          }
 
       /// @param value value of the object
-      inline void set_value(const secure_vector<byte>& value)
+      inline void set_value(const secure_vector<uint8_t>& value)
          {
          add_binary(AttributeType::Value, value);
          }
    };
 
 /// Common attributes of all certificate objects
-class BOTAN_DLL CertificateProperties : public StorageObjectProperties
+class BOTAN_PUBLIC_API(2,0) CertificateProperties : public StorageObjectProperties
    {
    public:
       /// @param cert_type type of certificate
@@ -284,7 +284,7 @@ class BOTAN_DLL CertificateProperties : public StorageObjectProperties
       * @param checksum the value of this attribute is derived from the certificate by taking the
       * first three bytes of the SHA - 1 hash of the certificate object's `CKA_VALUE` attribute
       */
-      inline void set_check_value(const std::vector<byte>& checksum)
+      inline void set_check_value(const std::vector<uint8_t>& checksum)
          {
          add_binary(AttributeType::CheckValue, checksum);
          }
@@ -292,17 +292,17 @@ class BOTAN_DLL CertificateProperties : public StorageObjectProperties
       /// @param date start date for the certificate
       inline void set_start_date(Date date)
          {
-         add_binary(AttributeType::StartDate, reinterpret_cast<byte*>(&date), sizeof(Date));
+         add_binary(AttributeType::StartDate, reinterpret_cast<uint8_t*>(&date), sizeof(Date));
          }
 
       /// @param date end date for the certificate
       inline void set_end_date(Date date)
          {
-         add_binary(AttributeType::EndDate, reinterpret_cast<byte*>(&date), sizeof(Date));
+         add_binary(AttributeType::EndDate, reinterpret_cast<uint8_t*>(&date), sizeof(Date));
          }
 
       /// @param pubkey_info DER-encoding of the SubjectPublicKeyInfo for the public key contained in this certificate
-      inline void set_public_key_info(const std::vector<byte>& pubkey_info)
+      inline void set_public_key_info(const std::vector<uint8_t>& pubkey_info)
          {
          add_binary(AttributeType::PublicKeyInfo, pubkey_info);
          }
@@ -318,7 +318,7 @@ class BOTAN_DLL CertificateProperties : public StorageObjectProperties
    };
 
 /// Common attributes of all key objects
-class BOTAN_DLL KeyProperties : public StorageObjectProperties
+class BOTAN_PUBLIC_API(2,0) KeyProperties : public StorageObjectProperties
    {
    public:
       /**
@@ -328,7 +328,7 @@ class BOTAN_DLL KeyProperties : public StorageObjectProperties
       KeyProperties(ObjectClass object_class, KeyType key_type);
 
       /// @param id key identifier for key
-      inline void set_id(const std::vector<byte>& id)
+      inline void set_id(const std::vector<uint8_t>& id)
          {
          add_binary(AttributeType::Id, id);
          }
@@ -336,13 +336,13 @@ class BOTAN_DLL KeyProperties : public StorageObjectProperties
       /// @param date start date for the key
       inline void set_start_date(Date date)
          {
-         add_binary(AttributeType::StartDate, reinterpret_cast<byte*>(&date), sizeof(Date));
+         add_binary(AttributeType::StartDate, reinterpret_cast<uint8_t*>(&date), sizeof(Date));
          }
 
       /// @param date end date for the key
       inline void set_end_date(Date date)
          {
-         add_binary(AttributeType::EndDate, reinterpret_cast<byte*>(&date), sizeof(Date));
+         add_binary(AttributeType::EndDate, reinterpret_cast<uint8_t*>(&date), sizeof(Date));
          }
 
       /// @param value true if key supports key derivation (i.e., if other keys can be derived from this one)
@@ -371,14 +371,14 @@ class BOTAN_DLL KeyProperties : public StorageObjectProperties
    };
 
 /// Common attributes of all public key objects
-class BOTAN_DLL PublicKeyProperties : public KeyProperties
+class BOTAN_PUBLIC_API(2,0) PublicKeyProperties : public KeyProperties
    {
    public:
       /// @param key_type type of key
       PublicKeyProperties(KeyType key_type);
 
       /// @param subject DER-encoding of the key subject name
-      inline void set_subject(const std::vector<byte>& subject)
+      inline void set_subject(const std::vector<uint8_t>& subject)
          {
          add_binary(AttributeType::Subject, subject);
          }
@@ -428,21 +428,21 @@ class BOTAN_DLL PublicKeyProperties : public KeyProperties
          }
 
       /// @param pubkey_info DER-encoding of the SubjectPublicKeyInfo for this public	key
-      inline void set_public_key_info(const std::vector<byte>& pubkey_info)
+      inline void set_public_key_info(const std::vector<uint8_t>& pubkey_info)
          {
          add_binary(AttributeType::PublicKeyInfo, pubkey_info);
          }
    };
 
 /// Common attributes of all private keys
-class BOTAN_DLL PrivateKeyProperties : public KeyProperties
+class BOTAN_PUBLIC_API(2,0) PrivateKeyProperties : public KeyProperties
    {
    public:
       /// @param key_type type of key
       PrivateKeyProperties(KeyType key_type);
 
       /// @param subject DER-encoding of the key subject name
-      inline void set_subject(const std::vector<byte>& subject)
+      inline void set_subject(const std::vector<uint8_t>& subject)
          {
          add_binary(AttributeType::Subject, subject);
          }
@@ -507,14 +507,14 @@ class BOTAN_DLL PrivateKeyProperties : public KeyProperties
          }
 
       /// @param pubkey_info DER-encoding of the SubjectPublicKeyInfo for this public	key
-      inline void set_public_key_info(const std::vector<byte>& pubkey_info)
+      inline void set_public_key_info(const std::vector<uint8_t>& pubkey_info)
          {
          add_binary(AttributeType::PublicKeyInfo, pubkey_info);
          }
    };
 
 /// Common attributes of all secret (symmetric) keys
-class BOTAN_DLL SecretKeyProperties : public KeyProperties
+class BOTAN_PUBLIC_API(2,0) SecretKeyProperties final : public KeyProperties
    {
    public:
       /// @param key_type type of key
@@ -590,7 +590,7 @@ class BOTAN_DLL SecretKeyProperties : public KeyProperties
          }
 
       /// @param checksum the key check value of this key
-      inline void set_check_value(const std::vector<byte>& checksum)
+      inline void set_check_value(const std::vector<uint8_t>& checksum)
          {
          add_binary(AttributeType::CheckValue, checksum);
          }
@@ -619,7 +619,7 @@ class BOTAN_DLL SecretKeyProperties : public KeyProperties
    };
 
 /// Common attributes of domain parameter
-class BOTAN_DLL DomainParameterProperties : public StorageObjectProperties
+class BOTAN_PUBLIC_API(2,0) DomainParameterProperties final : public StorageObjectProperties
    {
    public:
       /// @param key_type type of key the domain parameters can be used to generate
@@ -638,7 +638,7 @@ class BOTAN_DLL DomainParameterProperties : public StorageObjectProperties
 /**
 * Represents a PKCS#11 object.
 */
-class BOTAN_DLL Object
+class BOTAN_PUBLIC_API(2,0) Object
    {
    public:
       /**
@@ -656,6 +656,8 @@ class BOTAN_DLL Object
       */
       Object(Session& session, const ObjectProperties& obj_props);
 
+      Object(const Object&) = default;
+      Object& operator=(const Object&) = default;
       virtual ~Object() = default;
 
       /// Searches for all objects of the given type that match `search_template`
@@ -668,21 +670,21 @@ class BOTAN_DLL Object
 
       /// Searches for all objects of the given type using the id (`CKA_ID`)
       template<typename T>
-      static std::vector<T> search(Session& session, const std::vector<byte>& id);
+      static std::vector<T> search(Session& session, const std::vector<uint8_t>& id);
 
       /// Searches for all objects of the given type using the label (`CKA_LABEL`) and id (`CKA_ID`)
       template<typename T>
-      static std::vector<T> search(Session& session, const std::string& label, const std::vector<byte>& id);
+      static std::vector<T> search(Session& session, const std::string& label, const std::vector<uint8_t>& id);
 
       /// Searches for all objects of the given type
       template<typename T>
       static std::vector<T> search(Session& session);
 
       /// @returns the value of the given attribute (using `C_GetAttributeValue`)
-      secure_vector<byte> get_attribute_value(AttributeType attribute) const;
+      secure_vector<uint8_t> get_attribute_value(AttributeType attribute) const;
 
       /// Sets the given value for the attribute (using `C_SetAttributeValue`)
-      void set_attribute_value(AttributeType attribute, const secure_vector<byte>& value) const;
+      void set_attribute_value(AttributeType attribute, const secure_vector<uint8_t>& value) const;
 
       /// Destroys the object
       void destroy() const;
@@ -715,6 +717,14 @@ class BOTAN_DLL Object
          : m_session(session)
          {}
 
+      void reset_handle(ObjectHandle handle)
+         {
+         if(m_handle != CK_INVALID_HANDLE)
+            throw Invalid_Argument("Cannot reset handle on already valid PKCS11 object");
+         m_handle = handle;
+         }
+
+   private:
       const std::reference_wrapper<Session> m_session;
       ObjectHandle m_handle = CK_INVALID_HANDLE;
    };
@@ -742,7 +752,7 @@ std::vector<T> Object::search(Session& session, const std::string& label)
    }
 
 template<typename T>
-std::vector<T> Object::search(Session& session, const std::vector<byte>& id)
+std::vector<T> Object::search(Session& session, const std::vector<uint8_t>& id)
    {
    AttributeContainer search_template(T::Class);
    search_template.add_binary(AttributeType::Id, id);
@@ -750,7 +760,7 @@ std::vector<T> Object::search(Session& session, const std::vector<byte>& id)
    }
 
 template<typename T>
-std::vector<T> Object::search(Session& session, const std::string& label, const std::vector<byte>& id)
+std::vector<T> Object::search(Session& session, const std::string& label, const std::vector<uint8_t>& id)
    {
    AttributeContainer search_template(T::Class);
    search_template.add_string(AttributeType::Label, label);

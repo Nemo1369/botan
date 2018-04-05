@@ -9,8 +9,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BIT_OPS_H__
-#define BOTAN_BIT_OPS_H__
+#ifndef BOTAN_BIT_OPS_H_
+#define BOTAN_BIT_OPS_H_
 
 #include <botan/types.h>
 
@@ -79,7 +79,7 @@ inline size_t significant_bytes(T n)
 template<typename T>
 inline size_t hamming_weight(T n)
    {
-   const byte NIBBLE_WEIGHTS[] = {
+   const uint8_t NIBBLE_WEIGHTS[] = {
       0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
 
    size_t weight = 0;
@@ -101,6 +101,17 @@ inline size_t ctz(T n)
          return i;
    return 8*sizeof(T);
    }
+
+#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG)
+
+template<>
+inline size_t ctz(uint32_t n)
+   {
+   return __builtin_ctz(n);
+   }
+
+#endif
+
 
 template<typename T>
 size_t ceil_log2(T x)
