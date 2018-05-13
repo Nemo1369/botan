@@ -225,6 +225,9 @@ uint16_t choose_ciphersuite(
 
             for(Signature_Scheme scheme : client_sig_methods)
                {
+               if(signature_scheme_is_known(scheme) == false)
+                  continue;
+
                if(signature_algorithm_of_scheme(scheme) == suite.sig_algo() &&
                   policy.allowed_signature_hash(hash_function_of_scheme(scheme)))
                   {
@@ -300,9 +303,9 @@ Server::Server(Callbacks& callbacks,
    }
 
 Server::Server(output_fn output,
-               data_cb data_cb,
-               alert_cb alert_cb,
-               handshake_cb handshake_cb,
+               data_cb got_data_cb,
+               alert_cb recv_alert_cb,
+               handshake_cb hs_cb,
                Session_Manager& session_manager,
                Credentials_Manager& creds,
                const Policy& policy,
@@ -310,7 +313,7 @@ Server::Server(output_fn output,
                next_protocol_fn next_proto,
                bool is_datagram,
                size_t io_buf_sz) :
-   Channel(output, data_cb, alert_cb, handshake_cb,
+   Channel(output, got_data_cb, recv_alert_cb, hs_cb,
            Channel::handshake_msg_cb(), session_manager,
            rng, policy, is_datagram, io_buf_sz),
    m_creds(creds),
@@ -320,9 +323,9 @@ Server::Server(output_fn output,
 
 
 Server::Server(output_fn output,
-               data_cb data_cb,
-               alert_cb alert_cb,
-               handshake_cb handshake_cb,
+               data_cb got_data_cb,
+               alert_cb recv_alert_cb,
+               handshake_cb hs_cb,
                handshake_msg_cb hs_msg_cb,
                Session_Manager& session_manager,
                Credentials_Manager& creds,
@@ -330,7 +333,7 @@ Server::Server(output_fn output,
                RandomNumberGenerator& rng,
                next_protocol_fn next_proto,
                bool is_datagram) :
-   Channel(output, data_cb, alert_cb, handshake_cb, hs_msg_cb,
+   Channel(output, got_data_cb, recv_alert_cb, hs_cb, hs_msg_cb,
            session_manager, rng, policy, is_datagram),
    m_creds(creds),
    m_choose_next_protocol(next_proto)

@@ -1,17 +1,67 @@
 Release Notes
 ========================================
 
-Version 2.6.0, Not Yet Released
+Version 2.7.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Avoid a side channel in RSA key generation due to use of a non-constant time
+  gcd algorithm. (GH #1542 #1556)
+
+* Optimize prime generation, especially improving RSA key generation.
+  (GH #1542)
+
+* Optimizations for elliptic curve operations (GH #1534 #1531 #1546 #1547 #1550)
+
+* Add 24 word wide Comba multiplication, improving 3072-bit RSA and DH by
+  about 25%. (GH #1564)
+
+* Improved performance of signature verification in ECGDSA, ECKCDSA,
+  SM2 and GOST by 10-15%.
+
+* Allow the year to be up to 2200 in ASN.1 time objects. Previously this
+  was limited to 2100. (GH #1536)
+
+* XMSS signature verification did not check that the signature was of
+  the expected length which could lead to a crash. (GH #1537)
+
+* Botan generates X.509 subject key IDs by hashing the public key with
+  whatever hash function is being used to sign the certificate. However
+  especially for SHA-512 this caused SKIDs that were far longer than
+  necessary. Now all SKIDs are truncated to 192 bits.
+
+* In the test suite use ``mkstemp`` to create temporary files instead
+  of creating them in the current working directory. (GH #1533 #1530)
+
+* Avoid creating symlinks to the shared object on OpenBSD (#1535)
+
+* The ``factor`` command runs much faster on larger inputs now.
+
+* Support for Visual C++ 2013 is deprecated, and will be removed in Jan 2019.
+
+Version 2.6.0, 2018-04-10
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* CVE-2018-9860 Fix a bug decrypting TLS CBC ciphertexts which could
+  for a malformed ciphertext cause the decryptor to read and HMAC an
+  additional 64K bytes of data which is not part of the record. This
+  could cause a crash if the read went into unmapped memory. No
+  information leak or out of bounds write occurs.
 
 * Add support for OAEP labels (GH #1508)
 
-* RSA signing optimizations, about 15% faster (GH #1523)
+* RSA signing is about 15% faster (GH #1523) and RSA verification is
+  about 50% faster.
 
 * Add exponent blinding to RSA (GH #1523)
 
-* Fix a bug in inline asm that caused incorrect computations when
-  compiled with GCC's `-fno-plt` option. (GH #1524)
+* Add ``Cipher_Mode::create`` and ``AEAD_Mode::create`` (GH #1527)
+
+* Fix bug in TLS server introduced in 2.5 which caused connection to
+  fail if the client offered any signature algorithm not known to the
+  server (for example RSA/SHA-224).
+
+* Fix a bug in inline asm that would with GCC 7.3 cause incorrect
+  computations and an infinite loop during the tests. (GH #1524 #1529)
 
 Version 2.5.0, 2018-04-02
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

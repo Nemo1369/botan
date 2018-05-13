@@ -8,9 +8,11 @@
 #include <botan/numthry.h>
 #include <botan/pow_mod.h>
 #include <botan/reducer.h>
+#include <botan/monty.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>
 #include <botan/internal/ct_utils.h>
+#include <botan/internal/monty_exp.h>
 #include <algorithm>
 
 namespace Botan {
@@ -46,26 +48,32 @@ size_t low_zero_bits(const BigInt& n)
 */
 BigInt gcd(const BigInt& a, const BigInt& b)
    {
-   if(a.is_zero() || b.is_zero()) return 0;
-   if(a == 1 || b == 1)           return 1;
+   if(a.is_zero() || b.is_zero())
+      return 0;
+   if(a == 1 || b == 1)
+      return 1;
 
-   BigInt x = a, y = b;
-   x.set_sign(BigInt::Positive);
-   y.set_sign(BigInt::Positive);
-   size_t shift = std::min(low_zero_bits(x), low_zero_bits(y));
+   BigInt X[2] = { a, b };
+   X[0].set_sign(BigInt::Positive);
+   X[1].set_sign(BigInt::Positive);
 
-   x >>= shift;
-   y >>= shift;
+   const size_t shift = std::min(low_zero_bits(X[0]), low_zero_bits(X[1]));
 
-   while(x.is_nonzero())
+   X[0] >>= shift;
+   X[1] >>= shift;
+
+   while(X[0].is_nonzero())
       {
-      x >>= low_zero_bits(x);
-      y >>= low_zero_bits(y);
-      if(x >= y) { x -= y; x >>= 1; }
-      else       { y -= x; y >>= 1; }
+      X[0] >>= low_zero_bits(X[0]);
+      X[1] >>= low_zero_bits(X[1]);
+
+      const uint8_t sel = static_cast<uint8_t>(X[0] >= X[1]);
+
+      X[sel^1] -= X[sel];
+      X[sel^1] >>= 1;
       }
 
-   return (y << shift);
+   return (X[1] << shift);
    }
 
 /*
@@ -453,22 +461,44 @@ size_t mr_test_iterations(size_t n_bits, size_t prob, bool random)
    const size_t base = (prob + 2) / 2; // worst case 4^-t error rate
 
    /*
+   * If the candidate prime was maliciously constructed, we can't rely
+   * on arguments based on p being random.
+   */
+   if(random == false)
+      return base;
+
+   /*
    * For randomly chosen numbers we can use the estimates from
    * http://www.math.dartmouth.edu/~carlp/PDF/paper88.pdf
    *
    * These values are derived from the inequality for p(k,t) given on
    * the second page.
    */
-   if(random && prob <= 80)
+   if(random)
       {
-      if(n_bits >= 1536)
-         return 2; // < 2^-89
-      if(n_bits >= 1024)
-         return 4; // < 2^-89
-      if(n_bits >= 512)
-         return 5; // < 2^-80
-      if(n_bits >= 256)
-         return 11; // < 2^-80
+      if(prob <= 80)
+         {
+         if(n_bits >= 1536)
+            return 2; // < 2^-89
+         if(n_bits >= 1024)
+            return 3; // < 2^-89
+         if(n_bits >= 512)
+            return 5; // < 2^-80
+         if(n_bits >= 256)
+            return 11; // < 2^-80
+         }
+
+      if(prob <= 128)
+         {
+         if(n_bits >= 1536)
+            return 4; // < 2^-133
+         if(n_bits >= 1024)
+            return 6; // < 2^-133
+         if(n_bits >= 512)
+            return 12; // < 2^-129
+         if(n_bits >= 256)
+            return 28; // < 2^-128
+         }
       }
 
    return base;
@@ -499,14 +529,20 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
 
    const BigInt n_minus_1 = n - 1;
    const size_t s = low_zero_bits(n_minus_1);
+   const BigInt nm1_s = n_minus_1 >> s;
 
    const Modular_Reducer mod_n(n);
-   const Fixed_Exponent_Power_Mod pow_mod(n_minus_1 >> s, n);
+   auto monty_n = std::make_shared<Montgomery_Params>(n, mod_n);
+
+   const size_t powm_window = 4;
 
    for(size_t i = 0; i != test_iterations; ++i)
       {
       const BigInt a = BigInt::random_integer(rng, 2, n_minus_1);
-      BigInt y = pow_mod(a);
+
+      auto powm_a_n = monty_precompute(monty_n, a, powm_window);
+
+      BigInt y = monty_execute(*powm_a_n, nm1_s);
 
       if(mr_witness(std::move(y), mod_n, n_minus_1, s))
          return false;

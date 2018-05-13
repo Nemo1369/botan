@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
       {
       const std::string arg_spec =
          "botan-test --verbose --help --data-dir= --pkcs11-lib= --provider= "
-         "--log-success --abort-on-first-fail --avoid-undefined "
+         "--log-success --abort-on-first-fail --no-avoid-undefined "
          "--run-long-tests --run-online-tests --test-runs=1 --drbg-seed= "
          "*suites";
 
@@ -81,11 +81,12 @@ int main(int argc, char* argv[])
          parser.get_arg("provider"),
          parser.get_arg("drbg-seed"),
          parser.get_arg_sz("test-runs"),
+         parser.flag_set("verbose"),
          parser.flag_set("log-success"),
          parser.flag_set("run-online-tests"),
          parser.flag_set("run-long-tests"),
          parser.flag_set("abort-on-first-fail"),
-         parser.flag_set("avoid-undefined"));
+         parser.flag_set("no-avoid-undefined"));
 
 #if defined(BOTAN_HAS_OPENSSL)
       if(opts.provider().empty() || opts.provider() == "openssl")

@@ -140,7 +140,14 @@ class Filter_Tests final : public Test
          Test::Result result("DataSinkFlush");
 
 #if defined(BOTAN_HAS_CODEC_FILTERS) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
-         const std::string tmp_name("botan_test_data_src_sink_flush.tmp");
+
+         const std::string tmp_name = Test::temp_file_name("botan_test_data_src_sink_flush.tmp");
+         if(tmp_name.empty())
+            {
+            result.test_failure("Failed to create temporary file");
+            return result;
+            }
+
          std::ofstream outfile(tmp_name);
 
          Botan::Pipe pipe(new Botan::Hex_Decoder, new Botan::DataSink_Stream(outfile));
@@ -423,7 +430,7 @@ class Filter_Tests final : public Test
 
 #if defined(BOTAN_HAS_AES) && defined(BOTAN_HAS_MODE_CBC) && defined(BOTAN_HAS_CIPHER_MODE_PADDING)
          Botan::Cipher_Mode_Filter* cipher =
-            new Botan::Cipher_Mode_Filter(Botan::get_cipher_mode("AES-128/CBC/PKCS7", Botan::ENCRYPTION));
+            new Botan::Cipher_Mode_Filter(Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::ENCRYPTION));
 
          result.test_eq("Cipher filter name", cipher->name(), "AES-128/CBC/PKCS7");
 
@@ -458,7 +465,7 @@ class Filter_Tests final : public Test
          result.test_eq("Ciphertext3", ciphertext3, "1241B9976F73051BCF809525D6E86C25");
 
          Botan::Cipher_Mode_Filter* dec_cipher =
-            new Botan::Cipher_Mode_Filter(Botan::get_cipher_mode("AES-128/CBC/PKCS7", Botan::DECRYPTION));
+            new Botan::Cipher_Mode_Filter(Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::DECRYPTION));
          pipe.append(dec_cipher);
          dec_cipher->set_key(Botan::SymmetricKey("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
          dec_cipher->set_iv(Botan::InitializationVector("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB"));

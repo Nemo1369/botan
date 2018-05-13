@@ -200,7 +200,9 @@ class Lucky13_Timing_Test final : public Timing_Test
       Lucky13_Timing_Test(const std::string& mac_name, size_t mac_keylen)
          : m_mac_algo(mac_name)
          , m_mac_keylen(mac_keylen)
-         , m_dec("AES-128", 16, m_mac_algo, m_mac_keylen, true, false) {}
+         , m_dec(Botan::BlockCipher::create_or_throw("AES-128"),
+                 Botan::MessageAuthenticationCode::create_or_throw("HMAC(" + m_mac_algo + ")"),
+                 16, m_mac_keylen, true, false) {}
 
       std::vector<uint8_t> prepare_input(std::string input) override;
       ticks measure_critical_function(std::vector<uint8_t> input) override;
@@ -217,7 +219,7 @@ std::vector<uint8_t> Lucky13_Timing_Test::prepare_input(std::string input)
    const std::vector<uint8_t> key(16);
    const std::vector<uint8_t> iv(16);
 
-   std::unique_ptr<Botan::Cipher_Mode> enc(Botan::get_cipher_mode("AES-128/CBC/NoPadding", Botan::ENCRYPTION));
+   std::unique_ptr<Botan::Cipher_Mode> enc(Botan::Cipher_Mode::create("AES-128/CBC/NoPadding", Botan::ENCRYPTION));
    enc->set_key(key);
    enc->start(iv);
    Botan::secure_vector<uint8_t> buf(input_vector.begin(), input_vector.end());
@@ -289,7 +291,7 @@ ticks ECDSA_Timing_Test::measure_critical_function(std::vector<uint8_t> input)
 
    //The following ECDSA operations involve and should not leak any information about k.
 
-   const Botan::BigInt k_inv = Botan::inverse_mod(k, m_group.get_order());
+   const Botan::BigInt k_inv = m_group.inverse_mod_order(k);
    const Botan::PointGFp k_times_P = m_group.blinded_base_point_multiply(k, Timing_Test::timing_test_rng(), m_ws);
    const Botan::BigInt r = m_group.mod_order(k_times_P.get_affine_x());
    const Botan::BigInt s = m_group.multiply_mod_order(k_inv, mul_add(m_x, r, msg));

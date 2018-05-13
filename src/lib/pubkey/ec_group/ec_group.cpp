@@ -43,7 +43,8 @@ class EC_Group_Data final
          m_oid(oid),
          m_p_bits(p.bits()),
          m_order_bits(order.bits()),
-         m_a_is_minus_3(a == p - 3)
+         m_a_is_minus_3(a == p - 3),
+         m_a_is_zero(a.is_zero())
          {
          }
 
@@ -79,12 +80,18 @@ class EC_Group_Data final
       const PointGFp& base_point() const { return m_base_point; }
 
       bool a_is_minus_3() const { return m_a_is_minus_3; }
+      bool a_is_zero() const { return m_a_is_zero; }
 
       BigInt mod_order(const BigInt& x) const { return m_mod_order.reduce(x); }
 
       BigInt multiply_mod_order(const BigInt& x, const BigInt& y) const
          {
          return m_mod_order.multiply(x, y);
+         }
+
+      BigInt inverse_mod_order(const BigInt& x) const
+         {
+         return inverse_mod(x, m_order);
          }
 
       PointGFp blinded_base_point_multiply(const BigInt& k,
@@ -108,6 +115,7 @@ class EC_Group_Data final
       size_t m_p_bits;
       size_t m_order_bits;
       bool m_a_is_minus_3;
+      bool m_a_is_zero;
    };
 
 class EC_Group_Data_Map final
@@ -399,6 +407,11 @@ bool EC_Group::a_is_minus_3() const
    return data().a_is_minus_3();
    }
 
+bool EC_Group::a_is_zero() const
+   {
+   return data().a_is_zero();
+   }
+
 size_t EC_Group::get_p_bits() const
    {
    return data().p_bits();
@@ -469,6 +482,11 @@ BigInt EC_Group::multiply_mod_order(const BigInt& x, const BigInt& y) const
    return data().multiply_mod_order(x, y);
    }
 
+BigInt EC_Group::inverse_mod_order(const BigInt& x) const
+   {
+   return data().inverse_mod_order(x);
+   }
+
 const OID& EC_Group::get_curve_oid() const
    {
    return data().oid();
@@ -520,7 +538,7 @@ PointGFp EC_Group::blinded_var_point_multiply(const PointGFp& point,
                                               std::vector<BigInt>& ws) const
    {
    PointGFp_Var_Point_Precompute mul(point);
-   mul.randomize_repr(rng);
+   mul.randomize_repr(rng, ws);
    return mul.mul(k, rng, get_order(), ws);
    }
 

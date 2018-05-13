@@ -44,7 +44,7 @@ class DL_Group_Tests final : public Test
                             "DL_Group uninitialized",
                             []() { Botan::DL_Group dl; dl.get_p(); });
 
-         if(Test::avoid_undefined_behavior() == false)
+         if(Test::options().undefined_behavior_allowed())
             {
             result.test_throws("Bad generator param",
                                "Invalid argument DL_Group unknown PrimeType",

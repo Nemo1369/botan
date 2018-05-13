@@ -57,12 +57,15 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       {
 #if defined(BOTAN_HAS_TLS_CBC)
       // legacy CBC+HMAC mode
+      auto mac = MessageAuthenticationCode::create_or_throw("HMAC(" + suite.mac_algo() + ")");
+      auto cipher = BlockCipher::create_or_throw(suite.cipher_algo());
+
       if(our_side)
          {
          m_aead.reset(new TLS_CBC_HMAC_AEAD_Encryption(
-                         suite.cipher_algo(),
+                         std::move(cipher),
+                         std::move(mac),
                          suite.cipher_keylen(),
-                         suite.mac_algo(),
                          suite.mac_keylen(),
                          version.supports_explicit_cbc_ivs(),
                          uses_encrypt_then_mac));
@@ -70,9 +73,9 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       else
          {
          m_aead.reset(new TLS_CBC_HMAC_AEAD_Decryption(
-                         suite.cipher_algo(),
+                         std::move(cipher),
+                         std::move(mac),
                          suite.cipher_keylen(),
-                         suite.mac_algo(),
                          suite.mac_keylen(),
                          version.supports_explicit_cbc_ivs(),
                          uses_encrypt_then_mac));
@@ -92,8 +95,7 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
       }
    else
       {
-      m_aead.reset(get_aead(suite.cipher_algo(), our_side ? ENCRYPTION : DECRYPTION));
-      BOTAN_ASSERT(m_aead, "Have AEAD");
+      m_aead = AEAD_Mode::create_or_throw(suite.cipher_algo(), our_side ? ENCRYPTION : DECRYPTION);
 
       m_aead->set_key(cipher_key + mac_key);
 
@@ -297,8 +299,15 @@ void decrypt_record(secure_vector<uint8_t>& output,
    const uint8_t* msg = &record_contents[cs.nonce_bytes_from_record()];
    const size_t msg_length = record_len - cs.nonce_bytes_from_record();
 
+   /*
+   * This early rejection is based just on public information (length of the
+   * encrypted packet) and so does not leak any information. We used to use
+   * decode_error here which really is more appropriate, but that confuses some
+   * tools which are attempting automated detection of padding oracles,
+   * including older versions of TLS-Attacker.
+   */
    if(msg_length < aead->minimum_final_size())
-      throw Decoding_Error("AEAD packet is shorter than the tag");
+      throw TLS_Exception(Alert::BAD_RECORD_MAC, "AEAD packet is shorter than the tag");
 
    const size_t ptext_size = aead->output_length(msg_length);
 

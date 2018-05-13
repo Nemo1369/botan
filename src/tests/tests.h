@@ -58,22 +58,24 @@ class Test_Options
                    const std::string& provider,
                    const std::string& drbg_seed,
                    size_t test_runs,
+                   bool verbose,
                    bool log_success,
                    bool run_online_tests,
                    bool run_long_tests,
                    bool abort_on_first_fail,
-                   bool avoid_undefined) :
+                   bool undefined_behavior_allowed) :
          m_requested_tests(requested_tests),
          m_data_dir(data_dir),
          m_pkcs11_lib(pkcs11_lib),
          m_provider(provider),
          m_drbg_seed(drbg_seed),
          m_test_runs(test_runs),
+         m_verbose(verbose),
          m_log_success(log_success),
          m_run_online_tests(run_online_tests),
          m_run_long_tests(run_long_tests),
          m_abort_on_first_fail(abort_on_first_fail),
-         m_avoid_undefined(avoid_undefined)
+         m_undefined_behavior_allowed(undefined_behavior_allowed)
          {}
 
       const std::vector<std::string>& requested_tests() const
@@ -97,7 +99,17 @@ class Test_Options
 
       bool abort_on_first_fail() const { return m_abort_on_first_fail; }
 
-      bool avoid_undefined_behavior() const { return m_avoid_undefined; }
+      bool verbose() const { return m_verbose; }
+
+      bool undefined_behavior_allowed() const
+         {
+#if defined(BOTAN_HAS_SANITIZER_UNDEFINED)
+         return m_undefined_behavior_allowed;
+#else
+         BOTAN_UNUSED(m_undefined_behavior_allowed);
+         return true;
+#endif
+         }
 
    private:
       std::vector<std::string> m_requested_tests;
@@ -106,11 +118,12 @@ class Test_Options
       std::string m_provider;
       std::string m_drbg_seed;
       size_t m_test_runs;
+      bool m_verbose;
       bool m_log_success;
       bool m_run_online_tests;
       bool m_run_long_tests;
       bool m_abort_on_first_fail;
-      bool m_avoid_undefined;
+      bool m_undefined_behavior_allowed;
    };
 
 /*
@@ -153,7 +166,8 @@ class Test
                {
                return m_who;
                }
-            std::string result_string(bool verbose) const;
+
+            std::string result_string() const;
 
             static Result Failure(const std::string& who,
                                   const std::string& what)
@@ -466,13 +480,13 @@ class Test
 
       static void set_test_rng(std::unique_ptr<Botan::RandomNumberGenerator> rng);
 
-      static bool avoid_undefined_behavior() { return m_opts.avoid_undefined_behavior(); }
-      static bool log_success() { return m_opts.log_success(); }
-      static bool run_online_tests() { return m_opts.run_online_tests(); }
-      static bool run_long_tests() { return m_opts.run_long_tests(); }
-      static bool abort_on_first_fail() { return m_opts.abort_on_first_fail(); }
-      static const std::string& data_dir() { return m_opts.data_dir(); }
-      static const std::string& pkcs11_lib() { return m_opts.pkcs11_lib(); }
+      static const Test_Options& options() { return m_opts; }
+
+      static bool run_long_tests() { return options().run_long_tests(); }
+      static const std::string& data_dir() { return options().data_dir(); }
+      static const std::string& pkcs11_lib() { return options().pkcs11_lib(); }
+
+      static std::string temp_file_name(const std::string& basename);
 
       static std::vector<std::string> provider_filter(const std::vector<std::string>& providers);
 

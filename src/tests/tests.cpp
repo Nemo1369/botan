@@ -23,6 +23,11 @@
    #include <botan/point_gfp.h>
 #endif
 
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   #include <stdlib.h>
+   #include <unistd.h>
+#endif
+
 namespace Botan_Tests {
 
 Test::Registration::Registration(const std::string& name, Test* test)
@@ -136,7 +141,7 @@ bool Test::Result::test_throws(const std::string& what, const std::string& expec
 
 bool Test::Result::test_success(const std::string& note)
    {
-   if(Test::log_success())
+   if(Test::options().log_success())
       {
       test_note(note);
       }
@@ -160,7 +165,7 @@ bool Test::Result::test_failure(const std::string& err)
    {
    m_fail_log.push_back(err);
 
-   if(m_who != "Failing Test" && Test::abort_on_first_fail())
+   if(Test::options().abort_on_first_fail() && m_who != "Failing Test")
       {
       std::abort();
       }
@@ -410,8 +415,10 @@ std::string Test::format_time(uint64_t ns)
    return o.str();
    }
 
-std::string Test::Result::result_string(bool verbose) const
+std::string Test::Result::result_string() const
    {
+   const bool verbose = Test::options().verbose();
+
    if(tests_run() == 0 && !verbose)
       {
       return "";
@@ -493,6 +500,33 @@ Test* Test::get_test(const std::string& test_name)
       return i->second.get();
       }
    return nullptr;
+   }
+
+//static
+std::string Test::temp_file_name(const std::string& basename)
+   {
+   // TODO add a --tmp-dir option to the tests to specify where these files go
+
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+
+   // POSIX only calls for 6 'X' chars but OpenBSD allows arbitrary amount
+   std::string mkstemp_basename = "/tmp/" + basename + ".XXXXXXXXXX";
+
+   int fd = ::mkstemp(&mkstemp_basename[0]);
+
+   // error
+   if(fd < 0)
+      {
+      return "";
+      }
+
+   ::close(fd);
+
+   return mkstemp_basename;
+#else
+   // For now just create the temp in the current working directory
+   return basename;
+#endif
    }
 
 std::string Test::read_data_file(const std::string& path)

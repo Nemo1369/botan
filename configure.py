@@ -3,7 +3,7 @@
 """
 Configuration program for botan
 
-(C) 2009,2010,2011,2012,2013,2014,2015,2016,2017 Jack Lloyd
+(C) 2009,2010,2011,2012,2013,2014,2015,2016,2017,2018 Jack Lloyd
 (C) 2015,2016,2017 Simon Warta (Kullo GmbH)
 
 Botan is released under the Simplified BSD License (see license.txt)
@@ -459,6 +459,12 @@ def process_command_line(args): # pylint: disable=too-many-locals
 
     build_group.add_option('--with-fuzzer-lib', metavar='LIB', default=None, dest='fuzzer_lib',
                            help='additionally link in LIB')
+
+    build_group.add_option('--test-mode', action='store_true', default=False,
+                           help=optparse.SUPPRESS_HELP)
+
+    build_group.add_option('--with-debug-asserts', action='store_true', default=False,
+                           help=optparse.SUPPRESS_HELP)
 
     docs_group = optparse.OptionGroup(parser, 'Documentation Options')
 
@@ -1045,7 +1051,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         lex = lex_me_harder(
             infofile,
             [],
-            ['cpu_flags', 'so_link_commands', 'binary_link_commands',
+            ['cpu_flags', 'cpu_flags_no_debug', 'so_link_commands', 'binary_link_commands',
              'mach_abi_linking', 'isa_flags', 'sanitizers'],
             {
                 'binary_name': None,
@@ -1062,6 +1068,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'debug_info_flags': '-g',
                 'optimization_flags': '',
                 'size_optimization_flags': '',
+                'sanitizer_optimization_flags': '',
                 'coverage_flags': '',
                 'stack_protector_flags': '',
                 'shared_flags': '',
@@ -1085,6 +1092,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.binary_link_commands = lex.binary_link_commands
         self.binary_name = lex.binary_name
         self.cpu_flags = lex.cpu_flags
+        self.cpu_flags_no_debug = lex.cpu_flags_no_debug
         self.compile_flags = lex.compile_flags
         self.coverage_flags = lex.coverage_flags
         self.debug_info_flags = lex.debug_info_flags
@@ -1099,6 +1107,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.output_to_object = lex.output_to_object
         self.preproc_flags = lex.preproc_flags
         self.sanitizers = lex.sanitizers
+        self.sanitizer_types = []
+        self.sanitizer_optimization_flags = lex.sanitizer_optimization_flags
         self.shared_flags = lex.shared_flags
         self.size_optimization_flags = lex.size_optimization_flags
         self.so_link_commands = lex.so_link_commands
@@ -1224,6 +1234,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 else:
                     abi_link.add(self.sanitizers[s])
 
+            self.sanitizer_types = san
+
         if options.with_openmp:
             if 'openmp' not in self.mach_abi_linking:
                 raise UserError('No support for OpenMP for %s' % (self.basename))
@@ -1249,6 +1261,9 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
     def cc_compile_flags(self, options, with_debug_info=None, enable_optimizations=None):
         def gen_flags(with_debug_info, enable_optimizations):
+
+            sanitizers_enabled = options.with_sanitizers or (len(options.enable_sanitizers) > 0)
+
             if with_debug_info is None:
                 with_debug_info = options.with_debug_info
             if enable_optimizations is None:
@@ -1264,11 +1279,20 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                     else:
                         logging.warning("No size optimization flags set for current compiler")
                         yield self.optimization_flags
+                elif sanitizers_enabled and self.sanitizer_optimization_flags != '':
+                    yield self.sanitizer_optimization_flags
                 else:
                     yield self.optimization_flags
 
             if options.arch in self.cpu_flags:
                 yield self.cpu_flags[options.arch]
+
+            if options.arch in self.cpu_flags_no_debug:
+
+                # Only enable these if no debug/sanitizer options enabled
+
+                if not (options.debug_mode or sanitizers_enabled):
+                    yield self.cpu_flags_no_debug[options.arch]
 
         return (' '.join(gen_flags(with_debug_info, enable_optimizations))).strip()
 
@@ -1771,6 +1795,11 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             return path
         return os.path.join(build_dir, path)
 
+    def shared_lib_uses_symlinks():
+        if options.os in ['windows', 'openbsd']:
+            return False
+        return True
+
     variables = {
         'version_major':  Version.major(),
         'version_minor':  Version.minor(),
@@ -1830,11 +1859,13 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'makefile_path': os.path.join(build_paths.build_dir, '..', 'Makefile'),
 
         'build_static_lib': options.build_static_lib,
+        'build_shared_lib': options.build_shared_lib,
+
         'build_fuzzers': options.build_fuzzers,
 
-        'build_shared_lib': options.build_shared_lib,
-        'build_unix_shared_lib': options.build_shared_lib and options.compiler != 'msvc',
-        'build_msvc_shared_lib': options.build_shared_lib and options.compiler == 'msvc',
+        'build_coverage' : options.with_coverage_info or options.with_coverage,
+
+        'symlink_shared_lib': options.build_shared_lib and shared_lib_uses_symlinks(),
 
         'libobj_dir': build_paths.libobj_dir,
         'cliobj_dir': build_paths.cliobj_dir,
@@ -1865,6 +1896,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'cxx_abi_flags': cc.mach_abi_link_flags(options),
         'linker': cc.linker_name or '$(CXX)',
         'make_supports_phony': cc.basename != 'msvc',
+
+        'sanitizer_types' : sorted(cc.sanitizer_types),
 
         'cc_compile_opt_flags': cc.cc_compile_flags(options, False, True),
         'cc_compile_debug_flags': cc.cc_compile_flags(options, True, False),
@@ -1920,7 +1953,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'with_valgrind': options.with_valgrind,
         'with_openmp': options.with_openmp,
-        'with_debug_asserts': options.debug_mode,
+        'with_debug_asserts': options.with_debug_asserts,
+        'test_mode': options.test_mode,
 
         'mod_list': sorted([m.basename for m in modules])
         }
@@ -2878,8 +2912,14 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
             ccinfo.basename, cc_output))
         return "0.0"
 
-    cc_version = "%d.%d" % (int(match.group(1), 0), int(match.group(2), 0))
+    major_version = int(match.group(1), 0)
+    minor_version = int(match.group(2), 0)
+    cc_version = "%d.%d" % (major_version, minor_version)
     logging.info('Auto-detected compiler version %s' % (cc_version))
+
+    if ccinfo.basename == 'msvc':
+        if major_version == 18:
+            logging.warning('MSVC 2013 support is deprecated and will be removed in a future release')
     return cc_version
 
 def check_compiler_arch(options, ccinfo, archinfo, source_paths):
