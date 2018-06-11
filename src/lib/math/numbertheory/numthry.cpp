@@ -449,11 +449,15 @@ bool mr_witness(BigInt&& y,
       if(y == 1) // found a non-trivial square root
          return true;
 
-      if(y == n_minus_1) // -1, trivial square root, so give up
+      /*
+      -1 is the trivial square root of unity, so ``a`` is not a
+      witness for this number - give up
+      */
+      if(y == n_minus_1)
          return false;
       }
 
-   return true; // fails Fermat test
+   return true; // is a witness
    }
 
 size_t mr_test_iterations(size_t n_bits, size_t prob, bool random)
@@ -474,40 +478,30 @@ size_t mr_test_iterations(size_t n_bits, size_t prob, bool random)
    * These values are derived from the inequality for p(k,t) given on
    * the second page.
    */
-   if(random)
+   if(prob <= 128)
       {
-      if(prob <= 80)
-         {
-         if(n_bits >= 1536)
-            return 2; // < 2^-89
-         if(n_bits >= 1024)
-            return 3; // < 2^-89
-         if(n_bits >= 512)
-            return 5; // < 2^-80
-         if(n_bits >= 256)
-            return 11; // < 2^-80
-         }
-
-      if(prob <= 128)
-         {
-         if(n_bits >= 1536)
-            return 4; // < 2^-133
-         if(n_bits >= 1024)
-            return 6; // < 2^-133
-         if(n_bits >= 512)
-            return 12; // < 2^-129
-         if(n_bits >= 256)
-            return 28; // < 2^-128
-         }
+      if(n_bits >= 1536)
+         return 4; // < 2^-133
+      if(n_bits >= 1024)
+         return 6; // < 2^-133
+      if(n_bits >= 512)
+         return 12; // < 2^-129
+      if(n_bits >= 256)
+         return 29; // < 2^-128
       }
 
+   /*
+   If the user desires a smaller error probability than we have
+   precomputed error estimates for, just fall back to using the worst
+   case error rate.
+   */
    return base;
    }
 
 }
 
 /*
-* Test for primaility using Miller-Rabin
+* Test for primality using Miller-Rabin
 */
 bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
               size_t prob, bool is_random)

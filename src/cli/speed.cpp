@@ -110,6 +110,10 @@
    #include <botan/newhope.h>
 #endif
 
+#if defined(BOTAN_HAS_SCRYPT)
+   #include <botan/scrypt.h>
+#endif
+
 namespace Botan_CLI {
 
 namespace {
@@ -634,6 +638,7 @@ class Speed final : public Command
             "AES-128/OCB",
             "AES-128/GCM",
             "AES-128/XTS",
+            "AES-128/SIV",
 
             "Serpent/CBC",
             "Serpent/CTR-BE",
@@ -641,37 +646,36 @@ class Speed final : public Command
             "Serpent/OCB",
             "Serpent/GCM",
             "Serpent/XTS",
+            "Serpent/SIV",
 
             "ChaCha20Poly1305",
 
             /* Stream ciphers */
             "RC4",
             "Salsa20",
+            "ChaCha20",
 
             /* Hashes */
-            "Tiger",
-            "RIPEMD-160",
             "SHA-160",
             "SHA-256",
             "SHA-512",
+            "SHA-3(256)",
+            "SHA-3(512)",
+            "RIPEMD-160",
             "Skein-512",
-            "Keccak-1600(512)",
+            "Blake2b",
+            "Tiger",
             "Whirlpool",
 
             /* MACs */
             "CMAC(AES-128)",
             "HMAC(SHA-256)",
 
-            /* Misc */
-            "random_prime",
-
             /* pubkey */
             "RSA",
             "DH",
             "ECDH",
             "ECDSA",
-            "ECKCDSA",
-            "ECGDSA",
             "Ed25519",
             "Curve25519",
             "NEWHOPE",
@@ -890,6 +894,12 @@ class Speed final : public Command
             else if(algo == "NEWHOPE")
                {
                bench_newhope(provider, msec);
+               }
+#endif
+#if defined(BOTAN_HAS_SCRYPT)
+            else if(algo == "scrypt")
+               {
+               bench_scrypt(provider, msec);
                }
 #endif
 
@@ -2111,7 +2121,11 @@ class Speed final : public Command
       void bench_xmss(const std::string& provider,
                       std::chrono::milliseconds msec)
          {
-         // H16 and H20 signatures take an hour or more to generate
+         /*
+         We only test H10 signatures here since already they are quite slow (a
+         few seconds per signature). On a fast machine, H16 signatures take 1-2
+         minutes to generate and H20 signatures take 5-10 minutes to generate
+         */
          std::vector<std::string> xmss_params
             {
             "XMSS_SHA2-256_W16_H10",
@@ -2135,6 +2149,42 @@ class Speed final : public Command
          }
 #endif
 
+#if defined(BOTAN_HAS_SCRYPT)
+
+      void bench_scrypt(const std::string& /*provider*/,
+                        std::chrono::milliseconds msec)
+         {
+
+         for(size_t N : { 8192, 16384, 32768, 65536 })
+            {
+            for(size_t r : { 1, 8 })
+               {
+               for(size_t p : { 1, 4, 8 })
+                  {
+                  std::unique_ptr<Timer> scrypt_timer = make_timer(
+                     "scrypt-" + std::to_string(N) + "-" +
+                     std::to_string(r) + "-" + std::to_string(p));
+
+                  uint8_t out[64];
+                  uint8_t salt[8];
+                  rng().randomize(salt, sizeof(salt));
+
+                  while(scrypt_timer->under(msec))
+                     {
+                     scrypt_timer->run([&] {
+                        Botan::scrypt(out, sizeof(out), "password",
+                                      salt, sizeof(salt), N, r, p);
+                        });
+                     }
+
+                  record_result(scrypt_timer);
+                  }
+               }
+            }
+
+         }
+
+#endif
 
 #if defined(BOTAN_HAS_NEWHOPE) && defined(BOTAN_HAS_CHACHA_RNG)
       void bench_newhope(const std::string& /*provider*/,
