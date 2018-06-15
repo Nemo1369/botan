@@ -4,6 +4,8 @@ Release Notes
 Version 2.7.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* CVE-2018-0495 Avoid a side channel in ECDSA signature generation (GH #1604)
+
 * Avoid a side channel in RSA key generation due to use of a non-constant time
   gcd algorithm. (GH #1542 #1556)
 
@@ -41,6 +43,8 @@ Version 2.7.0, Not Yet Released
 * Correct an error that could in rare cases cause an internal error exception
   when doing computations with the P-224 curve.
 
+* Reduce allocations/copies during BER decoding (GH #1600)
+
 * Botan generates X.509 subject key IDs by hashing the public key with
   whatever hash function is being used to sign the certificate. However
   especially for SHA-512 this caused SKIDs that were far longer than
@@ -60,6 +64,8 @@ Version 2.7.0, Not Yet Released
 
 * Implement Base32 encoding with template function to prepare
   refactoring of Base64. (GH #1541)
+
+* Added support for GCC's --sysroot option to configure.py for cross-compiling.
 
 Version 2.6.0, 2018-04-10
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
