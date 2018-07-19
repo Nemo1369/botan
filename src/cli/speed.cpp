@@ -114,6 +114,14 @@
    #include <botan/scrypt.h>
 #endif
 
+#if defined(BOTAN_HAS_BCRYPT)
+   #include <botan/bcrypt.h>
+#endif
+
+#if defined(BOTAN_HAS_PASSHASH9)
+   #include <botan/passhash9.h>
+#endif
+
 namespace Botan_CLI {
 
 namespace {
@@ -742,7 +750,13 @@ class Speed final : public Command
 
          for(std::string cpuid_to_clear : Botan::split_on(get_arg("clear-cpuid"), ','))
             {
-            for(auto bit : Botan::CPUID::bit_from_string(cpuid_to_clear))
+            auto bits = Botan::CPUID::bit_from_string(cpuid_to_clear);
+            if(bits.empty())
+               {
+               error_output() << "Warning don't know CPUID flag '" << cpuid_to_clear << "'\n";
+               }
+
+            for(auto bit : bits)
                {
                Botan::CPUID::clear_cpuid_bit(bit);
                }
@@ -900,6 +914,18 @@ class Speed final : public Command
             else if(algo == "scrypt")
                {
                bench_scrypt(provider, msec);
+               }
+#endif
+#if defined(BOTAN_HAS_BCRYPT)
+            else if(algo == "bcrypt")
+               {
+               bench_bcrypt();
+               }
+#endif
+#if defined(BOTAN_HAS_PASSHASH9)
+            else if(algo == "passhash9")
+               {
+               bench_passhash9();
                }
 #endif
 
@@ -1538,8 +1564,8 @@ class Speed final : public Command
             const Botan::BigInt random_e(rng(), e_bits);
             const Botan::BigInt random_f(rng(), f_bits);
 
-            std::unique_ptr<Timer> e_timer = make_timer(group_bits_str + " short exponent", "", "modexp");
-            std::unique_ptr<Timer> f_timer = make_timer(group_bits_str + "  full exponent", "", "modexp");
+            std::unique_ptr<Timer> e_timer = make_timer(group_bits_str + " short exponent");
+            std::unique_ptr<Timer> f_timer = make_timer(group_bits_str + "  full exponent");
 
             while(f_timer->under(runtime))
                {
@@ -1603,29 +1629,31 @@ class Speed final : public Command
 
       void bench_bn_redc(const std::chrono::milliseconds runtime)
          {
-         Botan::BigInt p;
-         p.set_bit(521);
-         p--;
-
-         std::unique_ptr<Timer> barrett_timer = make_timer("Barrett");
-         std::unique_ptr<Timer> schoolbook_timer = make_timer("Schoolbook");
-
-         Botan::Modular_Reducer mod_p(p);
-
-         while(schoolbook_timer->under(runtime))
+         for(size_t bitsize : { 512, 1024, 2048, 4096 })
             {
-            const Botan::BigInt x(rng(), p.bits() * 2 - 2);
+            Botan::BigInt p(rng(), bitsize);
 
-            const Botan::BigInt r1 = barrett_timer->run(
-               [&] { return mod_p.reduce(x); });
-            const Botan::BigInt r2 = schoolbook_timer->run(
-               [&] { return x % p; });
+            std::string bit_str = std::to_string(bitsize);
+            std::unique_ptr<Timer> barrett_timer = make_timer("Barrett-" + bit_str);
+            std::unique_ptr<Timer> schoolbook_timer = make_timer("Schoolbook-" + bit_str);
 
-            BOTAN_ASSERT(r1 == r2, "Computed different results");
+            Botan::Modular_Reducer mod_p(p);
+
+            while(schoolbook_timer->under(runtime))
+               {
+               const Botan::BigInt x(rng(), p.bits() * 2 - 2);
+
+               const Botan::BigInt r1 = barrett_timer->run(
+                  [&] { return mod_p.reduce(x); });
+               const Botan::BigInt r2 = schoolbook_timer->run(
+                  [&] { return x % p; });
+
+               BOTAN_ASSERT(r1 == r2, "Computed different results");
+               }
+
+            record_result(barrett_timer);
+            record_result(schoolbook_timer);
             }
-
-         record_result(barrett_timer);
-         record_result(schoolbook_timer);
          }
 
       void bench_inverse_mod(const std::chrono::milliseconds runtime)
@@ -2145,6 +2173,51 @@ class Speed final : public Command
 
             record_result(keygen_timer);
             bench_pk_sig(*key, params, provider, "", msec);
+            }
+         }
+#endif
+
+#if defined(BOTAN_HAS_BCRYPT)
+
+      void bench_bcrypt()
+         {
+         const std::string password = "not a very good password";
+
+         for(uint8_t work_factor = 4; work_factor <= 14; ++work_factor)
+            {
+            std::unique_ptr<Timer> timer = make_timer("bcrypt wf=" + std::to_string(work_factor));
+
+            timer->run([&] {
+               Botan::generate_bcrypt(password, rng(), work_factor);
+                  });
+
+            record_result(timer);
+            }
+         }
+#endif
+
+#if defined(BOTAN_HAS_PASSHASH9)
+
+      void bench_passhash9()
+         {
+         const std::string password = "not a very good password";
+
+         for(uint8_t alg = 0; alg <= 4; ++alg)
+            {
+            if(Botan::is_passhash9_alg_supported(alg) == false)
+               continue;
+
+            for(uint8_t work_factor : { 10, 15 })
+               {
+               std::unique_ptr<Timer> timer = make_timer("passhash9 alg=" + std::to_string(alg) +
+                                                         " wf=" + std::to_string(work_factor));
+
+               timer->run([&] {
+                  Botan::generate_passhash9(password, rng(), work_factor, alg);
+                  });
+
+               record_result(timer);
+               }
             }
          }
 #endif

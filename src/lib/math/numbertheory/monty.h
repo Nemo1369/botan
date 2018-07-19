@@ -40,6 +40,13 @@ class BOTAN_UNSTABLE_API Montgomery_Int final
                      const uint8_t bits[], size_t len,
                      bool redc_needed = true);
 
+      /**
+      * Create a Montgomery_Int
+      */
+      Montgomery_Int(std::shared_ptr<const Montgomery_Params> params,
+                     const word words[], size_t len,
+                     bool redc_needed = true);
+
       bool operator==(const Montgomery_Int& other) const;
       bool operator!=(const Montgomery_Int& other) const { return (m_v != other.m_v); }
 
@@ -93,6 +100,8 @@ class BOTAN_UNSTABLE_API Montgomery_Int final
       Montgomery_Int square(secure_vector<word>& ws) const;
 
       Montgomery_Int& square_this(secure_vector<word>& ws);
+
+      Montgomery_Int& square_this_n_times(secure_vector<word>& ws, size_t n);
 
       Montgomery_Int multiplicative_inverse() const;
 

@@ -80,6 +80,10 @@ with PKCS#7 padding.
 .. warning::
    This example ignores the requirement to authenticate the ciphertext
 
+.. note::
+   Simply replacing the string "AES-128/CBC/PKCS7" string in the example below
+   with "AES-128/GCM" suffices to use authenticated encryption.
+
 .. code-block:: cpp
 
     #include <botan/rng.h>
@@ -98,10 +102,13 @@ with PKCS#7 padding.
        std::unique_ptr<Botan::Cipher_Mode> enc = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::ENCRYPTION);
        enc->set_key(key);
 
+       //generate fresh nonce (IV)
+       Botan::secure_vector<uint8_t> iv = rng.random_vec(enc->default_nonce_length());
+
+       // Copy input data to a buffer that will be encrypted
        Botan::secure_vector<uint8_t> pt(plaintext.data(), plaintext.data()+plaintext.length());
 
-       //generate fresh nonce (IV)
-       enc->start(rng.random_vec(enc->default_nonce_length()));
+       enc->start(iv);
        enc->finish(pt);
 
        std::cout << enc->name() << " with iv " << Botan::hex_encode(iv) << " " << Botan::hex_encode(pt) << "\n";
@@ -136,7 +143,7 @@ CFB
 
 Available if ``BOTAN_HAS_MODE_CFB`` is defined.
 
-CFB uses a block cipher to create a self-syncronizing stream cipher.  It is used
+CFB uses a block cipher to create a self-syncronizing stream cipher. It is used
 for example in the OpenPGP protocol. There is no reason to prefer it.
 
 XTS
@@ -184,11 +191,13 @@ will be returned by :cpp:func:`get_cipher` if the named cipher is an AEAD mode).
   .. cpp:function:: void start(const uint8_t nonce[], size_t nonce_len)
 
        Start processing a message, using *nonce* as the unique per-message
-       value.
+       value. It does not need to be random, simply unique (per key).
 
        .. warning::
-          With most AEADs, if the same nonce is ever used to encrypt two
-          different messages under the same key, all security is lost.
+          With almost all AEADs, if the same nonce is ever used to encrypt two
+          different messages under the same key, all security is lost. If
+          reliably generating unique nonces is difficult in your environment,
+          use SIV mode which retains security even if nonces are repeated.
 
   .. cpp:function:: void update(secure_vector<uint8_t>& buffer, size_t offset = 0)
 
@@ -295,13 +304,13 @@ Available if ``BOTAN_HAS_AEAD_SIV`` is defined.
 Requires a 128-bit block cipher. Unlike other AEADs, SIV is "misuse resistent";
 if a nonce is repeated, SIV retains security, with the exception that if the
 same nonce is used to encrypt the same message multiple times, an attacker can
-detect the duplicated message (this is because for identical plaintexts SIV
-will output the same ciphertext each time, in the case the nonce is repeated.)
+detect the fact that the message was duplicated (this is simply because if both
+the nonce and the message are reused, SIV will output identical ciphertexts).
 
 CCM
 ~~~~~
 
 Available if ``BOTAN_HAS_AEAD_CCM`` is defined.
 
-Requires a 128-bit block cipher. This is a NIST standard mode but that is about
-all to recommenmd it. Prefer EAX.
+A composition of CTR mode and CBC-MAC. Requires a 128-bit block cipher. This is
+a NIST standard mode, but that is about all to recommend it. Prefer EAX.

@@ -59,6 +59,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
              '--cc=%s' % (target_cc),
              '--os=%s' % (target_os)]
 
+    if target_cc == 'msvc':
+        flags += ['--ack-vc2013-deprecated']
+
     if target_cpu != None:
         flags += ['--cpu=%s' % (target_cpu)]
 
@@ -79,9 +82,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
 
     if target in ['bsi', 'nist']:
         # Arbitrarily test disable static on module policy builds
-        # x509 is optional for bsi/nist but add it so verify tests work with these minimized configs
+        # tls is optional for bsi/nist but add it so verify tests work with these minimized configs
         flags += ['--module-policy=%s' % (target),
-                  '--enable-modules=x509',
+                  '--enable-modules=tls',
                   '--disable-static']
 
     if target == 'docs':

@@ -118,6 +118,48 @@ class Print_Help final : public Command
 
 BOTAN_REGISTER_COMMAND("help", Print_Help);
 
+class Has_Command final : public Command
+   {
+   public:
+      Has_Command() : Command("has_command cmd") {}
+
+      std::string group() const override
+         {
+         return "info";
+         }
+
+      std::string description() const override
+         {
+         return "Test if a command is available";
+         }
+
+      void go() override
+         {
+         const std::string cmd = get_arg("cmd");
+
+         bool exists = false;
+         for(auto registered_cmd : Command::registered_cmds())
+            {
+            if(cmd == registered_cmd)
+               {
+               exists = true;
+               break;
+               }
+            }
+
+         if(verbose())
+            {
+            output() << "Command '" << cmd << "' is "
+                     << (exists ? "": "not ") << "available\n";
+            }
+
+         if(exists == false)
+            this->set_return_code(1);
+         }
+   };
+
+BOTAN_REGISTER_COMMAND("has_command", Has_Command);
+
 class Config_Info final : public Command
    {
    public:
@@ -231,7 +273,7 @@ BOTAN_REGISTER_COMMAND("cpuid", Print_Cpuid);
 class Hash final : public Command
    {
    public:
-      Hash() : Command("hash --algo=SHA-256 --buf-size=4096 *files") {}
+      Hash() : Command("hash --algo=SHA-256 --buf-size=4096 --no-fsname *files") {}
 
       std::string group() const override
          {
@@ -254,6 +296,7 @@ class Hash final : public Command
             }
 
          const size_t buf_size = get_arg_sz("buf-size");
+         const bool no_fsname = flag_set("no-fsname");
 
          std::vector<std::string> files = get_arg_list("files");
          if(files.empty())
@@ -267,7 +310,12 @@ class Hash final : public Command
                {
                auto update_hash = [&](const uint8_t b[], size_t l) { hash_fn->update(b, l); };
                read_file(fsname, update_hash, buf_size);
-               output() << Botan::hex_encode(hash_fn->final()) << " " << fsname << "\n";
+               const std::string digest = Botan::hex_encode(hash_fn->final());
+
+               if(no_fsname)
+                  output() << digest << "\n";
+               else
+                  output() << digest << " " << fsname << "\n";
                }
             catch(CLI_IO_Error& e)
                {
@@ -548,7 +596,7 @@ BOTAN_REGISTER_COMMAND("check_bcrypt", Check_Bcrypt);
 class HMAC final : public Command
    {
    public:
-      HMAC() : Command("hmac --hash=SHA-256 --buf-size=4096 key *files") {}
+      HMAC() : Command("hmac --hash=SHA-256 --buf-size=4096 --no-fsname key *files") {}
 
       std::string group() const override
          {
@@ -562,6 +610,7 @@ class HMAC final : public Command
 
       void go() override
          {
+         const bool no_fsname = flag_set("no-fsname");
          const std::string hash_algo = get_arg("hash");
          std::unique_ptr<Botan::MessageAuthenticationCode> hmac =
             Botan::MessageAuthenticationCode::create("HMAC(" + hash_algo + ")");
@@ -583,7 +632,12 @@ class HMAC final : public Command
                {
                auto update_hmac = [&](const uint8_t b[], size_t l) { hmac->update(b, l); };
                read_file(fsname, update_hmac, buf_size);
-               output() << Botan::hex_encode(hmac->final()) << " " << fsname << "\n";
+               output() << Botan::hex_encode(hmac->final());
+
+               if(no_fsname == false)
+                  output() << " " << fsname;
+
+               output() << "\n";
                }
             catch(CLI_IO_Error& e)
                {

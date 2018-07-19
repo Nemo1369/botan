@@ -829,15 +829,23 @@ BOTAN_PUBLIC_API(2,0) int botan_privkey_load_rsa(botan_privkey_t* key,
                                      botan_mp_t q,
                                      botan_mp_t e);
 
+BOTAN_PUBLIC_API(2,8) int botan_privkey_load_rsa_pkcs1(botan_privkey_t* key,
+                                                       const uint8_t bits[],
+                                                       size_t len);
+
 BOTAN_PUBLIC_API(2,0) int botan_privkey_rsa_get_p(botan_mp_t p, botan_privkey_t rsa_key);
 BOTAN_PUBLIC_API(2,0) int botan_privkey_rsa_get_q(botan_mp_t q, botan_privkey_t rsa_key);
 BOTAN_PUBLIC_API(2,0) int botan_privkey_rsa_get_d(botan_mp_t d, botan_privkey_t rsa_key);
 BOTAN_PUBLIC_API(2,0) int botan_privkey_rsa_get_n(botan_mp_t n, botan_privkey_t rsa_key);
 BOTAN_PUBLIC_API(2,0) int botan_privkey_rsa_get_e(botan_mp_t e, botan_privkey_t rsa_key);
 
+BOTAN_PUBLIC_API(2,8) int botan_privkey_rsa_get_privkey(botan_privkey_t rsa_key,
+                                                        uint8_t out[], size_t* out_len,
+                                                        uint32_t flags);
+
 BOTAN_PUBLIC_API(2,0) int botan_pubkey_load_rsa(botan_pubkey_t* key,
-                                    botan_mp_t n,
-                                    botan_mp_t e);
+                                                botan_mp_t n,
+                                                botan_mp_t e);
 
 BOTAN_PUBLIC_API(2,0) int botan_pubkey_rsa_get_e(botan_mp_t e, botan_pubkey_t rsa_key);
 BOTAN_PUBLIC_API(2,0) int botan_pubkey_rsa_get_n(botan_mp_t n, botan_pubkey_t rsa_key);
@@ -1193,6 +1201,28 @@ BOTAN_PUBLIC_API(2,2)
 int botan_key_unwrap3394(const uint8_t wrapped_key[], size_t wrapped_key_len,
                          const uint8_t kek[], size_t kek_len,
                          uint8_t key[], size_t *key_len);
+
+/**
+* Format Preserving Encryption
+*/
+
+typedef struct botan_fpe_struct* botan_fpe_t;
+
+#define BOTAN_FPE_FLAG_FE1_COMPAT_MODE 1
+
+BOTAN_PUBLIC_API(2,8)
+int botan_fpe_fe1_init(botan_fpe_t* fpe, botan_mp_t n,
+                       const uint8_t key[], size_t key_len,
+                       size_t rounds, uint32_t flags);
+
+BOTAN_PUBLIC_API(2,8)
+int botan_fpe_destroy(botan_fpe_t fpe);
+
+BOTAN_PUBLIC_API(2,8)
+int botan_fpe_encrypt(botan_fpe_t fpe, botan_mp_t x, const uint8_t tweak[], size_t tweak_len);
+
+BOTAN_PUBLIC_API(2,8)
+int botan_fpe_decrypt(botan_fpe_t fpe, botan_mp_t x, const uint8_t tweak[], size_t tweak_len);
 
 /*
 * TLS (WIP)

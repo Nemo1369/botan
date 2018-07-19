@@ -9,6 +9,8 @@ import time
 import shutil
 import tempfile
 import re
+import random
+import json
 
 # pylint: disable=global-statement
 
@@ -82,12 +84,46 @@ def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None):
 
     return output
 
+def check_for_command(cmd):
+    cmdline = [CLI_PATH, 'has_command', cmd]
+    proc = subprocess.Popen(cmdline)
+    proc.communicate()
+
+    return proc.returncode == 0
+
+def cli_config_tests():
+    prefix = test_cli("config", "prefix")
+    cflags = test_cli("config", "cflags")
+    ldflags = test_cli("config", "ldflags")
+    libs = test_cli("config", "libs")
+
+    if len(prefix) < 4 or prefix[0] != '/':
+        logging.error("Bad prefix %s" % (prefix))
+    if ("-I%s" % (prefix)) not in cflags:
+        logging.error("Bad cflags %s" % (cflags))
+    if ("-L%s" % (prefix)) not in ldflags:
+        logging.error("Bad ldflags %s" % (ldflags))
+    if "-lbotan-2" not in libs:
+        logging.error("Bad libs %s" % (libs))
+
 def cli_help_tests():
     output = test_cli("help", None, None)
 
     # Maybe test format somehow??
     if len(output) < 500:
         logging.error("Help output seems very short")
+
+def cli_version_tests():
+    output = test_cli("version", None, None)
+
+    version_re = re.compile(r'[0-9]\.[0-9]+\.[0-9]')
+    if not version_re.match(output):
+        logging.error("Unexpected version output %s" % (output))
+
+    output = test_cli("version", ["--full"], None, None)
+    version_full_re = re.compile(r'Botan [0-9]\.[0-9]+\.[0-9] \(.* revision .*, distribution .*\)')
+    if not version_full_re.match(output):
+        logging.error("Unexpected version output %s" % (output))
 
 def cli_is_prime_tests():
     test_cli("is_prime", "5", "5 is probably prime")
@@ -122,6 +158,16 @@ def cli_hash_tests():
     test_cli("hash", "--algo=SHA-256",
              "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD -", "abc")
 
+def cli_hmac_tests():
+    tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
+
+    key_file = os.path.join(tmp_dir, 'hmac.key')
+
+    test_cli("rng", ["64", "--output=%s" % (key_file)], "")
+
+    test_cli("hmac", ["--no-fsname", "--hash=SHA-384", key_file, key_file],
+             "E3A8529377030B28A7DBDFC50DDEC8E4ECEFB6EA850D95EB785938CD3E3AFEF9EF8B08AF219C1496633193468AB755CB")
+
 def cli_bcrypt_tests():
     test_cli("gen_bcrypt", "--work-factor=4 s3kr1t",
              "$2a$04$0.8G7o08XYwvBBWA3l0WUujtwoGZgGDzVSN8fNkNqXikcK4A3lHPS")
@@ -145,6 +191,18 @@ mFvAZ/8wal0=
 -----END X9.42 DH PARAMETERS-----"""
 
     test_cli("gen_dl_group", "--pbits=1043", pem)
+
+    dsa_grp = """-----BEGIN X9.42 DH PARAMETERS-----
+MIIBHgKBgQCyP1vosC/axliM2hmJ9EOSdd1zBkuzMP25CYD8PFkRVrPLr1ClSUtn
+eXTIsHToJ7d7sRwtidQGW9BrvUEyiAWE06W/wnLPxB3/g2/l/P2EhbNmNHAO7rV7
+ZVz/uKR4Xcvzxg9uk5MpT1VsxA8H6VEwzefNF1Rya92rqGgBTNT3/wKBgC7HLL8A
+Gu3tqJxTk1iNgojjOiSreLn6ihA8R8kQnRXDTNtDKz996KHGInfMBurUI1zPM3xq
+bHc0CvU1Nf87enhPIretzJcFgiCWrNFUIC25zPEjp0s3/ERHT4Bi1TABZ3j6YUEQ
+fnnj+9XriKKHf2WtX0T4FXorvnKq30m934rzAhUAvwhWDK3yZEmphc7dwl4/J3Zp
++MU=
+-----END X9.42 DH PARAMETERS-----"""
+
+    test_cli("gen_dl_group", ["--type=dsa", "--pbits=1024"], dsa_grp)
 
 def cli_key_tests():
 
@@ -198,19 +256,79 @@ wGf/MGbgPebBLmozAANENw==
     shutil.rmtree(tmp_dir)
 
 def cli_psk_db_tests():
+    if not check_for_command("psk_get"):
+        return
+
     tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
 
     psk_db = os.path.join(tmp_dir, 'psk.db')
-    db_key = "909"*32
+    db_key1 = "909"*32
+    db_key2 = "451"*32
 
-    test_cli("psk_set", [psk_db, db_key, "name", "val"], "")
+    test_cli("psk_set", [psk_db, db_key1, "name", "F00FEE"], "")
+    test_cli("psk_set", [psk_db, db_key2, "name", "C00FEE11"], "")
+    test_cli("psk_set", [psk_db, db_key1, "name2", "50051029"], "")
+
+    test_cli("psk_get", [psk_db, db_key1, "name"], "F00FEE")
+    test_cli("psk_get", [psk_db, db_key2, "name"], "C00FEE11")
+
+    test_cli("psk_list", [psk_db, db_key1], "name\nname2")
+    test_cli("psk_list", [psk_db, db_key2], "name")
 
     shutil.rmtree(tmp_dir)
+
+def cli_compress_tests():
+
+    if not check_for_command("compress"):
+        return
+
+    tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
+
+    input_file = os.path.join(tmp_dir, 'input.txt')
+    output_file = os.path.join(tmp_dir, 'input.txt.gz')
+
+    with open(input_file, 'w') as f:
+        f.write("hi there")
+        f.close()
+
+    test_cli("compress", input_file)
+
+    if os.access(output_file, os.R_OK) != True:
+        logging.error("Compression did not created expected output file")
+
+    is_py3 = sys.version_info[0] == 3
+
+    output_hdr = open(output_file, 'rb').read(2)
+
+    if is_py3:
+        if output_hdr[0] != 0x1F or output_hdr[1] != 0x8B:
+            logging.error("Did not see expected gzip header")
+    else:
+        if ord(output_hdr[0]) != 0x1F or ord(output_hdr[1]) != 0x8B:
+            logging.error("Did not see expected gzip header")
+
+    os.unlink(input_file)
+
+    test_cli("decompress", output_file)
+
+    if os.access(input_file, os.R_OK) != True:
+        logging.error("Decompression did not created expected output file")
+
+    recovered = open(input_file).read()
+    if recovered != "hi there":
+        logging.error("Decompression did not recover original input")
 
 def cli_rng_tests():
     test_cli("rng", "10", "D80F88F6ADBE65ACB10C")
     test_cli("rng", "16", "D80F88F6ADBE65ACB10C3602E67D985B")
     test_cli("rng", "10 6", "D80F88F6ADBE65ACB10C\n1B119CC068AF")
+
+def cli_pk_workfactor_tests():
+    test_cli("pk_workfactor", "1024", "80")
+    test_cli("pk_workfactor", "2048", "111")
+    test_cli("pk_workfactor", ["--type=rsa", "512"], "58")
+    test_cli("pk_workfactor", ["--type=dl", "512"], "58")
+    test_cli("pk_workfactor", ["--type=dl_exp", "512"], "128")
 
 def cli_ec_group_info_tests():
 
@@ -239,7 +357,7 @@ def cli_cc_enc_tests():
 def cli_timing_test_tests():
 
     timing_tests = ["bleichenbacher", "manger",
-                    "ecdsa", "ecc_mul", "inverse_mod",
+                    "ecdsa", "ecc_mul", "inverse_mod", "pow_mod",
                     "lucky13sec3", "lucky13sec4sha1",
                     "lucky13sec4sha256", "lucky13sec4sha384"]
 
@@ -288,7 +406,102 @@ MCACAQUTBnN0cmluZzEGAQH/AgFjBAUAAAAAAAMEAP///w==
 
     test_cli("asn1print", "--pem -", expected, input_pem)
 
+def cli_tls_socket_tests():
+    tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
+
+    client_msg = b'Client message %d\n' % (random.randint(0, 2**128))
+    server_port = random.randint(1024, 65535)
+
+    priv_key = os.path.join(tmp_dir, 'priv.pem')
+    ca_cert = os.path.join(tmp_dir, 'ca.crt')
+    crt_req = os.path.join(tmp_dir, 'crt.req')
+    server_cert = os.path.join(tmp_dir, 'server.crt')
+
+    test_cli("keygen", ["--algo=ECDSA", "--params=secp256r1", "--output=" + priv_key], "")
+
+    test_cli("gen_self_signed",
+             [priv_key, "CA", "--ca", "--country=VT",
+              "--dns=ca.example", "--hash=SHA-384", "--output="+ca_cert],
+             "")
+
+    test_cli("cert_verify", ca_cert, "Certificate did not validate - Cannot establish trust")
+
+    test_cli("gen_pkcs10", "%s localhost --output=%s" % (priv_key, crt_req))
+
+    test_cli("sign_cert", "%s %s %s --output=%s" % (ca_cert, priv_key, crt_req, server_cert))
+
+    tls_server = subprocess.Popen([CLI_PATH, 'tls_server', '--max-clients=1',
+                                   '--port=%d' % (server_port), server_cert, priv_key],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    time.sleep(.5)
+
+    tls_client = subprocess.Popen([CLI_PATH, 'tls_client', 'localhost',
+                                   '--port=%d' % (server_port), '--trusted-cas=%s' % (ca_cert)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    time.sleep(.5)
+
+    tls_client.stdin.write(client_msg)
+    tls_client.stdin.flush()
+
+    time.sleep(.5)
+
+    (stdout, stderr) = tls_client.communicate()
+
+    if len(stderr) != 0: # pylint: disable=len-as-condition
+        logging.error("Got unexpected stderr output %s" % (stderr))
+
+    if b'Handshake complete' not in stdout:
+        logging.error('Failed to complete handshake: %s' % (stdout))
+
+    if client_msg not in stdout:
+        logging.error("Missing client message from stdout %s" % (stdout))
+
+    tls_server.communicate()
+
+def cli_pk_encrypt_tests():
+    tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
+
+    input_file = os.path.join(tmp_dir, 'input')
+    ctext_file = os.path.join(tmp_dir, 'ctext')
+    recovered_file = os.path.join(tmp_dir, 'recovered')
+    rsa_priv_key = os.path.join(tmp_dir, 'rsa.priv')
+    rsa_pub_key = os.path.join(tmp_dir, 'rsa.pub')
+
+    test_cli("keygen", ["--algo=RSA", "--provider=base", "--params=2048", "--output=%s" % (rsa_priv_key)], "")
+    test_cli("pkcs8", ["--pub-out", "%s/rsa.priv" % (tmp_dir), "--output=%s" % (rsa_pub_key)], "")
+
+    # Generate a random input file
+    test_cli("rng", ["10", "16", "32", "--output=%s" % (input_file)], "")
+
+    # Because we used a fixed DRBG for each invocation the same ctext is generated each time
+    rng_output_hash = "32F5E7B61357DE8397EFDA1E598379DFD5EE21767BDF4E2A435F05117B836AC6"
+    ctext_hash = "BEA478C6D30CF0517AF6FC463D7CFDFB11AE2992ED744FF76E67612137780025"
+
+    test_cli("hash", ["--no-fsname", "--algo=SHA-256", input_file], rng_output_hash)
+
+    # Encrypt and verify ciphertext is the expected value
+    test_cli("pk_encrypt", [rsa_pub_key, input_file, "--output=%s" % (ctext_file)], "")
+    test_cli("hash", ["--no-fsname", "--algo=SHA-256", ctext_file], ctext_hash)
+
+    # Decrypt and verify plaintext is recovered
+    test_cli("pk_decrypt", [rsa_priv_key, ctext_file, "--output=%s" % (recovered_file)], "")
+    test_cli("hash", ["--no-fsname", "--algo=SHA-256", recovered_file], rng_output_hash)
+
+def cli_tls_client_hello_tests():
+
+    # pylint: disable=line-too-long
+    chello = "16030100cf010000cb03035b3cf2457b864d7bef2a4b1f84fc3ced2b68d9551f3455ffdd305af277a91bb200003a16b816b716ba16b9cca9cca8c02cc030c02bc02fc0adc0acc024c00ac028c014c023c009c027c013ccaa009f009ec09fc09e006b003900670033010000680000000e000c000009676d61696c2e636f6d000500050100000000000a001a0018001d0017001a0018001b0019001c01000101010201030104000b00020100000d00140012080508040806050106010401050306030403001600000017000000230000ff01000100"
+
+    output = test_cli("tls_client_hello", ["--hex", "-"], None, chello)
+
+    output_hash = "8EBFC3205ACFA98461128FE5D081D19254237AF84F7DAF000A3C992C3CF6DE44"
+    test_cli("hash", ["--no-fsname", "--algo=SHA-256", "-"], output_hash, output)
+
 def cli_speed_tests():
+    # pylint: disable=too-many-branches
+
     output = test_cli("speed", ["--msec=1", "--buf-size=64,512", "AES-128"], None).split('\n')
 
     if len(output) % 4 != 0:
@@ -308,10 +521,17 @@ def cli_speed_tests():
         if format_re.match(line) is None:
             logging.error("Unexpected line %s", line)
 
+    output = test_cli("speed", ["--msec=1", "AES-128/GCM"], None).split('\n')
+    format_re_ks = re.compile(r'^AES-128/GCM\(16\) .* [0-9]+ key schedule/sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+    format_re_cipher = re.compile(r'^AES-128/GCM\(16\) .* buffer size [0-9]+ bytes: [0-9]+\.[0-9]+ MiB\/sec .*\([0-9]+\.[0-9]+ MiB in [0-9]+\.[0-9]+ ms\)')
+    for line in output:
+        if format_re_ks.match(line) is None:
+            if format_re_cipher.match(line) is None:
+                logging.error('Unexpected line %s', line)
 
-    pk_algos = ["ECDSA", "ECDH", "SM2", "ECKCDSA", "ECGDSA",
-                "DH", "DSA", "ElGamal", "Ed25519", "Curve25519",
-                "NEWHOPE", "McEliece"]
+    pk_algos = ["ECDSA", "ECDH", "SM2", "ECKCDSA", "ECGDSA", "GOST-34.10",
+                "DH", "DSA", "ElGamal", "Ed25519", "Curve25519", "NEWHOPE", "McEliece",
+                "RSA", "XMSS"]
 
     output = test_cli("speed", ["--msec=5"] + pk_algos, None).split('\n')
 
@@ -320,6 +540,51 @@ def cli_speed_tests():
     for line in output:
         if format_re.match(line) is None:
             logging.error("Unexpected line %s", line)
+
+    math_ops = ['mp_mul', 'modexp', 'random_prime', 'inverse_mod', 'rfc3394', 'fpe_fe1',
+                'bn_redc', 'nistp_redc', 'ecc_mult', 'ecc_ops', 'os2ecp', 'bcrypt', 'passhash9']
+
+    format_re = re.compile(r'^.* [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+(\.[0-9]+)? ms\)')
+    for op in math_ops:
+        output = test_cli("speed", ["--msec=15", op], None).split('\n')
+        for line in output:
+            if format_re.match(line) is None:
+                logging.error("Unexpected line %s", line)
+
+    output = test_cli("speed", ["--msec=5", "scrypt"], None).split('\n')
+
+    format_re = re.compile(r'^scrypt-[0-9]+-[0-9]+-[0-9]+ [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+
+    for line in output:
+        if format_re.match(line) is None:
+            logging.error("Unexpected line %s", line)
+
+    output = test_cli("speed", ["--msec=5", "RNG"], None).split('\n')
+
+    # ChaCha_RNG generate buffer size 1024 bytes: 954.431 MiB/sec 4.01 cycles/byte (477.22 MiB in 500.00 ms)
+    format_re = re.compile(r'^.* generate buffer size [0-9]+ bytes: [0-9]+\.[0-9]+ MiB/sec .*\([0-9]+\.[0-9]+ MiB in [0-9]+\.[0-9]+ ms')
+    for line in output:
+        if format_re.match(line) is None:
+            logging.error("Unexpected line %s", line)
+
+    # Entropy source rdseed output 128 bytes estimated entropy 0 in 0.02168 ms total samples 32
+    output = test_cli("speed", ["--msec=5", "entropy"], None).split('\n')
+    format_re = re.compile(r'^Entropy source [_a-z]+ output [0-9]+ bytes estimated entropy [0-9]+ in [0-9]+\.[0-9]+ ms .*total samples [0-9]+')
+    for line in output:
+        if format_re.match(line) is None:
+            logging.error("Unexpected line %s", line)
+
+    output = test_cli("speed", ["--msec=5", "--format=json", "AES-128"], None)
+
+    json_blob = json.loads(output)
+    if len(json_blob) < 2:
+        logging.error("Unexpected size for JSON output")
+
+    for b in json_blob:
+        for field in ['algo', 'op', 'events', 'bps', 'buf_size', 'nanos']:
+            if field not in b:
+                logging.error('Missing field %s in JSON record %s' % (field, b))
+
 
 def main(args=None):
     if args is None:
@@ -347,25 +612,35 @@ def main(args=None):
     CLI_PATH = args[1]
 
     start_time = time.time()
-    cli_help_tests()
-    cli_is_prime_tests()
-    cli_factor_tests()
-    cli_mod_inverse_tests()
+
+    cli_asn1_tests()
     cli_base64_tests()
-    cli_hex_tests()
+    cli_bcrypt_tests()
+    cli_cc_enc_tests()
+    cli_compress_tests()
+    cli_config_tests()
+    cli_ec_group_info_tests()
+    cli_factor_tests()
+    cli_gen_dl_group_tests()
     cli_gen_prime_tests()
     cli_hash_tests()
-    cli_rng_tests()
-    cli_bcrypt_tests()
-    cli_gen_dl_group_tests()
-    cli_ec_group_info_tests()
+    cli_help_tests()
+    cli_hex_tests()
+    cli_hmac_tests()
+    cli_is_prime_tests()
     cli_key_tests()
-    cli_cc_enc_tests()
-    cli_timing_test_tests()
-    cli_asn1_tests()
+    cli_mod_inverse_tests()
+    cli_pk_encrypt_tests()
+    cli_pk_workfactor_tests()
+    cli_psk_db_tests()
+    cli_rng_tests()
     cli_speed_tests()
+    cli_timing_test_tests()
     cli_tls_ciphersuite_tests()
-    #cli_psk_db_tests()
+    cli_tls_client_hello_tests()
+    cli_tls_socket_tests()
+    cli_version_tests()
+
     end_time = time.time()
 
     print("Ran %d tests with %d failures in %.02f seconds" % (

@@ -1,6 +1,6 @@
 /*
 * Number Theory Functions
-* (C) 1999-2011,2016 Jack Lloyd
+* (C) 1999-2011,2016,2018 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -9,6 +9,7 @@
 #include <botan/pow_mod.h>
 #include <botan/reducer.h>
 #include <botan/monty.h>
+#include <botan/rng.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>
 #include <botan/internal/ct_utils.h>
@@ -519,11 +520,13 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
       return std::binary_search(PRIMES, PRIMES + PRIME_TABLE_SIZE, num);
       }
 
-   const size_t test_iterations = mr_test_iterations(n.bits(), prob, is_random);
+   const size_t test_iterations =
+      mr_test_iterations(n.bits(), prob, is_random && rng.is_seeded());
 
    const BigInt n_minus_1 = n - 1;
    const size_t s = low_zero_bits(n_minus_1);
    const BigInt nm1_s = n_minus_1 >> s;
+   const size_t n_bits = n.bits();
 
    const Modular_Reducer mod_n(n);
    auto monty_n = std::make_shared<Montgomery_Params>(n, mod_n);
@@ -532,11 +535,26 @@ bool is_prime(const BigInt& n, RandomNumberGenerator& rng,
 
    for(size_t i = 0; i != test_iterations; ++i)
       {
-      const BigInt a = BigInt::random_integer(rng, 2, n_minus_1);
+      BigInt a;
+
+      if(rng.is_seeded())
+         {
+         a = BigInt::random_integer(rng, 2, n_minus_1);
+         }
+      else
+         {
+         /*
+         * If passed a null RNG just use 2,3,5, ... as bases
+         *
+         * This is not ideal but in certain circumstances we need to
+         * test for primality but have no RNG available.
+         */
+         a = PRIMES[i];
+         }
 
       auto powm_a_n = monty_precompute(monty_n, a, powm_window);
 
-      BigInt y = monty_execute(*powm_a_n, nm1_s);
+      BigInt y = monty_execute(*powm_a_n, nm1_s, n_bits);
 
       if(mr_witness(std::move(y), mod_n, n_minus_1, s))
          return false;

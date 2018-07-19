@@ -1,5 +1,5 @@
 <defines>
-FFI -> 20170815
+FFI -> 20180713
 </defines>
 
 <header:internal>
@@ -21,6 +21,7 @@ aead
 kdf
 pbkdf
 pubkey
+pem
 bigint
 x509
 #tls

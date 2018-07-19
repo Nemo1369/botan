@@ -15,7 +15,7 @@ using ctypes is included, and several other `language bindings
 Find the full feature list below.
 
 Development is coordinated on `GitHub <https://github.com/randombit/botan>`_
-and contributions are welcome (read `doc/contributing.rst` for more info).
+and contributions are welcome (read ``doc/contributing.rst`` for more info).
 
 If you need help with a problem, please open an `issue on GitHub
 <https://github.com/randombit/botan/issues>`_ or email the
@@ -99,9 +99,9 @@ MSVC 2015/2017 are regularly tested. New releases of Botan 2 are made on a
 quarterly basis.
 
 The latest 2.x release is
-`2.6.0 <https://botan.randombit.net/releases/Botan-2.6.0.tgz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-2.6.0.tgz.asc>`_
-released on 2018-04-10
+`2.7.0 <https://botan.randombit.net/releases/Botan-2.7.0.tgz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-2.7.0.tgz.asc>`_
+released on 2018-07-02
 
 Old Release
 ----------------------------------------
@@ -155,14 +155,13 @@ Ciphers, hashes, MACs, and checksums
 
 * Authenticated cipher modes EAX, OCB, GCM, SIV, CCM, and ChaCha20Poly1305
 * Cipher modes CTR, CBC, XTS, CFB, and OFB
-* Block ciphers AES, ARIA, Blowfish, Camellia, CAST-128, CAST-256,
-  DES/3DES, GOST 28147, IDEA, KASUMI, Lion, MISTY1, Noekeon, SEED,
-  Serpent, SHACAL2, SM4, Threefish-512, Twofish, XTEA
+* Block ciphers AES, ARIA, Blowfish, Camellia, CAST-128, DES/3DES, GOST 28147,
+  IDEA, Lion, Noekeon, SEED, Serpent, SHACAL2, SM4, Threefish-512, Twofish, XTEA
 * Stream ciphers ChaCha20, Salsa20/XSalsa20, SHAKE-128, and RC4
 * Hash functions SHA-1, SHA-2, SHA-3, RIPEMD-160, Skein-512,
   BLAKE2b, SM3, Tiger, Whirlpool, GOST 34.11, MD5, MD4
 * Hash function combiners Parallel and Comb4P
-* Authentication codes HMAC, CMAC, Poly1305, SipHash, GMAC, CBC-MAC, X9.19 DES-MAC
+* Authentication codes HMAC, CMAC, Poly1305, SipHash, GMAC, X9.19 DES-MAC
 * Non-cryptographic checksums Adler32, CRC24, and CRC32
 
 Other Useful Things

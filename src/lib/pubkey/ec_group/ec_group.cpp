@@ -16,7 +16,14 @@
 #include <botan/pem.h>
 #include <botan/reducer.h>
 #include <botan/mutex.h>
+#include <botan/rng.h>
 #include <vector>
+
+#if defined(BOTAN_HAS_SYSTEM_RNG)
+   #include <botan/system_rng.h>
+#elif defined(BOTAN_HAS_HMAC_DRBG) && defined(BOTAN_HAS_SHA2_32)
+   #include <botan/hmac_drbg.h>
+#endif
 
 namespace Botan {
 
@@ -311,8 +318,36 @@ std::shared_ptr<EC_Group_Data> EC_Group::BER_decode_EC_group(const uint8_t bits[
          .end_cons()
          .verify_end();
 
-      if(p.bits() < 64 || p.is_negative() || a.is_negative() || b.is_negative() || order <= 0 || cofactor <= 0)
-         throw Decoding_Error("Invalid ECC parameters");
+#if defined(BOTAN_HAS_SYSTEM_RNG)
+      System_RNG rng;
+#elif defined(BOTAN_HAS_HMAC_DRBG) && defined(BOTAN_HAS_SHA2_32)
+      /*
+      * This is not ideal because the data is attacker controlled, but
+      * it seems like it would be difficult for someone to come up
+      * with an valid ASN.1 encoding where the prime happened to pass
+      * Miller-Rabin test with exactly the values chosen when
+      * HMAC_DRBG is seeded with the overall data.
+      */
+      HMAC_DRBG rng("SHA-256");
+      rng.add_entropy(bits, len);
+#else
+      Null_RNG rng;
+#endif
+
+      if(p.bits() < 64 || p.is_negative() || (is_prime(p, rng) == false))
+         throw Decoding_Error("Invalid ECC p parameter");
+
+      if(a.is_negative() || a >= p)
+         throw Decoding_Error("Invalid ECC a parameter");
+
+      if(b <= 0 || b >= p)
+         throw Decoding_Error("Invalid ECC b parameter");
+
+      if(order <= 0)
+         throw Decoding_Error("Invalid ECC order parameter");
+
+      if(cofactor <= 0 || cofactor >= 16)
+         throw Decoding_Error("Invalid ECC cofactor parameter");
 
       std::pair<BigInt, BigInt> base_xy = Botan::OS2ECP(base_pt.data(), base_pt.size(), p, a, b);
 
@@ -557,8 +592,7 @@ PointGFp EC_Group::blinded_var_point_multiply(const PointGFp& point,
                                               RandomNumberGenerator& rng,
                                               std::vector<BigInt>& ws) const
    {
-   PointGFp_Var_Point_Precompute mul(point);
-   mul.randomize_repr(rng, ws);
+   PointGFp_Var_Point_Precompute mul(point, rng, ws);
    return mul.mul(k, rng, get_order(), ws);
    }
 
@@ -667,23 +701,48 @@ bool EC_Group::verify_public_element(const PointGFp& point) const
 bool EC_Group::verify_group(RandomNumberGenerator& rng,
                             bool) const
    {
-   //compute the discriminant
-   Modular_Reducer p(get_p());
-   BigInt discriminant = p.multiply(4, get_a());
-   discriminant += p.multiply(27, get_b());
-   discriminant = p.reduce(discriminant);
-   //check the discriminant
+   const BigInt& p = get_p();
+   const BigInt& a = get_a();
+   const BigInt& b = get_b();
+   const BigInt& order = get_order();
+   const PointGFp& base_point = get_base_point();
+
+   if(a < 0 || a >= p)
+      return false;
+   if(b <= 0 || b >= p)
+      return false;
+   if(order <= 0)
+      return false;
+
+   //check if field modulus is prime
+   if(!is_prime(p, rng, 128))
+      {
+      return false;
+      }
+
+   //check if order is prime
+   if(!is_prime(order, rng, 128))
+      {
+      return false;
+      }
+
+   //compute the discriminant: 4*a^3 + 27*b^2 which must be nonzero
+   const Modular_Reducer mod_p(p);
+
+   const BigInt discriminant = mod_p.reduce(
+      mod_p.multiply(4, mod_p.cube(a)) +
+      mod_p.multiply(27, mod_p.square(b)));
+
    if(discriminant == 0)
       {
       return false;
       }
+
    //check for valid cofactor
    if(get_cofactor() < 1)
       {
       return false;
       }
-
-   const PointGFp base_point = get_base_point();
 
    //check if the base point is on the curve
    if(!base_point.on_the_curve())
@@ -694,19 +753,12 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng,
       {
       return false;
       }
-
-   const BigInt& order = get_order();
-
-   //check if order is prime
-   if(!is_prime(order, rng, 128))
-      {
-      return false;
-      }
    //check if order of the base point is correct
    if(!(base_point * order).is_zero())
       {
       return false;
       }
+
    return true;
    }
 

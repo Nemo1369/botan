@@ -282,6 +282,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
 
      /**
      * Set *this to (*this + y) % mod
+     * This function assumes *this is >= 0 && < mod
      * @param y the BigInt to add - assumed y >= 0 and y < mod
      * @param mod the positive modulus
      * @param ws a temp workspace
@@ -290,6 +291,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
 
      /**
      * Set *this to (*this - y) % mod
+     * This function assumes *this is >= 0 && < mod
      * @param y the BigInt to subtract - assumed y >= 0 and y < mod
      * @param mod the positive modulus
      * @param ws a temp workspace
@@ -443,6 +445,12 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
         if(i >= m_reg.size())
            grow_to(i + 1);
         m_reg[i] = w;
+        }
+
+     void set_words(const word w[], size_t len)
+        {
+        m_reg.resize(len);
+        copy_mem(mutable_data(), w, len);
         }
 
      /**
@@ -618,8 +626,8 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
 
      /**
      * @param rng a random number generator
-     * @param min the minimum value
-     * @param max the maximum value
+     * @param min the minimum value (must be non-negative)
+     * @param max the maximum value (must be non-negative and > min)
      * @return random integer in [min,max)
      */
      static BigInt random_integer(RandomNumberGenerator& rng,

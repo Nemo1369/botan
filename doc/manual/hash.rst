@@ -65,7 +65,7 @@ internal state is reset to begin hashing a new message.
 Code Example
 ------------
 
-Assume we want to calculate the SHA-1, Whirlpool and SHA-3 hash digests of the STDIN stream using the Botan library.
+Assume we want to calculate the SHA-256, SHA-384, and SHA-3 hash digests of the STDIN stream using the Botan library.
 
 .. code-block:: cpp
 
@@ -74,8 +74,8 @@ Assume we want to calculate the SHA-1, Whirlpool and SHA-3 hash digests of the S
     #include <iostream>
     int main ()
        {
-       std::unique_ptr<Botan::HashFunction> hash1(Botan::HashFunction::create("SHA-1"));
-       std::unique_ptr<Botan::HashFunction> hash2(Botan::HashFunction::create("Whirlpool"));
+       std::unique_ptr<Botan::HashFunction> hash1(Botan::HashFunction::create("SHA-256"));
+       std::unique_ptr<Botan::HashFunction> hash2(Botan::HashFunction::create("SHA-384"));
        std::unique_ptr<Botan::HashFunction> hash3(Botan::HashFunction::create("SHA-3"));
        std::vector<uint8_t> buf(2048);
 
@@ -89,8 +89,8 @@ Assume we want to calculate the SHA-1, Whirlpool and SHA-3 hash digests of the S
           hash2->update(buf.data(),readcount);
           hash3->update(buf.data(),readcount);
           }
-       std::cout << "SHA-1: " << Botan::hex_encode(hash1->final()) << std::endl;
-       std::cout << "Whirlpool: " << Botan::hex_encode(hash2->final()) << std::endl;
+       std::cout << "SHA-256: " << Botan::hex_encode(hash1->final()) << std::endl;
+       std::cout << "SHA-384: " << Botan::hex_encode(hash2->final()) << std::endl;
        std::cout << "SHA-3: " << Botan::hex_encode(hash3->final()) << std::endl;
        return 0;
        }
@@ -99,7 +99,7 @@ Available Hash Functions
 ------------------------------
 
 The following cryptographic hash functions are implemented. If in doubt,
-any of Blake2b, SHA-384, or SHA-3 are good choices.
+any of SHA-384, SHA-3, BLAKE2b, or Skein-512 are fine choices.
 
 BLAKE2b
 ^^^^^^^^^
@@ -123,7 +123,7 @@ Keccak-1600
 
 Available if ``BOTAN_HAS_KECCAK`` is defined.
 
-An older (and incompatible) variant of SHA-3, but sometime used. Prefer SHA-3 in
+An older (and incompatible) variant of SHA-3, but sometimes used. Prefer SHA-3 in
 new code.
 
 MD4
@@ -146,8 +146,9 @@ RIPEMD-160
 
 Available if ``BOTAN_HAS_RIPEMD160`` is defined.
 
-A 160 bit hash function, quite old but still thought to be secure.
-Somewhat deprecated these days.
+A 160 bit hash function, quite old but still thought to be secure (up to the
+limit of 2**80 computation required for a collision which is possible with any
+160 bit hash function). Somewhat deprecated these days.
 
 SHA-1
 ^^^^^^^^^^^^^^^
@@ -212,24 +213,28 @@ Streebog (Streebog-256, Streebog-512)
 
 Available if ``BOTAN_HAS_STREEBOG`` is defined.
 
-Newly designed Russian national hash function. Seemingly secure, but there is no
-real reason to use it unless compatibility is needed.
+Newly designed Russian national hash function. Due to use of input-dependent
+table lookups, it is vulnerable to side channels. There is no reason to use it
+unless compatibility is needed.
 
 Tiger
 ^^^^^^^^^^^^^^^
 
 Available if ``BOTAN_HAS_TIGER`` is defined.
 
-An older 192-bit hash function, optimized for 64-bit systems. Seemingly secure
-but not widely used. Prefer Skein-512 or BLAKE2b in new code.
+An older 192-bit hash function, optimized for 64-bit systems. Possibly
+vulnerable to side channels due to its use of table lookups. Prefer Skein-512 or
+BLAKE2b in new code.
 
 Whirlpool
 ^^^^^^^^^^^^^^^
 
 Available if ``BOTAN_HAS_WHIRLPOOL`` is defined.
 
-A 512-bit hash function standarized by ISO and NESSIE. Relatively slow.
-Prefer Skein-512 or BLAKE2b in new code.
+A 512-bit hash function standarized by ISO and NESSIE. Relatively slow, and due
+to the table based implementation it is (unlike almost all other hashes)
+potentially vulnerable to cache based side channels. Prefer Skein-512 or BLAKE2b
+in new code.
 
 Hash Function Combiners
 ---------------------------
@@ -242,7 +247,7 @@ Parallel
 
 Available if ``BOTAN_HAS_PARALLEL_HASH`` is defined.
 
-Parallel simply concatenated multiple hash functions. For example
+Parallel simply concatenates multiple hash functions. For example
 "Parallel(SHA-256,SHA-512)" outputs a 256+512 bit hash created by hashing the
 input with both SHA-256 and SHA-512 and concatenating the outputs.
 
@@ -262,7 +267,8 @@ strongest hash.
 Checksums
 ----------------
 
-.. note:: Checksums are not suitable for cryptographic use, but can be used for error checking purposes.
+.. note:: Checksums are not suitable for cryptographic use, but can be used for
+          error checking purposes.
 
 Adler32
 ^^^^^^^^^^^

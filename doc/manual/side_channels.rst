@@ -1,9 +1,9 @@
 Side Channels
 =========================
 
-Many cryptographic systems can be broken by side channels. This document notes
-side channel protections which are currently implemented, as well as areas of
-the code which are known to be vulnerable to side channels. The latter are
+Many cryptographic systems can be easily broken by side channels. This document
+notes side channel protections which are currently implemented, as well as areas
+of the code which are known to be vulnerable to side channels. The latter are
 obviously all open for future improvement.
 
 The following text assumes the reader is already familiar with cryptographic
@@ -20,9 +20,9 @@ inverse with each decryption, both the mask and its inverse are simply squared
 to choose the next blinding factor. This is much faster than computing a fresh
 value each time, and the additional relation is thought to provide only minimal
 useful information for an attacker. Every BOTAN_BLINDING_REINIT_INTERVAL
-(default 32) operations, a new starting point is chosen.
+(default 64) operations, a new starting point is chosen.
 
-Exponent blinding uses new values for each signature.
+Exponent blinding uses new values for each signature, with 64 bit masks.
 
 RSA signing uses the CRT optimization, which is much faster but vulnerable to
 trivial fault attacks [RsaFault] which can result in the key being entirely
@@ -110,16 +110,27 @@ Modular Exponentiation
 
 Modular exponentiation uses a fixed window algorithm with Montgomery
 representation. A side channel silent table lookup is used to access the
-precomputed powers. See powm_mnt.cpp.
+precomputed powers. The caller provides the maximum possible bit length of the
+exponent, and the exponent is zero-padded as required. For example, in a DSA
+signature with 256-bit q, the caller will specify a maximum length of exponent
+of 256 bits, even if the k that was generated was 250 bits. This avoids leaking
+the length of the exponent through the number of loop iterations.
+See monty_exp.cpp and monty.cpp
 
-The Karatsuba multiplication algorithm has some conditional branches that
-probably expose information through the branch predictor, but probably? does not
-expose a timing channel since the same amount of work is done on both sides of
-the conditional. There is certainly room for improvement here. See mp_karat.cpp
-for details.
+Karatsuba multiplication algorithm avoids any conditional branches; in
+cases where different operations must be performed it instead uses masked
+operations. See mp_karat.cpp for details.
 
-The Montgomery reduction is written (and tested) to run in constant time. See
-mp_monty.cpp.
+The Montgomery reduction is written (and tested) to run in constant time.
+The final reduction is handled with a masked subtraction. See mp_monty.cpp.
+
+Barrett Reduction
+--------------------
+
+The Barrett reduction code is written to avoid input dependent branches.
+However the Barrett algorithm only works for inputs that are most the
+square of the modulus; larger values fall back to the schoolbook
+division algorithm which is not const time.
 
 ECC point decoding
 ----------------------
@@ -145,11 +156,11 @@ used in cases when the scalar is a secret.
 Both ``blinded_base_point_multiply`` and ``blinded_var_point_multiply`` apply
 side channel countermeasures. The scalar is masked by a multiple of the group
 order (this is commonly called Coron's first countermeasure [CoronDpa]),
-currently the multiplier is an 80 bit integer.
+currently the mask is an 80 bit random value.
 
 Botan stores all ECC points in Jacobian representation. This form allows faster
 computation by representing points (x,y) as (X,Y,Z) where x=X/Z^2 and
-y=Y/Z^3. As the representation is redundant, for any randomly chosen r,
+y=Y/Z^3. As the representation is redundant, for any randomly chosen non-zero r,
 (X*r^2,Y*r^3,Z*r) is an equivalent point. Changing the point values prevents an
 attacker from mounting attacks based on the input point remaining unchanged over
 multiple executions. This is commonly called Coron's third countermeasure, see
@@ -159,11 +170,16 @@ The base point multiplication algorithm is a comb-like technique which
 precomputes ``P^i,(2*P)^i,(3*P)^i`` for all ``i`` in the range of valid scalars.
 This means the scalar multiplication involves only point additions and no
 doublings, which may help against attacks which rely on distinguishing between
-point doublings and point additions.
+point doublings and point additions. The elements of the table are accessed
+by masked lookups, so as not to leak information about bits of the scalar
+via a cache side channel.
 
-The variable point multiplication algorithm uses a simple fixed-window
-exponentiation algorithm. Since this is normally invoked using untrusted points
-(eg in ECDH key exchange) it randomizes all inputs.
+The variable point multiplication algorithm uses a fixed-window algorithm. Since
+this is normally invoked using untrusted points (eg during ECDH key exchange) it
+randomizes all inputs to prevent attacks which are based on chosen input
+points. The table of precomputed multiples is accessed using a masked lookup
+which should not leak information about the secret scalar to an attacker who can
+mount a cache-based side channel attack.
 
 See point_gfp.cpp and point_mul.cpp
 
@@ -230,14 +246,29 @@ It is based on code by Mike Hamburg [VectorAes], see aes_ssse3.cpp. This same
 technique could be applied with NEON or AltiVec, and the paper suggests some
 optimizations for the AltiVec shuffle.
 
-On all other processors, a table lookup version derived from the original
-Rijndael code is used. This approach is relatively fast, but now known to be
-very vulnerable to side channels. To reduce the side channel signature, it uses
-only a 1K table (instead of 4 1K tables which is typical) and uses small tables
-in the first and last rounds. See [AesCacheColl] for one paper which analyzes a
-number of implementations including (an older version of) Botan. Botan already
-follows both of their suggested countermeasures, which increased the number of
-samples required from 2**13 to the only slightly less pitiful 2**19 samples.
+On all other processors, a table lookup version (T-tables) is used.  This
+approach is relatively fast, but known to be very vulnerable to side
+channels. To reduce the side channel signature, AES uses only 1K of tables
+(instead of 4 1K tables which is typical). The tables are computed at runtime
+which prevents an attacker from performing a Flush+Reload attack since the
+address of the tables is not fixed. Before each encryption/decryption operation,
+a value from each cache line of the T-table is read to compute a volatile
+value Z. This Z value is computed in such a way that it is always zero. Since
+the T-table itself is computed at runtime, it *should* be difficult for a
+compiler to deduce this fact. Then the Z value is xor'ed into the input block,
+preventing the compiler from eliding it. It is almost certain that this
+implementation is still vulnerable to a side channel attack; all these
+countermeasures do is increase the cost (in terms of samples required or
+analysis time) of an attack.
+
+If using AES in an environment where side channels are a concern and
+hardware instructions are not available, prefer AES-256. In the case
+of AES, a larger key increases the cost of (*but does not prevent*)
+side channel attacks based on cache usage. The paper [Aes256Sc]
+suggests it increase the samples required by a factor of roughly 6,
+though this analysis assumes a dedicated T4 table is used in the last
+round, an implementation technique Botan avoids precisely because such
+a table is notorious for leaking information.
 
 The Botan block cipher API already supports bitslicing implementations, so a
 const time 8x bitsliced AES could be integrated fairly easily.
@@ -248,8 +279,11 @@ GCM
 On platforms that support a carryless multiply instruction (ARMv8 and recent x86),
 GCM is fast and constant time.
 
-On all other platforms, GCM uses a slow but constant time algorithm. There is
-also an SSSE3 variant of the same (still relatively slow) algorithm.
+On all other platforms, GCM uses an algorithm based on precomputing all powers
+of H from 1 to 128. Then for every bit of the input a mask is formed which
+allows conditionally adding that power without leaking information via a cache
+side channel. There is also an SSSE3 variant of this algorithm which is somewhat
+faster on processors which have SSSE3 but no AES-NI instructions.
 
 OCB
 -----------------------
@@ -354,8 +388,34 @@ See header ct_utils.h.
 To check, install valgrind, configure the build with --with-valgrind, and run
 the tests.
 
+.. highlight:: shell
+
+There is also a test utility built into the command line util, `timing_test`,
+which runs an operation on several different inputs many times in order to
+detect simple timing differences. The output can be processed using the
+Mona timing report library (https://github.com/seecurity/mona-timing-report).
+To run a timing report (here for example pow_mod)::
+
+  $ ./botan timing_test pow_mod > pow_mod.raw
+
+This must be run from a checkout of the source, or otherwise ``--test-data-dir=``
+must be used to point to the expected input files.
+
+Build and run the Mona report as::
+
+  $ git clone https://github.com/seecurity/mona-timing-report.git
+  $ cd mona-timing-report
+  $ ant
+  $ java -jar ReportingTool.jar --lowerBound=0.4 --upperBound=0.5 --inputFile=pow_mod.raw --name=PowMod
+
+This will produce plots and an HTML file in subdirectory starting with
+``reports_`` followed by a representation of the current date and time.
+
 References
 ---------------
+
+[Aes256Sc] Neve, Tiri "On the complexity of side-channel attacks on AES-256"
+(https://eprint.iacr.org/2007/318.pdf)
 
 [AesCacheColl] Bonneau, Mironov "Cache-Collision Timing Attacks Against AES"
 (http://www.jbonneau.com/doc/BM06-CHES-aes_cache_timing.pdf)

@@ -469,6 +469,9 @@ def process_command_line(args): # pylint: disable=too-many-locals
     build_group.add_option('--with-debug-asserts', action='store_true', default=False,
                            help=optparse.SUPPRESS_HELP)
 
+    build_group.add_option('--ack-vc2013-deprecated', action='store_true', default=False,
+                           help=optparse.SUPPRESS_HELP)
+
     docs_group = optparse.OptionGroup(parser, 'Documentation Options')
 
     docs_group.add_option('--with-documentation', action='store_true',
@@ -1863,6 +1866,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'with_rst2man': options.with_rst2man,
         'sphinx_config_dir': source_paths.sphinx_config_dir,
         'with_doxygen': options.with_doxygen,
+        'maintainer_mode': options.maintainer_mode,
 
         'out_dir': build_dir,
         'build_dir': build_paths.build_dir,
@@ -1968,6 +1972,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'with_openmp': options.with_openmp,
         'with_debug_asserts': options.with_debug_asserts,
         'test_mode': options.test_mode,
+        'optimize_for_size': options.optimize_for_size,
 
         'mod_list': sorted([m.basename for m in modules])
         }
@@ -2932,7 +2937,10 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
 
     if ccinfo.basename == 'msvc':
         if major_version == 18:
-            logging.warning('MSVC 2013 support is deprecated and will be removed in a future release')
+            logging.warning('MSVC 2013 support is deprecated, and will be removed in Jan 2019')
+            if not options.ack_vc2013_deprecated:
+                logging.error('Acknowledge this deprecation by adding flag --ack-vc2013-deprecated')
+
     return cc_version
 
 def check_compiler_arch(options, ccinfo, archinfo, source_paths):

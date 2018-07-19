@@ -78,10 +78,10 @@ def run_and_check(cmd_line, cwd=None):
         logging.error("Executing %s failed (%s)", ' '.join(cmd_line), e)
 
     if stdout:
-        logging.debug(stdout.decode())
+        logging.info(stdout.decode())
 
     if stderr:
-        logging.debug(stderr.decode())
+        logging.info(stderr.decode())
 
     if proc.returncode != 0:
         logging.info(stdout.decode())
@@ -175,8 +175,7 @@ def main(args=None):
         cmds.append(['doxygen', os.path.join(cfg['build_dir'], 'botan.doxy')])
 
     if with_sphinx:
-        sphinx_build = ['sphinx-build',
-                        '-c', cfg['sphinx_config_dir']]
+        sphinx_build = ['sphinx-build', '-q', '-c', cfg['sphinx_config_dir']]
         if sphinx_supports_concurrency():
             sphinx_build += ['-j', str(get_concurrency())]
 

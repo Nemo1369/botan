@@ -47,20 +47,21 @@ void PointGFp::randomize_repr(RandomNumberGenerator& rng)
 
 void PointGFp::randomize_repr(RandomNumberGenerator& rng, secure_vector<word>& ws)
    {
-   if(BOTAN_POINTGFP_RANDOMIZE_BLINDING_BITS > 1)
-      {
-      BigInt mask;
-      while(mask.is_zero())
-         mask.randomize(rng, BOTAN_POINTGFP_RANDOMIZE_BLINDING_BITS, false);
+   const BigInt mask = BigInt::random_integer(rng, 2, m_curve.get_p());
 
-      //m_curve.to_rep(mask, ws);
-      const BigInt mask2 = m_curve.sqr_to_tmp(mask, ws);
-      const BigInt mask3 = m_curve.mul_to_tmp(mask2, mask, ws);
+   /*
+   * No reason to convert this to Montgomery representation first,
+   * just pretend the random mask was chosen as Redc(mask) and the
+   * random mask we generated above is in the Montgomery
+   * representation.
+   * //m_curve.to_rep(mask, ws);
+   */
+   const BigInt mask2 = m_curve.sqr_to_tmp(mask, ws);
+   const BigInt mask3 = m_curve.mul_to_tmp(mask2, mask, ws);
 
-      m_coord_x = m_curve.mul_to_tmp(m_coord_x, mask2, ws);
-      m_coord_y = m_curve.mul_to_tmp(m_coord_y, mask3, ws);
-      m_coord_z = m_curve.mul_to_tmp(m_coord_z, mask, ws);
-      }
+   m_coord_x = m_curve.mul_to_tmp(m_coord_x, mask2, ws);
+   m_coord_y = m_curve.mul_to_tmp(m_coord_y, mask3, ws);
+   m_coord_z = m_curve.mul_to_tmp(m_coord_z, mask, ws);
    }
 
 namespace {
@@ -85,16 +86,6 @@ inline bool all_zeros(const word x[], size_t len)
 
 }
 
-void PointGFp::add_affine(const PointGFp& rhs, std::vector<BigInt>& workspace)
-   {
-   BOTAN_DEBUG_ASSERT(rhs.is_affine());
-
-   const size_t p_words = m_curve.get_p_words();
-   add_affine(rhs.m_coord_x.data(), std::min(p_words, rhs.m_coord_x.size()),
-              rhs.m_coord_y.data(), std::min(p_words, rhs.m_coord_y.size()),
-              workspace);
-   }
-
 void PointGFp::add_affine(const word x_words[], size_t x_size,
                           const word y_words[], size_t y_size,
                           std::vector<BigInt>& ws_bn)
@@ -104,9 +95,8 @@ void PointGFp::add_affine(const word x_words[], size_t x_size,
 
    if(is_zero())
       {
-      // FIXME avoid the copy here
-      m_coord_x = BigInt(x_words, x_size);
-      m_coord_y = BigInt(y_words, y_size);
+      m_coord_x.set_words(x_words, x_size);
+      m_coord_y.set_words(y_words, y_size);
       m_coord_z = m_curve.get_1_rep();
       return;
       }
@@ -177,17 +167,19 @@ void PointGFp::add_affine(const word x_words[], size_t x_size,
    m_coord_z = T3;
    }
 
-// Point addition
-void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
+void PointGFp::add(const word x_words[], size_t x_size,
+                   const word y_words[], size_t y_size,
+                   const word z_words[], size_t z_size,
+                   std::vector<BigInt>& ws_bn)
    {
-   if(rhs.is_zero())
+   if(all_zeros(x_words, x_size) && all_zeros(z_words, z_size))
       return;
 
    if(is_zero())
       {
-      m_coord_x = rhs.m_coord_x;
-      m_coord_y = rhs.m_coord_y;
-      m_coord_z = rhs.m_coord_z;
+      m_coord_x.set_words(x_words, x_size);
+      m_coord_y.set_words(y_words, y_size);
+      m_coord_z.set_words(z_words, z_size);
       return;
       }
 
@@ -209,16 +201,16 @@ void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
 
    const BigInt& p = m_curve.get_p();
 
-   m_curve.sqr(T0, rhs.m_coord_z, ws); // z2^2
+   m_curve.sqr(T0, z_words, z_size, ws); // z2^2
    m_curve.mul(T1, m_coord_x, T0, ws); // x1*z2^2
-   m_curve.mul(T3, rhs.m_coord_z, T0, ws); // z2^3
+   m_curve.mul(T3, z_words, z_size, T0, ws); // z2^3
    m_curve.mul(T2, m_coord_y, T3, ws); // y1*z2^3
 
    m_curve.sqr(T3, m_coord_z, ws); // z1^2
-   m_curve.mul(T4, rhs.m_coord_x, T3, ws); // x2*z1^2
+   m_curve.mul(T4, x_words, x_size, T3, ws); // x2*z1^2
 
    m_curve.mul(T5, m_coord_z, T3, ws); // z1^3
-   m_curve.mul(T0, rhs.m_coord_y, T5, ws); // y2*z1^3
+   m_curve.mul(T0, y_words, y_size, T5, ws); // y2*z1^3
 
    T4.mod_sub(T1, p, sub_ws); // x2*z1^2 - x1*z2^2
 
@@ -257,7 +249,7 @@ void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
 
    m_coord_y.mod_sub(T3, p, sub_ws);
 
-   m_curve.mul(T3, m_coord_z, rhs.m_coord_z, ws);
+   m_curve.mul(T3, z_words, z_size, m_coord_z, ws);
    m_curve.mul(m_coord_z, T3, T4, ws);
    }
 
@@ -312,14 +304,14 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
 
    m_curve.mul(T1, m_coord_x, T0, ws);
    T1 <<= 2; // * 4
-   T1.reduce_below(p, sub_ws);
+   m_curve.redc_mod_p(T1, sub_ws);
 
    if(m_curve.a_is_zero())
       {
       // if a == 0 then 3*x^2 + a*z^4 is just 3*x^2
       m_curve.sqr(T4, m_coord_x, ws); // x^2
       T4 *= 3; // 3*x^2
-      T4.reduce_below(p, sub_ws);
+      m_curve.redc_mod_p(T4, sub_ws);
       }
    else if(m_curve.a_is_minus_3())
       {
@@ -339,7 +331,7 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
       m_curve.mul(T4, T2, T3, ws); // (x-z^2)*(x+z^2)
 
       T4 *= 3; // 3*(x-z^2)*(x+z^2)
-      T4.reduce_below(p, sub_ws);
+      m_curve.redc_mod_p(T4, sub_ws);
       }
    else
       {
@@ -358,7 +350,7 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
 
    m_curve.sqr(T3, T0, ws);
    T3 <<= 3;
-   T3.reduce_below(p, sub_ws);
+   m_curve.redc_mod_p(T3, sub_ws);
 
    T1.mod_sub(T2, p, sub_ws);
 
@@ -369,7 +361,7 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
 
    m_curve.mul(T2, m_coord_y, m_coord_z, ws);
    T2 <<= 1;
-   T2.reduce_below(p, sub_ws);
+   m_curve.redc_mod_p(T2, sub_ws);
 
    m_coord_y = T0;
    m_coord_z = T2;

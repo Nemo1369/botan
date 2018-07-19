@@ -1,26 +1,60 @@
 Release Notes
 ========================================
 
-Version 2.7.0, Not Yet Released
+Version 2.8.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* CVE-2018-0495 Avoid a side channel in ECDSA signature generation (GH #1604)
+* Add support for using the ARMv8 instructions for SM4 encryption (GH #1622)
+
+* The default bcrypt work factor has been increased from 10 to 12.
+
+* The default algorithm used in passhash9 has changed from SHA-256 to SHA-512,
+  and the default work factor increased from 10 to 15.
+
+* Add functions to use FE1 format perserving encryption in FF (GH #1625)
+
+* Resolve a problem when building under Visual C++ 15.8 (GH #1624)
+
+* Optimizations for SM4
+
+* Avoid a cache side channel in the AES key schedule
+
+* Add functions to load and save RSA keys in PKCS #1 format to FFI (GH #1621)
+
+* Add ``pk_encrypt`` and ``pk_decrypt`` CLI operations
+
+* Now ``asn1print`` CLI defaults to printing context-specific fields.
+
+Version 2.7.0, 2018-07-02
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* CVE-2018-12435 Avoid a side channel in ECDSA signature generation (GH #1604)
 
 * Avoid a side channel in RSA key generation due to use of a non-constant time
   gcd algorithm. (GH #1542 #1556)
 
-* Optimize prime generation, especially improving RSA key generation.
-  (GH #1542)
+* Optimize prime generation, especially improving RSA key generation. (GH #1542)
 
-* Optimizations for elliptic curve operations (GH #1534 #1531 #1546 #1547 #1550)
+* Make Karatsuba multiplication, Montgomery field operations, Barrett reduction
+  and Montgomery exponentiation const time (GH #1540 #1606 #1609 #1610)
 
-* Add 24 word wide Comba multiplication, improving 3072-bit RSA and DH by
-  about 25%. (GH #1564)
+* Optimizations for elliptic curve operations especially improving reductions
+  and inversions modulo NIST primes (GH #1534 #1538 #1545 #1546 #1547 #1550)
+
+* Add 24 word wide Comba multiplication, improving 3072-bit RSA and DH by ~25%.
+  (GH #1564)
+
+* Unroll Montgomery reduction for specific sizes (GH #1603)
 
 * Improved performance of signature verification in ECGDSA, ECKCDSA,
   SM2 and GOST by 10-15%.
 
 * XMSS optimizations (GH #1583 #1585)
+
+* Fix an error that meant XMSS would only sign half as many signatures as is
+  allowed (GH #1582)
+
+* Add support for base32 encoding/decoding (GH #1541)
 
 * Add BMI2 optimized version of SHA-256, 40% faster on Skylake (GH #1584)
 
@@ -31,11 +65,21 @@ Version 2.7.0, Not Yet Released
 
 * Add support for using Scrypt for private key encryption (GH #1574)
 
-* Optimizations for DES/3DES, approx 50% faster when used in certain
-  modes such as CBC decrypt or CTR.
+* Optimizations for DES/3DES, approx 50% faster when used in certain modes such
+  as CBC decrypt or CTR.
 
 * XMSS signature verification did not check that the signature was of
   the expected length which could lead to a crash. (GH #1537)
+
+* The bcrypt variants 2b and 2y are now supported.
+
+* Support for 192-bit Suite B TLS profile is now implemented, as the 128-bit
+  Suite B is since 2015 not allowed anymore.
+
+* Previously botan allowed GCM to be used with an empty nonce, which is not
+  allowed by the specification. Now such nonces are rejected.
+
+* Avoid problems on Windows when compiling in Unicode mode (GH #1615 #1616)
 
 * Previously for ASN.1 encoded signatures (eg ECDSA) Botan would accept any
   valid BER encoding. Now only the single valid DER encoding is accepted.
@@ -43,27 +87,31 @@ Version 2.7.0, Not Yet Released
 * Correct an error that could in rare cases cause an internal error exception
   when doing computations with the P-224 curve.
 
-* Reduce allocations/copies during BER decoding (GH #1600)
+* Optimizations to reduce allocations/copies during DER encoding and BER
+  decoding (GH #1571 #1572 #1600)
 
-* Botan generates X.509 subject key IDs by hashing the public key with
-  whatever hash function is being used to sign the certificate. However
-  especially for SHA-512 this caused SKIDs that were far longer than
-  necessary. Now all SKIDs are truncated to 192 bits.
+* Botan generates X.509 subject key IDs by hashing the public key with whatever
+  hash function is being used to sign the certificate. However especially for
+  SHA-512 this caused SKIDs that were far longer than necessary. Now all SKIDs
+  are truncated to 192 bits.
 
-* In the test suite use ``mkstemp`` to create temporary files instead
-  of creating them in the current working directory. (GH #1533 #1530)
+* In the test suite use ``mkstemp`` to create temporary files instead of
+  creating them in the current working directory. (GH #1533 #1530)
+
+* It is now possible to safely override ``CXX`` when invoking make in addition
+  to when ``configure.py`` is run. (GH #1579)
+
+* OIDs for Camellia and SM4 in CBC and GCM mode are now defined, making it
+  possible to use this algorithms for private key encryption.
 
 * Avoid creating symlinks to the shared object on OpenBSD (#1535)
 
 * The ``factor`` command runs much faster on larger inputs now.
 
-* Support for Windows Phone/UWP was deprecated starting in 2.5. This
-  deprecation has been reversed as it seems UWP is still actively used.
+* Support for Windows Phone/UWP was deprecated starting in 2.5. This deprecation
+  has been reversed as it seems UWP is still actively used. (GH #1586 #1587)
 
 * Support for Visual C++ 2013 is deprecated, and will be removed in Jan 2019.
-
-* Implement Base32 encoding with template function to prepare
-  refactoring of Base64. (GH #1541)
 
 * Added support for GCC's --sysroot option to configure.py for cross-compiling.
 

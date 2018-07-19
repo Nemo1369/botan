@@ -60,14 +60,13 @@ class CurveGFp_Montgomery final : public CurveGFp_Repr
 
       size_t get_ws_size() const override { return 2*m_p_words + 4; }
 
+      void redc_mod_p(BigInt& z, secure_vector<word>& ws) const override;
+
       BigInt invert_element(const BigInt& x, secure_vector<word>& ws) const override;
 
       void to_curve_rep(BigInt& x, secure_vector<word>& ws) const override;
 
       void from_curve_rep(BigInt& x, secure_vector<word>& ws) const override;
-
-      void curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                     secure_vector<word>& ws) const override;
 
       void curve_mul_words(BigInt& z,
                            const word x_words[],
@@ -75,8 +74,11 @@ class CurveGFp_Montgomery final : public CurveGFp_Repr
                            const BigInt& y,
                            secure_vector<word>& ws) const override;
 
-      void curve_sqr(BigInt& z, const BigInt& x,
-                     secure_vector<word>& ws) const override;
+      void curve_sqr_words(BigInt& z,
+                           const word x_words[],
+                           size_t x_size,
+                           secure_vector<word>& ws) const override;
+
    private:
       BigInt m_p;
       BigInt m_a, m_b;
@@ -90,6 +92,11 @@ class CurveGFp_Montgomery final : public CurveGFp_Repr
       bool m_a_is_zero;
       bool m_a_is_minus_3;
    };
+
+void CurveGFp_Montgomery::redc_mod_p(BigInt& z, secure_vector<word>& ws) const
+   {
+   z.reduce_below(m_p, ws);
+   }
 
 BigInt CurveGFp_Montgomery::invert_element(const BigInt& x, secure_vector<word>& ws) const
    {
@@ -120,9 +127,14 @@ void CurveGFp_Montgomery::from_curve_rep(BigInt& z, secure_vector<word>& ws) con
                      ws.data(), ws.size());
    }
 
-void CurveGFp_Montgomery::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                                    secure_vector<word>& ws) const
+void CurveGFp_Montgomery::curve_mul_words(BigInt& z,
+                                          const word x_w[],
+                                          size_t x_size,
+                                          const BigInt& y,
+                                          secure_vector<word>& ws) const
    {
+   BOTAN_DEBUG_ASSERT(y.sig_words() <= m_p_words);
+
    if(ws.size() < get_ws_size())
       ws.resize(get_ws_size());
 
@@ -130,15 +142,9 @@ void CurveGFp_Montgomery::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
    if(z.size() < output_size)
       z.grow_to(output_size);
 
-   BOTAN_DEBUG_ASSERT(x.sig_words() <= m_p_words);
-   BOTAN_DEBUG_ASSERT(y.sig_words() <= m_p_words);
-
-   const size_t x_words = (x.size() >= m_p_words) ? m_p_words : x.sig_words();
-   const size_t y_words = (y.size() >= m_p_words) ? m_p_words : y.sig_words();
-
    bigint_mul(z.mutable_data(), z.size(),
-              x.data(), x.size(), x_words,
-              y.data(), y.size(), y_words,
+              x_w, x_size, std::min(m_p_words, x_size),
+              y.data(), y.size(), std::min(m_p_words, y.size()),
               ws.data(), ws.size());
 
    bigint_monty_redc(z.mutable_data(),
@@ -146,10 +152,9 @@ void CurveGFp_Montgomery::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
                      ws.data(), ws.size());
    }
 
-void CurveGFp_Montgomery::curve_mul_words(BigInt& z,
-                                          const word x_w[],
+void CurveGFp_Montgomery::curve_sqr_words(BigInt& z,
+                                          const word x[],
                                           size_t x_size,
-                                          const BigInt& y,
                                           secure_vector<word>& ws) const
    {
    if(ws.size() < get_ws_size())
@@ -159,35 +164,8 @@ void CurveGFp_Montgomery::curve_mul_words(BigInt& z,
    if(z.size() < output_size)
       z.grow_to(output_size);
 
-   BOTAN_DEBUG_ASSERT(y.sig_words() <= m_p_words);
-
-   const size_t x_words = (x_size >= m_p_words) ? m_p_words : x_size;
-   const size_t y_words = (y.size() >= m_p_words) ? m_p_words : y.sig_words();
-
-   bigint_mul(z.mutable_data(), z.size(),
-              x_w, x_size, x_words,
-              y.data(), y.size(), y_words,
-              ws.data(), ws.size());
-
-   bigint_monty_redc(z.mutable_data(),
-                     m_p.data(), m_p_words, m_p_dash,
-                     ws.data(), ws.size());
-   }
-
-void CurveGFp_Montgomery::curve_sqr(BigInt& z, const BigInt& x,
-                                    secure_vector<word>& ws) const
-   {
-   if(ws.size() < get_ws_size())
-      ws.resize(get_ws_size());
-
-   const size_t output_size = 2*m_p_words + 2;
-   if(z.size() < output_size)
-      z.grow_to(output_size);
-
-   const size_t x_words = (x.size() >= m_p_words) ? m_p_words : x.sig_words();
-
    bigint_sqr(z.mutable_data(), z.size(),
-              x.data(), x.size(), x_words,
+              x, x_size, std::min(m_p_words, x_size),
               ws.data(), ws.size());
 
    bigint_monty_redc(z.mutable_data(),
@@ -224,15 +202,12 @@ class CurveGFp_NIST : public CurveGFp_Repr
       bool is_one(const BigInt& x) const override { return x == 1; }
 
       void to_curve_rep(BigInt& x, secure_vector<word>& ws) const override
-         { redc(x, ws); }
+         { redc_mod_p(x, ws); }
 
       void from_curve_rep(BigInt& x, secure_vector<word>& ws) const override
-         { redc(x, ws); }
+         { redc_mod_p(x, ws); }
 
       BigInt invert_element(const BigInt& x, secure_vector<word>& ws) const override;
-
-      void curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                     secure_vector<word>& ws) const override;
 
       void curve_mul_words(BigInt& z,
                            const word x_words[],
@@ -252,11 +227,11 @@ class CurveGFp_NIST : public CurveGFp_Repr
          x.swap(tmp);
          }
 
-      void curve_sqr(BigInt& z, const BigInt& x,
-                     secure_vector<word>& ws) const override;
+      void curve_sqr_words(BigInt& z,
+                           const word x_words[],
+                           size_t x_size,
+                           secure_vector<word>& ws) const override;
    private:
-      virtual void redc(BigInt& x, secure_vector<word>& ws) const = 0;
-
       // Curve parameters
       BigInt m_1;
       BigInt m_a, m_b;
@@ -269,9 +244,14 @@ BigInt CurveGFp_NIST::invert_element(const BigInt& x, secure_vector<word>& ws) c
    return inverse_mod(x, get_p());
    }
 
-void CurveGFp_NIST::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                              secure_vector<word>& ws) const
+void CurveGFp_NIST::curve_mul_words(BigInt& z,
+                                    const word x_w[],
+                                    size_t x_size,
+                                    const BigInt& y,
+                                    secure_vector<word>& ws) const
    {
+   BOTAN_DEBUG_ASSERT(y.sig_words() <= m_p_words);
+
    if(ws.size() < get_ws_size())
       ws.resize(get_ws_size());
 
@@ -279,21 +259,15 @@ void CurveGFp_NIST::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
    if(z.size() < output_size)
       z.grow_to(output_size);
 
-   const size_t x_words = (x.size() >= m_p_words) ? m_p_words : x.sig_words();
-   const size_t y_words = (y.size() >= m_p_words) ? m_p_words : y.sig_words();
-
    bigint_mul(z.mutable_data(), z.size(),
-              x.data(), x.size(), x_words,
-              y.data(), y.size(), y_words,
+              x_w, x_size, std::min(m_p_words, x_size),
+              y.data(), y.size(), std::min(m_p_words, y.size()),
               ws.data(), ws.size());
 
-   this->redc(z, ws);
+   this->redc_mod_p(z, ws);
    }
 
-void CurveGFp_NIST::curve_mul_words(BigInt& z,
-                                    const word x_w[],
-                                    size_t x_size,
-                                    const BigInt& y,
+void CurveGFp_NIST::curve_sqr_words(BigInt& z, const word x[], size_t x_size,
                                     secure_vector<word>& ws) const
    {
    if(ws.size() < get_ws_size())
@@ -303,34 +277,11 @@ void CurveGFp_NIST::curve_mul_words(BigInt& z,
    if(z.size() < output_size)
       z.grow_to(output_size);
 
-   const size_t x_words = (x_size >= m_p_words) ? m_p_words : x_size;
-   const size_t y_words = (y.size() >= m_p_words) ? m_p_words : y.sig_words();
-
-   bigint_mul(z.mutable_data(), z.size(),
-              x_w, x_size, x_words,
-              y.data(), y.size(), y_words,
-              ws.data(), ws.size());
-
-   this->redc(z, ws);
-   }
-
-void CurveGFp_NIST::curve_sqr(BigInt& z, const BigInt& x,
-                              secure_vector<word>& ws) const
-   {
-   if(ws.size() < get_ws_size())
-      ws.resize(get_ws_size());
-
-   const size_t output_size = 2*m_p_words + 2;
-   if(z.size() < output_size)
-      z.grow_to(output_size);
-
-   const size_t x_words = (x.size() >= m_p_words) ? m_p_words : x.sig_words();
-
    bigint_sqr(z.mutable_data(), output_size,
-              x.data(), x.size(), x_words,
+              x, x_size, std::min(m_p_words, x_size),
               ws.data(), ws.size());
 
-   this->redc(z, ws);
+   this->redc_mod_p(z, ws);
    }
 
 #if defined(BOTAN_HAS_NIST_PRIME_REDUCERS_W32)
@@ -344,7 +295,7 @@ class CurveGFp_P192 final : public CurveGFp_NIST
       CurveGFp_P192(const BigInt& a, const BigInt& b) : CurveGFp_NIST(192, a, b) {}
       const BigInt& get_p() const override { return prime_p192(); }
    private:
-      void redc(BigInt& x, secure_vector<word>& ws) const override { redc_p192(x, ws); }
+      void redc_mod_p(BigInt& x, secure_vector<word>& ws) const override { redc_p192(x, ws); }
    };
 
 /**
@@ -356,7 +307,7 @@ class CurveGFp_P224 final : public CurveGFp_NIST
       CurveGFp_P224(const BigInt& a, const BigInt& b) : CurveGFp_NIST(224, a, b) {}
       const BigInt& get_p() const override { return prime_p224(); }
    private:
-      void redc(BigInt& x, secure_vector<word>& ws) const override { redc_p224(x, ws); }
+      void redc_mod_p(BigInt& x, secure_vector<word>& ws) const override { redc_p224(x, ws); }
    };
 
 /**
@@ -368,7 +319,7 @@ class CurveGFp_P256 final : public CurveGFp_NIST
       CurveGFp_P256(const BigInt& a, const BigInt& b) : CurveGFp_NIST(256, a, b) {}
       const BigInt& get_p() const override { return prime_p256(); }
    private:
-      void redc(BigInt& x, secure_vector<word>& ws) const override { redc_p256(x, ws); }
+      void redc_mod_p(BigInt& x, secure_vector<word>& ws) const override { redc_p256(x, ws); }
       BigInt invert_element(const BigInt& x, secure_vector<word>& ws) const override;
    };
 
@@ -443,7 +394,7 @@ class CurveGFp_P384 final : public CurveGFp_NIST
       CurveGFp_P384(const BigInt& a, const BigInt& b) : CurveGFp_NIST(384, a, b) {}
       const BigInt& get_p() const override { return prime_p384(); }
    private:
-      void redc(BigInt& x, secure_vector<word>& ws) const override { redc_p384(x, ws); }
+      void redc_mod_p(BigInt& x, secure_vector<word>& ws) const override { redc_p384(x, ws); }
       BigInt invert_element(const BigInt& x, secure_vector<word>& ws) const override;
    };
 
@@ -529,7 +480,7 @@ class CurveGFp_P521 final : public CurveGFp_NIST
       CurveGFp_P521(const BigInt& a, const BigInt& b) : CurveGFp_NIST(521, a, b) {}
       const BigInt& get_p() const override { return prime_p521(); }
    private:
-      void redc(BigInt& x, secure_vector<word>& ws) const override { redc_p521(x, ws); }
+      void redc_mod_p(BigInt& x, secure_vector<word>& ws) const override { redc_p521(x, ws); }
       BigInt invert_element(const BigInt& x, secure_vector<word>& ws) const override;
    };
 
