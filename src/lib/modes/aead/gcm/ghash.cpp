@@ -49,6 +49,8 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
                          const uint8_t input[],
                          size_t blocks)
    {
+   verify_key_set(m_HM.size());
+
 #if defined(BOTAN_HAS_GCM_CLMUL)
    if(CPUID::has_clmul())
       {
@@ -206,7 +208,7 @@ void GHASH::update_associated_data(const uint8_t ad[], size_t length)
 
 void GHASH::update(const uint8_t input[], size_t length)
    {
-   BOTAN_ASSERT(m_ghash.size() == GCM_BS, "Key was set");
+   verify_key_set(m_ghash.size() == GCM_BS);
    m_text_len += length;
    ghash_update(m_ghash, input, length);
    }
@@ -248,8 +250,8 @@ secure_vector<uint8_t> GHASH::nonce_hash(const uint8_t nonce[], size_t nonce_len
 
 void GHASH::clear()
    {
-   zeroise(m_H);
-   zeroise(m_HM);
+   zap(m_H);
+   zap(m_HM);
    reset();
    }
 

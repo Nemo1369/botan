@@ -12,7 +12,7 @@ in the source.
 - Directly accessing the member variables of types calendar_point, ASN1_Attribute,
   AlgorithmIdentifier, and BER_Object
 
-- The headers ``botan.h``, ``init.h``, ``lookup.h``, ``threefish.h``
+- The headers ``botan.h``, ``init.h``, ``lookup.h``, ``threefish.h``, ``sm2_enc.h``
 
 - All or nothing package transform (``package.h``)
 
@@ -38,6 +38,8 @@ in the source.
 - TLS: 3DES and SEED ciphersuites
 
 - TLS: Anonymous DH/ECDH ciphersuites
+
+- TLS: DHE-PSK ciphersuites
 
 - TLS: DSA ciphersuites/certs
 

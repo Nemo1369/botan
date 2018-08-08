@@ -4,26 +4,65 @@ Release Notes
 Version 2.8.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* During primality testing, use a Lucas test in addition to Miller-Rabin. It is
+  possible to construct a composite integer which passes n Miller-Rabin tests
+  with probability (1/4)^n. So for a incautious verifier using a small number
+  of tests (under 16 or so) it is possible if unlikely they would accept such a
+  composite as prime. Adding a Lucas test precludes such an attack. (GH #1636)
+
+* Add XChaCha and XChaCha20Poly1305 (GH #1640)
+
+* Previously SM2 had two distinct key types, one for signatures and another for
+  encryption. They have now been merged into a single key type since in practice
+  it seems the same key is at times used for both operations. (GH #1637)
+
+* The ``Cipher_Mode`` class now derives from ``SymmetricAlgorithm`` (GH #1639)
+
 * Add support for using the ARMv8 instructions for SM4 encryption (GH #1622)
+
+* Fixed a bug that caused CCM to fail with an exception when used with L=8
+  (GH #1631 #1632)
 
 * The default bcrypt work factor has been increased from 10 to 12.
 
 * The default algorithm used in passhash9 has changed from SHA-256 to SHA-512,
   and the default work factor increased from 10 to 15.
 
-* Add functions to use FE1 format perserving encryption in FF (GH #1625)
+* In ECC private keys, include the public key data for compatibility with
+  GnuTLS (GH #1634 #1635)
+
+* Add functions to get name of cipher, hash and MAC objects to FFI.
+
+* Add functions to use FE1 format preserving encryption in FFI (GH #1625)
+
+* Add functions to load and save RSA keys in PKCS #1 format to FFI (GH #1621)
+
+* The FFI function botan_privkey_load now ignores its rng argument.
 
 * Resolve a problem when building under Visual C++ 15.8 (GH #1624)
+
+* Fix a bug in XSalsa20 (192-bit Salsa nonces) where if set_iv was called twice
+  without calling set_key, the resulting encryption was incorrect. (GH #1640)
+
+* Handle an error seen when verifying invalid ECDSA signatures using LibreSSL
+  on non x86-64 platforms (GH #1627 #1628)
+
+* Correct bugs which would cause CFB, OCB, and GCM modes to crash when they
+  were used in an unkeyed state. (GH #1639)
 
 * Optimizations for SM4
 
 * Avoid a cache side channel in the AES key schedule
 
-* Add functions to load and save RSA keys in PKCS #1 format to FFI (GH #1621)
-
 * Add ``pk_encrypt`` and ``pk_decrypt`` CLI operations
 
 * Now ``asn1print`` CLI defaults to printing context-specific fields.
+
+* Use codec_base for Base64, which matches how Base32 is implemented (GH #1597)
+
+* When building under Visual C++ 2013, the user must acknowledge the upcoming
+  removal of support using the configure.py flag ``--ack-vc2013-deprecated``
+  (GH #1557)
 
 Version 2.7.0, 2018-07-02
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -176,7 +215,7 @@ Version 2.5.0, 2018-04-02
 * Fix DSA/ECDSA handling of hashes longer than the group order (GH #1502 #986)
 
 * The default encoding of ECC public keys has changed from compressed
-  to uncompressed point representation. This improves compatability with
+  to uncompressed point representation. This improves compatibility with
   some common software packages including Golang's standard library.
   (GH #1480 #1483)
 
@@ -193,7 +232,7 @@ Version 2.5.0, 2018-04-02
   or CryptoNG libraries. (GH #1494)
 
 * Make it possible for PKCS10 requests to include custom extensions. This also
-  makes it possible to use muliple SubjectAlternativeNames of a single type in
+  makes it possible to use multiple SubjectAlternativeNames of a single type in
   a request, which was previously not possible. (GH #1429 #1428)
 
 * Add new optimized interface for FE1 format preserving encryption. By caching a

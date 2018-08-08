@@ -56,6 +56,10 @@ class FFI_Unit_Tests final : public Test
             {
             TEST_FFI_OK(botan_rng_get, (rng, outbuf.data(), outbuf.size()));
             TEST_FFI_OK(botan_rng_reseed, (rng, 256));
+
+            uint8_t not_really_entropy[32] = { 0 };
+            TEST_FFI_OK(botan_rng_add_entropy, (rng, not_really_entropy, 32));
+
             // used for the rest of this function and destroyed at the end
             }
          else
@@ -167,7 +171,6 @@ class FFI_Unit_Tests final : public Test
 
          std::string outstr;
          std::vector<uint8_t> outbuf;
-         //char namebuf[32];
 
          outstr.resize(2 * bin.size());
          TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), &outstr[0], 0));
@@ -404,6 +407,18 @@ class FFI_Unit_Tests final : public Test
 
          if(TEST_FFI_OK(botan_cipher_init, (&cipher_encrypt, "AES-128/GCM", BOTAN_CIPHER_INIT_FLAG_ENCRYPT)))
             {
+            char namebuf[18];
+            size_t name_len = 15;
+            TEST_FFI_FAIL("output buffer too short", botan_cipher_name, (cipher_encrypt, namebuf, &name_len));
+            result.test_eq("name len", name_len, 16);
+
+            name_len = sizeof(namebuf);
+            if(TEST_FFI_OK(botan_cipher_name, (cipher_encrypt, namebuf, &name_len)))
+               {
+               result.test_eq("name len", name_len, 16);
+               result.test_eq("name", std::string(namebuf), "AES-128/GCM(16)");
+               }
+
             size_t min_keylen = 0;
             size_t max_keylen = 0;
             size_t nonce_len = 0;
@@ -632,14 +647,18 @@ class FFI_Unit_Tests final : public Test
 
          if(TEST_FFI_OK(botan_hash_init, (&hash, "SHA-256", 0)))
             {
-            /*
-            TEST_FFI_FAIL("output buffer too short", botan_hash_name, (hash, namebuf, 5));
+            char namebuf[10];
+            size_t name_len = 7;
+            TEST_FFI_FAIL("output buffer too short", botan_hash_name, (hash, namebuf, &name_len));
+            result.test_eq("name len", name_len, 8);
 
-            if(TEST_FFI_OK(botan_hash_name, (hash, namebuf, sizeof(namebuf))))
-            {
-            result.test_eq("hash name", std::string(namebuf), "SHA-256");
-            }
-            */
+            name_len = sizeof(namebuf);
+            if(TEST_FFI_OK(botan_hash_name, (hash, namebuf, &name_len)))
+               {
+               result.test_eq("name len", name_len, 8);
+               result.test_eq("name", std::string(namebuf), "SHA-256");
+               }
+
             size_t block_size;
             if (TEST_FFI_OK(botan_hash_block_size, (hash, &block_size)))
                {
@@ -705,14 +724,27 @@ class FFI_Unit_Tests final : public Test
 
          if(TEST_FFI_OK(botan_mac_init, (&mac, "HMAC(SHA-256)", 0)))
             {
-            /*
-            TEST_FFI_FAIL("output buffer too short", botan_mac_name, (mac, namebuf, 5));
+            char namebuf[16];
+            size_t name_len = 13;
+            TEST_FFI_FAIL("output buffer too short", botan_mac_name, (mac, namebuf, &name_len));
+            result.test_eq("name len", name_len, 14);
 
-            if(TEST_FFI_OK(botan_mac_name, (mac, namebuf, 20)))
-            {
-            result.test_eq("mac name", std::string(namebuf), "HMAC(SHA-256)");
-            }
-            */
+            name_len = sizeof(namebuf);
+            if(TEST_FFI_OK(botan_mac_name, (mac, namebuf, &name_len)))
+               {
+               result.test_eq("name len", name_len, 14);
+               result.test_eq("name", std::string(namebuf), "HMAC(SHA-256)");
+               }
+
+            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, &min_keylen, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, &max_keylen, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, nullptr, &mod_keylen));
+
+            result.test_eq("Expected min keylen", min_keylen, 0);
+            result.test_eq("Expected max keylen", max_keylen, 4096);
+            result.test_eq("Expected mod keylen", mod_keylen, 1);
 
             size_t output_len;
             if(TEST_FFI_OK(botan_mac_output_length, (mac, &output_len)))
@@ -819,12 +851,37 @@ class FFI_Unit_Tests final : public Test
 
          if(TEST_FFI_OK(botan_block_cipher_init, (&cipher, "AES-128")))
             {
+            char namebuf[10];
+            size_t name_len = 7;
+            TEST_FFI_FAIL("output buffer too short", botan_block_cipher_name, (cipher, namebuf, &name_len));
+            result.test_eq("name len", name_len, 8);
+
+            name_len = sizeof(namebuf);
+            if(TEST_FFI_OK(botan_block_cipher_name, (cipher, namebuf, &name_len)))
+               {
+               result.test_eq("name len", name_len, 8);
+               result.test_eq("name", std::string(namebuf), "AES-128");
+               }
+
             const std::vector<uint8_t> zero16(16, 0);
             std::vector<uint8_t> block(16, 0);
 
             TEST_FFI_OK(botan_block_cipher_clear, (cipher));
 
+            TEST_FFI_RC(BOTAN_FFI_ERROR_KEY_NOT_SET, botan_block_cipher_encrypt_blocks, (cipher, nullptr, nullptr, 0));
+            TEST_FFI_RC(BOTAN_FFI_ERROR_KEY_NOT_SET, botan_block_cipher_decrypt_blocks, (cipher, nullptr, nullptr, 0));
+
             TEST_FFI_RC(16, botan_block_cipher_block_size, (cipher));
+
+            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, &min_keylen, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, &max_keylen, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, nullptr, &mod_keylen));
+
+            result.test_eq("Expected min keylen", min_keylen, 16);
+            result.test_eq("Expected max keylen", max_keylen, 16);
+            result.test_eq("Expected mod keylen", mod_keylen, 1);
 
             TEST_FFI_OK(botan_block_cipher_set_key, (cipher, zero16.data(), zero16.size()));
 
@@ -1666,7 +1723,7 @@ class FFI_Unit_Tests final : public Test
          size_t name_len = sizeof(namebuf);
 
          TEST_FFI_OK(botan_pubkey_algo_name, (pub, &namebuf[0], &name_len));
-         result.test_eq(namebuf, namebuf, "SM2_Sig");
+         result.test_eq(namebuf, namebuf, "SM2");
 
          std::vector<uint8_t> message(1280), signature;
          TEST_FFI_OK(botan_rng_get, (rng, message.data(), message.size()));
@@ -1757,7 +1814,7 @@ class FFI_Unit_Tests final : public Test
          size_t name_len = sizeof(namebuf);
 
          TEST_FFI_OK(botan_pubkey_algo_name, (pub, &namebuf[0], &name_len));
-         result.test_eq(namebuf, namebuf, "SM2_Enc");
+         result.test_eq(namebuf, namebuf, "SM2");
 
          std::vector<uint8_t> message(32);
 
