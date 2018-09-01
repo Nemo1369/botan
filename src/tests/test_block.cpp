@@ -15,7 +15,7 @@ namespace Botan_Tests {
 class Block_Cipher_Tests final : public Text_Based_Test
    {
    public:
-      Block_Cipher_Tests() : Text_Based_Test("block", "Key,In,Out", "Iterations") {}
+      Block_Cipher_Tests() : Text_Based_Test("block", "Key,In,Out", "Tweak,Iterations") {}
 
       std::vector<std::string> possible_providers(const std::string& algo) override
          {
@@ -27,6 +27,7 @@ class Block_Cipher_Tests final : public Text_Based_Test
          const std::vector<uint8_t> key      = vars.get_req_bin("Key");
          const std::vector<uint8_t> input    = vars.get_req_bin("In");
          const std::vector<uint8_t> expected = vars.get_req_bin("Out");
+         const std::vector<uint8_t> tweak    = vars.get_opt_bin("Tweak");
          const size_t iterations             = vars.get_opt_sz("Iterations", 1);
 
          Test::Result result(algo);
@@ -86,6 +87,15 @@ class Block_Cipher_Tests final : public Text_Based_Test
             cipher->clear();
 
             cipher->set_key(key);
+
+            if(tweak.size() > 0)
+               {
+               Botan::Tweakable_Block_Cipher* tbc = dynamic_cast<Botan::Tweakable_Block_Cipher*>(cipher.get());
+               if(tbc == nullptr)
+                  result.test_failure("Tweak set in test data but cipher is not a Tweakable_Block_Cipher");
+               else
+                  tbc->set_tweak(tweak.data(), tweak.size());
+               }
 
             // Test that clone works and does not affect parent object
             std::unique_ptr<Botan::BlockCipher> clone(cipher->clone());

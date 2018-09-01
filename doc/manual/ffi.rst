@@ -9,7 +9,102 @@ language's foreign function interface (FFI) libraries. For instance the included
 Python wrapper uses Python's ``ctypes`` module and the C89 API. This API is of
 course also useful for programs written directly in C.
 
-Code examples can be found in `src/tests/test_ffi.cpp`.
+Code examples can be found in
+`the tests <https://github.com/randombit/botan/blob/master/src/tests/test_ffi.cpp>`_.
+
+Return Codes
+---------------
+
+Almost all functions in the Botan C interface return an ``int`` error code.  The
+only exceptions are a handful of functions (like
+:cpp:func:`botan_ffi_api_version`) which cannot fail in any circumstances.
+
+The FFI functions return a non-negative integer (usually 0) to indicate success,
+or a negative integer to represent an error. A few functions (like
+:cpp:func:`botan_block_cipher_block_size`) return positive integers instead of
+zero on success.
+
+The error codes returned in certain error situations may change over time.  This
+especially applies to very generic errors like
+:cpp:enumerator:`BOTAN_FFI_ERROR_EXCEPTION_THROWN` and
+:cpp:enumerator:`BOTAN_FFI_ERROR_UNKNOWN_ERROR`. For instance, before 2.8, setting
+an invalid key length resulted in :cpp:enumerator:`BOTAN_FFI_ERROR_EXCEPTION_THROWN`
+but now this is specially handled and returns
+:cpp:enumerator:`BOTAN_FFI_ERROR_INVALID_KEY_LENGTH` instead.
+
+The following enum values are defined in the FFI header:
+
+.. cpp:enumerator:: BOTAN_FFI_SUCCESS = 0
+
+   Generally returned to indicate success
+
+.. cpp:enumerator:: BOTAN_FFI_INVALID_VERIFIER = 1
+
+   Note this value is positive, but still represents an error condition.  In
+   indicates that the function completed successfully, but the value provided
+   was not correct. For example :cpp:func:`botan_bcrypt_is_valid` returns this
+   value if the password did not match the hash.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_INVALID_INPUT = -1
+
+   The input was invalid. (Currently this error return is not used.)
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_BAD_MAC = -2
+
+   While decrypting in an AEAD mode, the tag failed to verify.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE = -10
+
+   Functions which write a variable amount of space return this if the indicated
+   buffer length was insufficient to write the data. In that case, the output
+   length parameter is set to the size that is required.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_EXCEPTION_THROWN = -20
+
+   An exception was thrown while processing this request, but no further
+   details are available.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_OUT_OF_MEMORY = -21
+
+   Memory allocation failed
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_BAD_FLAG = -30
+
+   A value provided in a `flag` variable was unknown.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_NULL_POINTER = -31
+
+   A null pointer was provided as an argument where that is not allowed.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_BAD_PARAMETER = -32
+
+   An argument did not match the function.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_KEY_NOT_SET = -33
+
+   An object that requires a key normally must be keyed before use (eg before
+   encrypting or MACing data). If this is not done, the operation will fail and
+   return this error code.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_INVALID_KEY_LENGTH = -34
+
+   An invalid key length was provided with a call to ``x_set_key``.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_NOT_IMPLEMENTED = -40
+
+   This is returned if the functionality is not available for some reason.  For
+   example if you call :cpp:func:`botan_hash_init` with a named hash function
+   which is not enabled, this error is returned.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_INVALID_OBJECT = -50
+
+   This is used if an object provided did not match the function.  For example
+   calling :cpp:func:`botan_hash_destroy` on a ``botan_rng_t`` object will cause
+   this return.
+
+.. cpp:enumerator:: BOTAN_FFI_ERROR_UNKNOWN_ERROR = -100
+
+   Something bad happened, but we are not sure why or how.
 
 Versioning
 ----------------------------------------
@@ -49,8 +144,15 @@ Versioning
    Returns the date this version was released as an integer, or 0
    if an unreleased version
 
+
 Utility Functions
 ----------------------------------------
+
+.. const char* botan_error_description(int err)
+
+   Return a string representation of the provided error code. If the error code
+   is unknown, returns the string "Unknown error". The return values are static
+   constant strings and should not be freed.
 
 .. cpp:function:: int botan_same_mem(const uint8_t* x, const uint8_t* y, size_t len)
 
@@ -64,6 +166,10 @@ Utility Functions
    will only contain lower-case letters, upper-case letters otherwise.
    Returns 0 on success, 1 otherwise.
 
+.. cpp:function:: int botan_hex_decode(const char* hex_str, size_t in_len, uint8_t* out, size_t* out_len)
+
+   Hex decode some data
+
 Random Number Generators
 ----------------------------------------
 
@@ -74,7 +180,11 @@ Random Number Generators
 .. cpp:function:: int botan_rng_init(botan_rng_t* rng, const char* rng_type)
 
    Initialize a random number generator object from the given
-   *rng_type*: "system" or `nullptr`: `System_RNG`, "user": `AutoSeeded_RNG`.
+   *rng_type*: "system" (or ``nullptr``): ``System_RNG``,
+   "user": ``AutoSeeded_RNG``,
+   "user-threadsafe": serialized ``AutoSeeded_RNG``,
+   "null": ``Null_RNG`` (always fails),
+   "rdrand": ``RDRAND_RNG`` (if available)
 
 .. cpp:function:: int botan_rng_get(botan_rng_t rng, uint8_t* out, size_t out_len)
 
@@ -84,6 +194,18 @@ Random Number Generators
 
    Reseeds the random number generator with *bits* number of bits
    from the `System_RNG`.
+
+.. cpp:function:: int botan_rng_reseed_from_rng(botan_rng_t rng, botan_rng_t src, size_t bits)
+
+   Reseeds the random number generator with *bits* number of bits
+   taken from the given source RNG.
+
+.. cpp:function:: int botan_rng_add_entropy(botan_rng_t rng, const uint8_t seed[], size_t len)
+
+   Adds the provided seed material to the internal RNG state.
+
+   This call may be ignored by certain RNG instances (such as RDRAND
+   or, on some systems, the system RNG).
 
 .. cpp:function:: int botan_rng_destroy(botan_rng_t rng)
 
@@ -108,6 +230,21 @@ need to implement custom primitives using a PRP.
 .. cpp:function:: int botan_block_cipher_block_size(botan_block_cipher_t bc)
 
    Return the block size of this cipher.
+
+.. cpp:function:: int botan_block_cipher_name(botan_block_cipher_t cipher, \
+                                              char* name, size_t* name_len)
+
+   Return the name of this block cipher algorithm, which may nor may not exactly
+   match what was passed to :cpp:func:`botan_block_cipher_init`.
+
+.. cpp:function:: int botan_block_cipher_get_keyspec(botan_block_cipher_t cipher, \
+                                                     size_t* out_minimum_keylength, \
+                                                     size_t* out_maximum_keylength, \
+                                                     size_t* out_keylength_modulo)
+
+   Return the limits on the key which can be provided to this cipher. If any of the
+   parameters are null, no output is written to that field. This allows retreiving only
+   (say) the maximum supported keylength, if that is the only information needed.
 
 .. cpp:function:: int botan_block_cipher_clear(botan_block_cipher_t bc)
 
@@ -149,6 +286,10 @@ Hash Functions
 .. cpp:function:: int botan_hash_destroy(botan_hash_t hash)
 
    Destroy the object created by :cpp:func:`botan_hash_init`.
+
+.. cpp:function:: int botan_hash_name(botan_hash_t hash, char* name, size_t* name_len)
+
+   Write the name of the hash function to the provided buffer.
 
 .. cpp:function:: int botan_hash_copy_state(botan_hash_t* dest, const botan_hash_t source)
 
@@ -210,20 +351,20 @@ Message Authentication Codes
    Finalize the MAC and place the output in out. Exactly
    :cpp:func:`botan_mac_output_length` bytes will be written.
 
-Ciphers
+Symmetric Ciphers
 ----------------------------------------
 
 .. cpp:type:: opaque* botan_cipher_t
 
-    An opaque data type for a MAC. Don't mess with it, but do remember
+    An opaque data type for a symmetric cipher object. Don't mess with it, but do remember
     to set a random key first. And please use an AEAD.
 
 .. cpp:function:: botan_cipher_t botan_cipher_init(const char* cipher_name, uint32_t flags)
 
     Create a cipher object from a name such as "AES-256/GCM" or "Serpent/OCB".
 
-    Flags is a bitfield
-    The low bit of flags specifies if encrypt or decrypt
+    Flags is a bitfield; the low bitof ``flags`` specifies if encrypt or decrypt,
+    ie use 0 for encryption and 1 for decryption.
 
 .. cpp:function:: int botan_cipher_destroy(botan_cipher_t cipher)
 
@@ -232,19 +373,42 @@ Ciphers
 .. cpp:function:: int botan_cipher_set_key(botan_cipher_t cipher, \
                   const uint8_t* key, size_t key_len)
 
+.. cpp:function:: int botan_cipher_is_authenticated(botan_cipher_t cipher)
+
+.. cpp:function:: size_t botan_cipher_get_tag_length(botan_cipher_t cipher, size_t* tag_len)
+
+   Write the tag length of the cipher to ``tag_len``. This will be zero for non-authenticted
+   ciphers.
+
+.. cpp:function:: int botan_cipher_valid_nonce_length(botan_cipher_t cipher, size_t nl)
+
+   Returns 1 if the nonce length is valid, or 0 otherwise. Returns -1 on error (such as
+   the cipher object being invalid).
+
+.. cpp:function:: size_t botan_cipher_get_default_nonce_length(botan_cipher_t cipher, size_t* nl)
+
+   Return the default nonce length
+
 .. cpp:function:: int botan_cipher_set_associated_data(botan_cipher_t cipher, \
                                                const uint8_t* ad, size_t ad_len)
+
+   Set associated data. Will fail unless the cipher is an AEAD.
 
 .. cpp:function:: int botan_cipher_start(botan_cipher_t cipher, \
                                  const uint8_t* nonce, size_t nonce_len)
 
-.. cpp:function:: int botan_cipher_is_authenticated(botan_cipher_t cipher)
+   Start processing a message using the provided nonce.
 
-.. cpp:function:: size_t botan_cipher_tag_size(botan_cipher_t cipher)
+.. cpp:function:: int botan_cipher_update(botan_cipher_t cipher, \
+                                  uint32_t flags, \
+                                  uint8_t output[], \
+                                  size_t output_size, \
+                                  size_t* output_written, \
+                                  const uint8_t input_bytes[], \
+                                  size_t input_size, \
+                                  size_t* input_consumed)
 
-.. cpp:function:: int botan_cipher_valid_nonce_length(botan_cipher_t cipher, size_t nl)
-
-.. cpp:function:: size_t botan_cipher_default_nonce_length(botan_cipher_t cipher)
+    Encrypt or decrypt data.
 
 PBKDF
 ----------------------------------------
@@ -468,9 +632,10 @@ Password Hashing
 
 .. cpp:function:: int botan_bcrypt_is_valid(const char* pass, const char* hash)
 
-   Check a previously created password hash.
-   Returns 0 if if this password/hash combination is valid,
-   1 if the combination is not valid (but otherwise well formed),
+   Check a previously created password hash.  Returns
+   :cpp:enumerator:`BOTAN_SUCCESS` if if this password/hash
+   combination is valid, :cpp:enumerator:`BOTAN_FFI_INVALID_VERIFIER`
+   if the combination is not valid (but otherwise well formed),
    negative on error.
 
 Public Key Creation, Import and Export
@@ -668,12 +833,31 @@ Public Key Encryption/Decryption
                                          const char* padding, \
                                          uint32_t flags)
 
+   Create a new operation object which can be used to encrypt using the provided
+   key and the specified padding scheme (such as "OAEP(SHA-256)" for use with
+   RSA). Flags should be 0 in this version.
+
 .. cpp:function:: int botan_pk_op_encrypt_destroy(botan_pk_op_encrypt_t op)
+
+   Destroy the object.
+
+.. cpp:function:: int botan_pk_op_encrypt_output_length(botan_pk_op_encrypt_t op, \
+                  size_t ptext_len, size_t* ctext_len)
+
+   Returns an upper bound on the output length if a plaintext of length ``ptext_len``
+   is encrypted with this key/parameter setting. This allows correctly sizing the
+   buffer that is passed to :cpp:func:`botan_pk_op_encrypt`.
 
 .. cpp:function:: int botan_pk_op_encrypt(botan_pk_op_encrypt_t op, \
                                   botan_rng_t rng, \
                                   uint8_t out[], size_t* out_len, \
                                   const uint8_t plaintext[], size_t plaintext_len)
+
+   Encrypt the provided data using the key, placing the output in `out`.  If
+   `out` is NULL, writes the length of what the ciphertext would have been to
+   `*out_len`. However this is computationally expensive (the encryption
+   actually occurs, then the result is discarded), so it is better to use
+   :cpp:func:`botan_pk_op_encrypt_output_length` to correctly size the buffer.
 
 .. cpp:type:: opaque* botan_pk_op_decrypt_t
 
@@ -686,11 +870,18 @@ Public Key Encryption/Decryption
 
 .. cpp:function:: int botan_pk_op_decrypt_destroy(botan_pk_op_decrypt_t op)
 
+.. cpp:function:: int botan_pk_op_decrypt_output_length(botan_pk_op_decrypt_t op, \
+                  size_t ctext_len, size_t* ptext_len)
+
+   For a given ciphertext length, returns the upper bound on the size of the
+   plaintext that might be enclosed. This allows properly sizing the output
+   buffer passed to :cpp:func:`botan_pk_op_decrypt`.
+
 .. cpp:function:: int botan_pk_op_decrypt(botan_pk_op_decrypt_t op, \
                                   uint8_t out[], size_t* out_len, \
                                   uint8_t ciphertext[], size_t ciphertext_len)
 
-Signatures
+Signature Generation
 ----------------------------------------
 
 .. cpp:type:: opaque* botan_pk_op_sign_t
@@ -702,13 +893,33 @@ Signatures
                                       const char* hash_and_padding, \
                                       uint32_t flags)
 
+   Create a signature operator for the provided key. The padding string
+   specifies what hash function and padding should be used, for example
+   "PKCS1v15(SHA-256)" or "EMSA1(SHA-384)".
+
 .. cpp:function:: int botan_pk_op_sign_destroy(botan_pk_op_sign_t op)
+
+   Destroy an object created by :cpp:func:`botan_pk_op_sign_create`.
+
+.. cpp:function:: int botan_pk_op_sign_output_length(botan_pk_op_sign_t op, size_t* sig_len)
+
+   Writes the length of the signatures that this signer will produce. This
+   allows properly sizing the buffer passed to
+   :cpp:func:`botan_pk_op_sign_finish`.
 
 .. cpp:function:: int botan_pk_op_sign_update(botan_pk_op_sign_t op, \
                                       const uint8_t in[], size_t in_len)
 
+   Add bytes of the message to be signed.
+
 .. cpp:function:: int botan_pk_op_sign_finish(botan_pk_op_sign_t op, botan_rng_t rng, \
                                       uint8_t sig[], size_t* sig_len)
+
+   Produce a signature over all of the bytes passed to :cpp:func:`botan_pk_op_sign_update`.
+   Afterwards, the sign operator is reset and may be used to sign a new message.
+
+Signature Verification
+----------------------------------------
 
 .. cpp:type:: opaque* botan_pk_op_verify_t
 
@@ -724,8 +935,13 @@ Signatures
 .. cpp:function:: int botan_pk_op_verify_update(botan_pk_op_verify_t op, \
                                         const uint8_t in[], size_t in_len)
 
+   Add bytes of the message to be verified
+
 .. cpp:function:: int botan_pk_op_verify_finish(botan_pk_op_verify_t op, \
                                         const uint8_t sig[], size_t sig_len)
+
+   Verify if the signature provided matches with the message provided as calls
+   to :cpp:func:`botan_pk_op_verify_update`.
 
 Key Agreement
 ----------------------------------------
@@ -772,9 +988,19 @@ X.509 Certificates
 .. cpp:function:: int botan_x509_cert_load(botan_x509_cert_t* cert_obj, \
                                         const uint8_t cert[], size_t cert_len)
 
+   Load a certificate from the DER or PEM representation
+
 .. cpp:function:: int botan_x509_cert_load_file(botan_x509_cert_t* cert_obj, const char* filename)
 
+   Load a certificate from a file.
+
+.. cpp:function:: int botan_x509_cert_dup(botan_x509_cert_t* cert_obj, botan_x509_cert_t cert)
+
+   Create a new object that refers to the same certificate.
+
 .. cpp:function:: int botan_x509_cert_destroy(botan_x509_cert_t cert)
+
+   Destroy the certificate object
 
 .. cpp:function:: int botan_x509_cert_gen_selfsigned(botan_x509_cert_t* cert, \
                                              botan_privkey_t key, \
@@ -784,33 +1010,62 @@ X.509 Certificates
 
 .. cpp:function:: int botan_x509_cert_get_time_starts(botan_x509_cert_t cert, char out[], size_t* out_len)
 
+   Return the time the certificate becomes valid, as a string in form
+   "YYYYMMDDHHMMSSZ" where Z is a literal character reflecting that this time is
+   relative to UTC. Prefer :cpp:func:`botan_x509_cert_not_before`.
+
 .. cpp:function:: int botan_x509_cert_get_time_expires(botan_x509_cert_t cert, char out[], size_t* out_len)
+
+   Return the time the certificate expires, as a string in form
+   "YYYYMMDDHHMMSSZ" where Z is a literal character reflecting that this time is
+   relative to UTC. Prefer :cpp:func:`botan_x509_cert_not_after`.
+
+.. cpp:function:: int botan_x509_cert_not_before(botan_x509_cert_t cert, uint64_t* time_since_epoch)
+
+   Return the time the certificate becomes valid, as seconds since epoch.
+
+.. cpp:function:: int botan_x509_cert_not_after(botan_x509_cert_t cert, uint64_t* time_since_epoch)
+
+   Return the time the certificate expires, as seconds since epoch.
 
 .. cpp:function:: int botan_x509_cert_get_fingerprint(botan_x509_cert_t cert, const char* hash, uint8_t out[], size_t* out_len)
 
 .. cpp:function:: int botan_x509_cert_get_serial_number(botan_x509_cert_t cert, uint8_t out[], size_t* out_len)
 
+   Return the serial number of the certificate.
+
 .. cpp:function:: int botan_x509_cert_get_authority_key_id(botan_x509_cert_t cert, uint8_t out[], size_t* out_len)
+
+   Return the authority key ID set in the certificate, which may be empty.
 
 .. cpp:function:: int botan_x509_cert_get_subject_key_id(botan_x509_cert_t cert, uint8_t out[], size_t* out_len)
 
-.. cpp:function:: int botan_x509_cert_path_verify(botan_x509_cert_t cert, \
-                                          const char* ca_dir)
+   Return the subject key ID set in the certificate, which may be empty.
 
 .. cpp:function:: int botan_x509_cert_get_public_key_bits(botan_x509_cert_t cert, \
                                                   uint8_t out[], size_t* out_len)
 
+   Get the serialized representation of the public key included in this certificate
+
 .. cpp:function:: int botan_x509_cert_get_public_key(botan_x509_cert_t cert, botan_pubkey_t* key)
+
+   Get the public key included in this certificate as a newly allocated object
 
 .. cpp:function:: int botan_x509_cert_get_issuer_dn(botan_x509_cert_t cert, \
                                             const char* key, size_t index, \
                                             uint8_t out[], size_t* out_len)
 
+   Get a value from the issuer DN field.
+
 .. cpp:function:: int botan_x509_cert_get_subject_dn(botan_x509_cert_t cert, \
                                              const char* key, size_t index, \
                                              uint8_t out[], size_t* out_len)
 
+   Get a value from the subject DN field.
+
 .. cpp:function:: int botan_x509_cert_to_string(botan_x509_cert_t cert, char out[], size_t* out_len)
+
+   Format the certificate as a free-form string.
 
 .. cpp:enum:: botan_x509_cert_key_constraints
 
@@ -820,3 +1075,41 @@ X.509 Certificates
    `CRL_SIGN`, `ENCIPHER_ONLY`, `DECIPHER_ONLY`.
 
 .. cpp:function:: int botan_x509_cert_allowed_usage(botan_x509_cert_t cert, unsigned int key_usage)
+
+
+.. cpp:function:: int botan_x509_cert_verify(int* validation_result, \
+                  botan_x509_cert_t cert, \
+                  const botan_x509_cert_t* intermediates, \
+                  size_t intermediates_len, \
+                  const botan_x509_cert_t* trusted, \
+                  size_t trusted_len, \
+                  const char* trusted_path, \
+                  size_t required_strength, \
+                  const char* hostname, \
+                  uint64_t reference_time)
+
+    Verify a certificate. Returns 0 if validation was successful, 1 if
+    unsuccessful, or negative on error.
+
+    Sets ``validation_result`` to a code that provides more information.
+
+    If not needed, set ``intermediates`` to NULL and ``intermediates_len`` to
+    zero.
+
+    If not needed, set ``trusted`` to NULL and ``trusted_len`` to zero.
+
+    The ``trusted_path`` refers to a directory where one or more trusted CA
+    certificates are stored. It may be NULL if not needed.
+
+    Set ``required_strength`` to indicate the minimum key and hash strength
+    that is allowed. For instance setting to 80 allows 1024-bit RSA and SHA-1.
+    Setting to 110 requires 2048-bit RSA and SHA-256 or higher. Set to zero
+    to accept a default.
+
+    Set ``reference_time`` to be the time which the certificate chain is
+    validated against. Use zero to use the current system clock.
+
+.. cpp:function:: const char* botan_x509_cert_validation_status(int code)
+
+   Return a (statically allocated) string associated with the verification
+   result.

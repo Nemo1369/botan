@@ -52,6 +52,14 @@ XMSS_Signature_Operation::sign(const secure_vector<uint8_t>& msg_hash,
    return sig;
    }
 
+size_t XMSS_Signature_Operation::signature_length() const
+   {
+   return sizeof(uint64_t) + // size of leaf index
+          m_xmss_params.element_size() +
+          m_xmss_params.len() * m_xmss_params.element_size() +
+          m_xmss_params.tree_height() * m_xmss_params.element_size();
+   }
+
 wots_keysig_t
 XMSS_Signature_Operation::build_auth_path(XMSS_PrivateKey& priv_key,
       XMSS_Address& adrs)

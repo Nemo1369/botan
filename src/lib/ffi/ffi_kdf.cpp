@@ -14,6 +14,10 @@
   #include <botan/bcrypt.h>
 #endif
 
+#if defined(BOTAN_HAS_SCRYPT)
+  #include <botan/scrypt.h>
+#endif
+
 extern "C" {
 
 using namespace Botan_FFI;
@@ -58,6 +62,21 @@ int botan_kdf(const char* kdf_algo,
       });
    }
 
+int botan_scrypt(uint8_t out[], size_t out_len,
+                 const char* passphrase,
+                 const uint8_t salt[], size_t salt_len,
+                 size_t N, size_t r, size_t p)
+   {
+#if defined(BOTAN_HAS_SCRYPT)
+   return ffi_guard_thunk(BOTAN_CURRENT_FUNCTION, [=]() -> int {
+      Botan::scrypt(out, out_len, passphrase, salt, salt_len, N, r, p);
+      return BOTAN_FFI_SUCCESS;
+   });
+#else
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
 int botan_bcrypt_generate(uint8_t* out, size_t* out_len,
                           const char* pass,
                           botan_rng_t rng_obj, size_t wf,
@@ -72,7 +91,7 @@ int botan_bcrypt_generate(uint8_t* out, size_t* out_len,
          return BOTAN_FFI_ERROR_BAD_FLAG;
 
       if(wf < 4 || wf > 18)
-         throw FFI_Error("Bad bcrypt work factor " + std::to_string(wf));
+         return BOTAN_FFI_ERROR_BAD_PARAMETER;
 
       Botan::RandomNumberGenerator& rng = safe_get(rng_obj);
       const std::string bcrypt = Botan::generate_bcrypt(pass, rng, static_cast<uint16_t>(wf));

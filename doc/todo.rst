@@ -15,8 +15,7 @@ Ciphers, Hashes, PBKDF
 * Compressed tables for AES
 * AES using vector permutes for NEON
 * Camellia using AES-NI
-* Serpent using AVX2 or SSSE3/pshufb
-* ChaCha20 using AVX2, NEON
+* ChaCha20 using NEON
 * ASCON 1.2 (CAESAR)
 * NORX-64 3.0 (CAESAR)
 * Argon2 PBKDF (draft-irtf-cfrg-argon2)
@@ -134,10 +133,12 @@ FFI and Bindings
 ----------------------------------------
 
 * Expose NewHope and CECPQ1
-* Expose compression
-* Expose more of X.509 (CRLs, PKCS10, OCSP, cert signing, etc)
+* X.509 CRL handling
+* PKCS10 requests
+* Certificate signing
 * Expose TLS
-* Expose TOTP/HOTP
+* Expose NIST key wrap with padding
+* Expose secret sharing
 * Expose deterministic PRNG
 * Write a CLI or HTTPS client in Python
 

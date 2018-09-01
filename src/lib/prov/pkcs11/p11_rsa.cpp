@@ -131,6 +131,8 @@ class PKCS11_RSA_Decryption_Operation final : public PK_Ops::Decryption
          m_bits = m_key.get_n().bits() - 1;
          }
 
+      size_t plaintext_length(size_t) const override { return m_key.get_n().bytes(); }
+
       secure_vector<uint8_t> decrypt(uint8_t& valid_mask, const uint8_t ciphertext[], size_t ciphertext_len) override
          {
          valid_mask = 0;
@@ -177,6 +179,8 @@ class PKCS11_RSA_Encryption_Operation final : public PK_Ops::Encryption
          m_bits = 8 * (key.get_n().bytes() - m_mechanism.padding_size()) - 1;
          }
 
+      size_t ciphertext_length(size_t) const override { return m_key.get_n().bytes(); }
+
       size_t max_input_bits() const override
          {
          return m_bits;
@@ -205,6 +209,8 @@ class PKCS11_RSA_Signature_Operation final : public PK_Ops::Signature
       PKCS11_RSA_Signature_Operation(const PKCS11_RSA_PrivateKey& key, const std::string& padding)
          : m_key(key), m_mechanism(MechanismWrapper::create_rsa_sign_mechanism(padding))
          {}
+
+      size_t signature_length() const override { return m_key.get_n().bytes(); }
 
       void update(const uint8_t msg[], size_t msg_len) override
          {

@@ -157,6 +157,9 @@ PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const Var
          signer.reset(new Botan::PK_Signer(*privkey, Test::rng(), padding, Botan::IEEE_1363, sign_provider));
 
          generated_signature = signer->sign_message(message, rng ? *rng : Test::rng());
+
+         result.test_lte("Generated signature within announced bound",
+                         generated_signature.size(), signer->signature_length());
          }
       catch(Botan::Lookup_Error&)
          {
@@ -307,6 +310,10 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
       try
          {
          decrypted = decryptor->decrypt(ciphertext);
+
+         result.test_lte("Plaintext within length",
+                         decrypted.size(),
+                         decryptor->plaintext_length(ciphertext.size()));
          }
       catch(Botan::Exception& e)
          {
@@ -354,6 +361,10 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
 
       const std::vector<uint8_t> generated_ciphertext =
          encryptor->encrypt(plaintext, kat_rng ? *kat_rng : Test::rng());
+
+      result.test_lte("Ciphertext within length",
+                      generated_ciphertext.size(),
+                      encryptor->ciphertext_length(plaintext.size()));
 
       if(enc_provider == "base")
          {
@@ -498,7 +509,14 @@ Test::Result PK_Key_Agreement_Test::run_one_test(const std::string& header, cons
       try
          {
          kas.reset(new Botan::PK_Key_Agreement(*privkey, Test::rng(), kdf, provider));
-         result.test_eq(provider, "agreement", kas->derive_key(key_len, pubkey).bits_of(), shared);
+
+         auto derived_key = kas->derive_key(key_len, pubkey).bits_of();
+         result.test_eq(provider, "agreement", derived_key, shared);
+
+         if(key_len == 0 && kdf == "Raw")
+            {
+            result.test_eq("Expected size", derived_key.size(), kas->agreed_value_size());
+            }
          }
       catch(Botan::Lookup_Error&)
          {
@@ -694,7 +712,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
 
 #if defined(BOTAN_HAS_PKCS5_PBES2) && defined(BOTAN_HAS_AES) && defined(BOTAN_HAS_SCRYPT)
 
-         test_pbe_roundtrip(result, key, "PBE-PKCS5v20(AES-128/CBC,Scrypt)", Test::random_password());
+         test_pbe_roundtrip(result, key, "PBES2(AES-128/CBC,Scrypt)", Test::random_password());
 #endif
 
          }

@@ -49,8 +49,6 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
                          const uint8_t input[],
                          size_t blocks)
    {
-   verify_key_set(m_HM.size());
-
 #if defined(BOTAN_HAS_GCM_CLMUL)
    if(CPUID::has_clmul())
       {
@@ -113,6 +111,8 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
 void GHASH::ghash_update(secure_vector<uint8_t>& ghash,
                          const uint8_t input[], size_t length)
    {
+   verify_key_set(m_HM.size());
+
    /*
    This assumes if less than block size input then we're just on the
    final block and should pad with zeros
@@ -187,6 +187,7 @@ void GHASH::key_schedule(const uint8_t key[], size_t length)
 
 void GHASH::start(const uint8_t nonce[], size_t len)
    {
+   BOTAN_ARG_CHECK(len == 16, "GHASH requires a 128-bit nonce");
    m_nonce.assign(nonce, nonce + len);
    m_ghash = m_H_ad;
    }

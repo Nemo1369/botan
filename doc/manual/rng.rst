@@ -7,32 +7,29 @@ Random Number Generators
 
    The base class for all RNG objects, is declared in ``rng.h``.
 
-   .. cpp:function:: void RandomNumberGenerator::randomize(uint8_t* output_array, size_t length)
+   .. cpp:function:: void randomize(uint8_t* output_array, size_t length)
 
       Places *length* random bytes into the provided buffer.
 
-   .. cpp:function:: uint8_t next_byte()
-
-      Return a single random byte
-
-   .. cpp:function:: void RandomNumberGenerator::randomize_with_input(uint8_t* data, size_t length, \
-                     const uint8_t* ad, size_t ad_len)
+   .. cpp:function:: void randomize_with_input(uint8_t* data, size_t length, \
+                     const uint8_t* extra_input, size_t extra_input_len)
 
       Like randomize, but first incorporates the additional input field into the
       state of the RNG. The additional input could be anything which
-      parameterizes this request. Not all RNG types accept additional inputs.
+      parameterizes this request. Not all RNG types accept additional inputs,
+      the value will be silently ignored when not supported.
 
-   .. cpp:function:: void RandomNumberGenerator::randomize_with_ts_input(uint8_t* data, size_t length)
+   .. cpp:function:: void randomize_with_ts_input(uint8_t* data, size_t length)
 
       Creates a buffer with some timestamp values and calls ``randomize_with_input``
 
-   .. cpp:function:: uint8_t RandomNumberGenerator::next_byte()
+   .. cpp:function:: uint8_t next_byte()
 
       Generates a single random byte and returns it. Note that calling this
       function several times is much slower than calling ``randomize`` once to
       produce multiple bytes at a time.
 
-   .. cpp:function:: void RandomNumberGenerator::add_entropy(const uint8_t* data, size_t length)
+   .. cpp:function:: void add_entropy(const uint8_t* data, size_t length)
 
       Incorporates provided data into the state of the PRNG, if at all possible.
       This works for most RNG types, including the system and TPM RNGs. But if
@@ -180,7 +177,21 @@ future entropy additions), then the desired RNG outputs.
 This RNG composes two primitives thought to be secure (ChaCha and HMAC) in a
 simple and well studied way (the extract-then-expand paradigm), but is still an
 ad-hoc and non-standard construction. It is included because it is roughly 20x
-faster then HMAC_DRBG, and certain applications need access to a very fast RNG.
+faster then HMAC_DRBG (basically running as fast as ChaCha can generate
+keystream bits), and certain applications need access to a very fast RNG.
+
+One thing applications using ``ChaCha_RNG`` need to be aware of is that for
+performance reasons, no backtracking resistance is implemented in the RNG
+design. An attacker who recovers the ``ChaCha_RNG`` state can recover the output
+backwards in time to the last rekey and forwards to the next rekey.
+
+An explicit reseeding (:cpp:func:`RandomNumberGenerator::add_entropy`) or
+providing any input to the RNG
+(:cpp:func:`RandomNumberGenerator::randomize_with_ts_input`,
+:cpp:func:`RandomNumberGenerator::randomize_with_input`) is sufficient to cause
+a reseeding. Or, if a RNG or entropy source was provided to the ``ChaCha_RNG``
+constructor, then reseeding will be performed automatically after a certain
+interval of requests.
 
 RDRAND_RNG
 ^^^^^^^^^^^^^^^^^
@@ -219,6 +230,20 @@ produced by an EntropySource is only used by an application after it
 has been hashed by the ``RandomNumberGenerator`` that asked for the
 entropy, thus any hashing you do will be wasteful of both CPU cycles
 and entropy.
+
+The following entropy sources are currently used:
+
+ * System RNG. This is simply however the system RNG is implemented on the
+   current system (arc4random, reading /dev/urandom, or RtlGenRandom).
+ * RDRAND: is used if available, but not counted as contributing entropy
+ * RDSEED: is used if available, but not counted as contributing entropy
+ * Darwin SecRandomCopyBytes. This may be redundant with the system RNG
+ * /dev/random and /dev/urandom. This may be redundant with the system RNG
+ * getentropy, only used on OpenBSD currently
+ * /proc walk: read files in /proc. Last ditch protection against
+   flawed system RNG.
+ * Win32 stats: takes snapshot of current system processes. Last ditch
+   protection against flawed system RNG.
 
 Fork Safety
 ---------------------------------

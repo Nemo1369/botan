@@ -1,5 +1,5 @@
 /*
-* (C) 2014,2015,2016 Jack Lloyd
+* (C) 2014,2015,2016,2018 Jack Lloyd
 * (C) 2016 Daniel Neus, Rohde & Schwarz Cybersecurity
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -41,23 +41,28 @@ class AEAD_Tests final : public Text_Based_Test
          if(enc->associated_data_requires_key())
             {
             result.test_throws("Unkeyed object throws for set AD",
-                               [&]() { Botan::secure_vector<uint8_t> ad(16); enc->set_associated_data(ad.data(), ad.size()); });
+                               [&]() { enc->set_associated_data(ad.data(), ad.size()); });
             }
 
-         // First some tests for reset() to make sure it resets what we need it to
-         // set garbage values
-         enc->set_key(mutate_vec(key));
-         enc->set_ad(mutate_vec(ad));
-         enc->start(mutate_vec(nonce));
+         // Ensure that test resets AD and message state
+         enc->set_key(key);
 
          Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(enc->update_granularity());
+
+         if(algo.find("/SIV") == std::string::npos)
+            {
+            result.test_throws("Cannot process data until nonce is set (enc)",
+                               [&]() { enc->update(garbage); });
+            }
+
+         enc->set_ad(mutate_vec(ad));
+         enc->start(mutate_vec(nonce));
          enc->update(garbage);
 
          // reset message specific state
          enc->reset();
 
          // now try to encrypt with correct values
-         enc->set_key(key);
          enc->set_ad(ad);
          enc->start(nonce);
 
@@ -146,12 +151,12 @@ class AEAD_Tests final : public Text_Based_Test
          enc->clear();
 
          result.test_throws("Unkeyed object throws for encrypt after clear",
-                            [&]() { Botan::secure_vector<uint8_t> buf; enc->finish(buf); });
+                            [&]() { enc->finish(buf); });
 
          if(enc->associated_data_requires_key())
             {
             result.test_throws("Unkeyed object throws for set AD after clear",
-                               [&]() { Botan::secure_vector<uint8_t> ad(16); enc->set_associated_data(ad.data(), ad.size()); });
+                               [&]() { enc->set_associated_data(ad.data(), ad.size()); });
             }
 
          return result;
@@ -173,16 +178,24 @@ class AEAD_Tests final : public Text_Based_Test
          if(dec->associated_data_requires_key())
             {
             result.test_throws("Unkeyed object throws for set AD",
-                               [&]() { Botan::secure_vector<uint8_t> ad(16); dec->set_associated_data(ad.data(), ad.size()); });
+                               [&]() { dec->set_associated_data(ad.data(), ad.size()); });
             }
 
          // First some tests for reset() to make sure it resets what we need it to
          // set garbage values
-         dec->set_key(mutate_vec(key));
+         dec->set_key(key);
          dec->set_ad(mutate_vec(ad));
-         dec->start(mutate_vec(nonce));
 
          Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(dec->update_granularity());
+
+         if(algo.find("/SIV") == std::string::npos)
+            {
+            result.test_throws("Cannot process data until nonce is set (dec)",
+                               [&]() { dec->update(garbage); });
+            }
+
+         dec->start(mutate_vec(nonce));
+
          dec->update(garbage);
 
          // reset message specific state
@@ -192,7 +205,6 @@ class AEAD_Tests final : public Text_Based_Test
          try
             {
             // now try to decrypt with correct values
-            dec->set_key(key);
             dec->set_ad(ad);
             dec->start(nonce);
 
@@ -347,12 +359,12 @@ class AEAD_Tests final : public Text_Based_Test
          dec->clear();
 
          result.test_throws("Unkeyed object throws for decrypt",
-                            [&]() { Botan::secure_vector<uint8_t> buf; dec->finish(buf); });
+                            [&]() { dec->finish(buf); });
 
          if(dec->associated_data_requires_key())
             {
             result.test_throws("Unkeyed object throws for set AD",
-                               [&]() { Botan::secure_vector<uint8_t> ad(16); dec->set_associated_data(ad.data(), ad.size()); });
+                               [&]() { dec->set_associated_data(ad.data(), ad.size()); });
             }
 
          return result;

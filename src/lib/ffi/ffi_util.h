@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
+#include <functional>
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
 
@@ -18,7 +19,15 @@ namespace Botan_FFI {
 class BOTAN_UNSTABLE_API FFI_Error final : public Botan::Exception
    {
    public:
-      explicit FFI_Error(const std::string& what) : Exception("FFI error", what) {}
+      FFI_Error(const std::string& what, int err_code) :
+         Exception("FFI error", what),
+         m_err_code(err_code)
+         {}
+
+      int error_code() const { return m_err_code; }
+
+   private:
+      int m_err_code;
    };
 
 template<typename T, uint32_t MAGIC>
@@ -50,47 +59,17 @@ template<typename T, uint32_t M>
 T& safe_get(botan_struct<T,M>* p)
    {
    if(!p)
-      throw FFI_Error("Null pointer argument");
+      throw FFI_Error("Null pointer argument", BOTAN_FFI_ERROR_NULL_POINTER);
    if(p->magic_ok() == false)
-      throw FFI_Error("Bad magic in ffi object");
+      throw FFI_Error("Bad magic in ffi object", BOTAN_FFI_ERROR_INVALID_OBJECT);
 
-   T* t = p->unsafe_get();
-   if(t)
+   if(T* t = p->unsafe_get())
       return *t;
-   else
-      throw FFI_Error("Invalid object pointer");
+
+   throw FFI_Error("Invalid object pointer", BOTAN_FFI_ERROR_INVALID_OBJECT);
    }
 
-template<typename Thunk>
-int ffi_guard_thunk(const char* func_name, Thunk thunk)
-   {
-   try
-      {
-      return thunk();
-      }
-   catch(std::bad_alloc&)
-      {
-      return ffi_error_exception_thrown(func_name, "bad_alloc", BOTAN_FFI_ERROR_OUT_OF_MEMORY);
-      }
-   catch(Botan::Key_Not_Set& e)
-      {
-      return ffi_error_exception_thrown(func_name, e.what(), BOTAN_FFI_ERROR_KEY_NOT_SET);
-      }
-   catch(Botan::Invalid_Argument& e)
-      {
-      return ffi_error_exception_thrown(func_name, e.what(), BOTAN_FFI_ERROR_BAD_PARAMETER);
-      }
-   catch(std::exception& e)
-      {
-      return ffi_error_exception_thrown(func_name, e.what());
-      }
-   catch(...)
-      {
-      return ffi_error_exception_thrown(func_name, "unknown exception");
-      }
-
-   return BOTAN_FFI_ERROR_UNKNOWN_ERROR;
-   }
+int ffi_guard_thunk(const char* func_name, std::function<int ()>);
 
 template<typename T, uint32_t M, typename F>
 int apply_fn(botan_struct<T, M>* o, const char* func_name, F func)
@@ -136,10 +115,13 @@ int ffi_delete_object(botan_struct<T, M>* obj, const char* func_name)
 
 inline int write_output(uint8_t out[], size_t* out_len, const uint8_t buf[], size_t buf_len)
    {
+   if(out_len == nullptr)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+
    const size_t avail = *out_len;
    *out_len = buf_len;
 
-   if(avail >= buf_len)
+   if((avail >= buf_len) && (out != nullptr))
       {
       Botan::copy_mem(out, buf, buf_len);
       return BOTAN_FFI_SUCCESS;

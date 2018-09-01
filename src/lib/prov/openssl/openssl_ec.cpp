@@ -229,7 +229,10 @@ class OpenSSL_ECDSA_Signing_Operation final : public PK_Ops::Signature_with_EMSA
 
          const EC_GROUP* group = ::EC_KEY_get0_group(m_ossl_ec.get());
          m_order_bits = ::EC_GROUP_get_degree(group);
+         m_order_bytes = (m_order_bits + 7) / 8;
          }
+
+      size_t signature_length() const override { return 2*m_order_bytes; }
 
       secure_vector<uint8_t> raw_sign(const uint8_t msg[], size_t msg_len,
                                    RandomNumberGenerator&) override
@@ -239,8 +242,6 @@ class OpenSSL_ECDSA_Signing_Operation final : public PK_Ops::Signature_with_EMSA
 
          if(!sig)
             throw OpenSSL_Error("ECDSA_do_sign");
-
-         const size_t order_bytes = (m_order_bits + 7) / 8;
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
          const BIGNUM* r = sig->r;
@@ -253,9 +254,9 @@ class OpenSSL_ECDSA_Signing_Operation final : public PK_Ops::Signature_with_EMSA
 
          const size_t r_bytes = BN_num_bytes(r);
          const size_t s_bytes = BN_num_bytes(s);
-         secure_vector<uint8_t> sigval(2*order_bytes);
-         BN_bn2bin(r, &sigval[order_bytes - r_bytes]);
-         BN_bn2bin(s, &sigval[2*order_bytes - s_bytes]);
+         secure_vector<uint8_t> sigval(2*m_order_bytes);
+         BN_bn2bin(r, &sigval[m_order_bytes - r_bytes]);
+         BN_bn2bin(s, &sigval[2*m_order_bytes - s_bytes]);
          return sigval;
          }
 
@@ -263,7 +264,8 @@ class OpenSSL_ECDSA_Signing_Operation final : public PK_Ops::Signature_with_EMSA
 
    private:
       std::unique_ptr<EC_KEY, std::function<void (EC_KEY*)>> m_ossl_ec;
-      size_t m_order_bits = 0;
+      size_t m_order_bits;
+      size_t m_order_bytes;
    };
 
 }
@@ -303,12 +305,15 @@ class OpenSSL_ECDH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
       OpenSSL_ECDH_KA_Operation(const ECDH_PrivateKey& ecdh, const std::string& kdf) :
          PK_Ops::Key_Agreement_with_KDF(kdf), m_ossl_ec(::EC_KEY_new(), ::EC_KEY_free)
          {
+         m_value_size = ecdh.domain().get_p_bytes();
          const secure_vector<uint8_t> der = PKCS8_for_openssl(ecdh);
          const uint8_t* der_ptr = der.data();
          m_ossl_ec.reset(d2i_ECPrivateKey(nullptr, &der_ptr, der.size()));
          if(!m_ossl_ec)
             throw OpenSSL_Error("d2i_ECPrivateKey");
          }
+
+      size_t agreed_value_size() const override { return m_value_size; }
 
       secure_vector<uint8_t> raw_agree(const uint8_t w[], size_t w_len) override
          {
@@ -346,6 +351,7 @@ class OpenSSL_ECDH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
 
    private:
       std::unique_ptr<EC_KEY, std::function<void (EC_KEY*)>> m_ossl_ec;
+      size_t m_value_size;
    };
 
 }

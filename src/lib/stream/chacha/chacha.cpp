@@ -67,6 +67,13 @@ ChaCha::ChaCha(size_t rounds) : m_rounds(rounds)
 
 std::string ChaCha::provider() const
    {
+#if defined(BOTAN_HAS_CHACHA_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return "avx2";
+      }
+#endif
+
 #if defined(BOTAN_HAS_CHACHA_SSE2)
    if(CPUID::has_sse2())
       {
@@ -78,19 +85,28 @@ std::string ChaCha::provider() const
    }
 
 //static
-void ChaCha::chacha_x4(uint8_t output[64*4], uint32_t input[16], size_t rounds)
+void ChaCha::chacha_x8(uint8_t output[64*8], uint32_t input[16], size_t rounds)
    {
    BOTAN_ASSERT(rounds % 2 == 0, "Valid rounds");
+
+#if defined(BOTAN_HAS_CHACHA_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return ChaCha::chacha_avx2_x8(output, input, rounds);
+      }
+#endif
 
 #if defined(BOTAN_HAS_CHACHA_SSE2)
    if(CPUID::has_sse2())
       {
-      return ChaCha::chacha_sse2_x4(output, input, rounds);
+      ChaCha::chacha_sse2_x4(output, input, rounds);
+      ChaCha::chacha_sse2_x4(output + 4*64, input, rounds);
+      return;
       }
 #endif
 
    // TODO interleave rounds
-   for(size_t i = 0; i != 4; ++i)
+   for(size_t i = 0; i != 8; ++i)
       {
       uint32_t x00 = input[ 0], x01 = input[ 1], x02 = input[ 2], x03 = input[ 3],
                x04 = input[ 4], x05 = input[ 5], x06 = input[ 6], x07 = input[ 7],
@@ -109,8 +125,6 @@ void ChaCha::chacha_x4(uint8_t output[64*4], uint32_t input[16], size_t rounds)
          CHACHA_QUARTER_ROUND(x02, x07, x08, x13);
          CHACHA_QUARTER_ROUND(x03, x04, x09, x14);
          }
-
-#undef CHACHA_QUARTER_ROUND
 
       x00 += input[0];
       x01 += input[1];
@@ -151,6 +165,8 @@ void ChaCha::chacha_x4(uint8_t output[64*4], uint32_t input[16], size_t rounds)
       }
    }
 
+#undef CHACHA_QUARTER_ROUND
+
 /*
 * Combine cipher stream with message
 */
@@ -164,11 +180,29 @@ void ChaCha::cipher(const uint8_t in[], uint8_t out[], size_t length)
       length -= (m_buffer.size() - m_position);
       in += (m_buffer.size() - m_position);
       out += (m_buffer.size() - m_position);
-      chacha_x4(m_buffer.data(), m_state.data(), m_rounds);
+      chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
       m_position = 0;
       }
 
    xor_buf(out, in, &m_buffer[m_position], length);
+
+   m_position += length;
+   }
+
+void ChaCha::write_keystream(uint8_t out[], size_t length)
+   {
+   verify_key_set(m_state.empty() == false);
+
+   while(length >= m_buffer.size() - m_position)
+      {
+      copy_mem(out, &m_buffer[m_position], m_buffer.size() - m_position);
+      length -= (m_buffer.size() - m_position);
+      out += (m_buffer.size() - m_position);
+      chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
+      m_position = 0;
+      }
+
+   copy_mem(out, &m_buffer[m_position], length);
 
    m_position += length;
    }
@@ -228,9 +262,27 @@ void ChaCha::key_schedule(const uint8_t key[], size_t length)
    load_le<uint32_t>(m_key.data(), key, m_key.size());
 
    m_state.resize(16);
-   m_buffer.resize(4*64);
+
+   const size_t chacha_parallelism = 8; // chacha_x8
+   const size_t chacha_block = 64;
+   m_buffer.resize(chacha_parallelism * chacha_block);
 
    set_iv(nullptr, 0);
+   }
+
+size_t ChaCha::default_iv_length() const
+   {
+   return 24;
+   }
+
+Key_Length_Specification ChaCha::key_spec() const
+   {
+   return Key_Length_Specification(16, 32, 16);
+   }
+
+StreamCipher* ChaCha::clone() const
+   {
+   return new ChaCha(m_rounds);
    }
 
 bool ChaCha::valid_iv_length(size_t iv_len) const
@@ -288,7 +340,7 @@ void ChaCha::set_iv(const uint8_t iv[], size_t length)
       m_state[15] = load_le<uint32_t>(iv, 5);
       }
 
-   chacha_x4(m_buffer.data(), m_state.data(), m_rounds);
+   chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
    m_position = 0;
    }
 
@@ -310,7 +362,7 @@ void ChaCha::seek(uint64_t offset)
    verify_key_set(m_state.empty() == false);
 
    // Find the block offset
-   uint64_t counter = offset / 64;
+   const uint64_t counter = offset / 64;
 
    uint8_t out[8];
 
@@ -319,7 +371,7 @@ void ChaCha::seek(uint64_t offset)
    m_state[12] = load_le<uint32_t>(out, 0);
    m_state[13] += load_le<uint32_t>(out, 1);
 
-   chacha_x4(m_buffer.data(), m_state.data(), m_rounds);
+   chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
    m_position = offset % 64;
    }
 }
