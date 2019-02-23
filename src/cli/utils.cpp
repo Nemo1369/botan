@@ -17,10 +17,6 @@
 #include <iterator>
 #include <iomanip>
 
-#if defined(BOTAN_HAS_HASH)
-   #include <botan/hash.h>
-#endif
-
 #if defined(BOTAN_HAS_MAC)
    #include <botan/mac.h>
 #endif
@@ -31,10 +27,6 @@
 
 #if defined(BOTAN_HAS_HTTP_UTIL)
    #include <botan/http_util.h>
-#endif
-
-#if defined(BOTAN_HAS_BCRYPT)
-   #include <botan/bcrypt.h>
 #endif
 
 namespace Botan_CLI {
@@ -70,6 +62,7 @@ class Print_Help final : public Command
             { "psk", "PSK Database" },
             { "pubkey", "Public Key Cryptography" },
             { "tls", "TLS" },
+            { "tss", "Secret Sharing" },
             { "x509", "X.509" },
             { "misc", "Miscellaneous" }
          };
@@ -268,67 +261,6 @@ class Print_Cpuid final : public Command
 
 BOTAN_REGISTER_COMMAND("cpuid", Print_Cpuid);
 
-#if defined(BOTAN_HAS_HASH)
-
-class Hash final : public Command
-   {
-   public:
-      Hash() : Command("hash --algo=SHA-256 --buf-size=4096 --no-fsname *files") {}
-
-      std::string group() const override
-         {
-         return "hash";
-         }
-
-      std::string description() const override
-         {
-         return "Compute the message digest of given file(s)";
-         }
-
-      void go() override
-         {
-         const std::string hash_algo = get_arg("algo");
-         std::unique_ptr<Botan::HashFunction> hash_fn(Botan::HashFunction::create(hash_algo));
-
-         if(!hash_fn)
-            {
-            throw CLI_Error_Unsupported("hashing", hash_algo);
-            }
-
-         const size_t buf_size = get_arg_sz("buf-size");
-         const bool no_fsname = flag_set("no-fsname");
-
-         std::vector<std::string> files = get_arg_list("files");
-         if(files.empty())
-            {
-            files.push_back("-");
-            } // read stdin if no arguments on command line
-
-         for(const std::string& fsname : files)
-            {
-            try
-               {
-               auto update_hash = [&](const uint8_t b[], size_t l) { hash_fn->update(b, l); };
-               read_file(fsname, update_hash, buf_size);
-               const std::string digest = Botan::hex_encode(hash_fn->final());
-
-               if(no_fsname)
-                  output() << digest << "\n";
-               else
-                  output() << digest << " " << fsname << "\n";
-               }
-            catch(CLI_IO_Error& e)
-               {
-               error_output() << e.what() << "\n";
-               }
-            }
-         }
-   };
-
-BOTAN_REGISTER_COMMAND("hash", Hash);
-
-#endif
-
 class RNG final : public Command
    {
    public:
@@ -519,77 +451,6 @@ class Base64_Decode final : public Command
 BOTAN_REGISTER_COMMAND("base64_dec", Base64_Decode);
 
 #endif // base64
-
-#if defined(BOTAN_HAS_BCRYPT)
-
-class Generate_Bcrypt final : public Command
-   {
-   public:
-      Generate_Bcrypt() : Command("gen_bcrypt --work-factor=12 password") {}
-
-      std::string group() const override
-         {
-         return "passhash";
-         }
-
-      std::string description() const override
-         {
-         return "Calculate the bcrypt password digest of a given file";
-         }
-
-      void go() override
-         {
-         const std::string password = get_arg("password");
-         const size_t wf = get_arg_sz("work-factor");
-
-         if(wf < 4 || wf > 18)
-            {
-            error_output() << "Invalid bcrypt work factor\n";
-            }
-         else
-            {
-            const uint16_t wf16 = static_cast<uint16_t>(wf);
-            output() << Botan::generate_bcrypt(password, rng(), wf16) << "\n";
-            }
-         }
-   };
-
-BOTAN_REGISTER_COMMAND("gen_bcrypt", Generate_Bcrypt);
-
-class Check_Bcrypt final : public Command
-   {
-   public:
-      Check_Bcrypt() : Command("check_bcrypt password hash") {}
-
-      std::string group() const override
-         {
-         return "passhash";
-         }
-
-      std::string description() const override
-         {
-         return "Checks a given bcrypt hash against hash";
-         }
-
-      void go() override
-         {
-         const std::string password = get_arg("password");
-         const std::string hash = get_arg("hash");
-
-         if(hash.length() != 60)
-            {
-            error_output() << "Note: bcrypt '" << hash << "' has wrong length and cannot be valid\n";
-            }
-
-         const bool ok = Botan::check_bcrypt(password, hash);
-
-         output() << "Password is " << (ok ? "valid" : "NOT valid") << std::endl;
-         }
-   };
-
-BOTAN_REGISTER_COMMAND("check_bcrypt", Check_Bcrypt);
-
-#endif // bcrypt
 
 #if defined(BOTAN_HAS_HMAC)
 

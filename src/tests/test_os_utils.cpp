@@ -19,7 +19,7 @@ namespace {
 
 /*
 uint32_t get_process_id();
-uint64_t get_processor_timestamp();
+uint64_t get_cpu_cycle_counter();
 uint64_t get_system_timestamp_ns();
 size_t get_memory_locking_limit();
 void* allocate_locked_pages(size_t length);
@@ -35,7 +35,7 @@ class OS_Utils_Tests final : public Test
          std::vector<Test::Result> results;
 
          results.push_back(test_get_process_id());
-         results.push_back(test_get_processor_timestamp());
+         results.push_back(test_get_cpu_cycle_counter());
          results.push_back(test_get_high_resolution_clock());
          results.push_back(test_get_system_timestamp());
          results.push_back(test_memory_locking());
@@ -56,7 +56,7 @@ class OS_Utils_Tests final : public Test
          result.test_eq("PID same across calls", static_cast<size_t>(pid1), static_cast<size_t>(pid2));
 
 #if defined(BOTAN_TARGET_OS_IS_INCLUDEOS) || defined(BOTAN_TARGET_OS_IS_LLVM)
-         result.test_eq("PID is expected to be zero on this platform", pid1, 0);
+         result.test_eq("PID is expected to be zero on this platform", pid1, size_t(0));
 #else
          result.test_ne("PID is non-zero on systems with processes", pid1, 0);
 #endif
@@ -64,43 +64,48 @@ class OS_Utils_Tests final : public Test
          return result;
          }
 
-      Test::Result test_get_processor_timestamp()
+      Test::Result test_get_cpu_cycle_counter()
          {
-         Test::Result result("OS::get_processor_timestamp");
+         const size_t max_trials = 1024;
+         const size_t max_repeats = 32;
 
-         const uint64_t proc_ts1 = Botan::OS::get_processor_timestamp();
+         Test::Result result("OS::get_cpu_cycle_counter");
+
+         const uint64_t proc_ts1 = Botan::OS::get_cpu_cycle_counter();
 
          if(proc_ts1 == 0)
             {
-            const uint64_t proc_ts2 = Botan::OS::get_processor_timestamp();
+            const uint64_t proc_ts2 = Botan::OS::get_cpu_cycle_counter();
             result.test_is_eq("Disabled processor timestamp stays at zero", proc_ts1, proc_ts2);
             return result;
             }
 
          size_t counts = 0;
-         while(counts < 100 && (Botan::OS::get_processor_timestamp() == proc_ts1))
+         while(counts < max_trials && (Botan::OS::get_cpu_cycle_counter() == proc_ts1))
             ++counts;
 
-         result.test_lt("CPU cycle counter eventually changes value", counts, 10);
+         result.test_lt("CPU cycle counter eventually changes value", counts, max_repeats);
 
          return result;
          }
 
       Test::Result test_get_high_resolution_clock()
          {
-         // TODO better tests
+         const size_t max_trials = 1024;
+         const size_t max_repeats = 128;
 
          Test::Result result("OS::get_high_resolution_clock");
 
-         uint64_t hr_ts1 = Botan::OS::get_high_resolution_clock();
+         // TODO better tests
+         const uint64_t hr_ts1 = Botan::OS::get_high_resolution_clock();
          result.test_ne("high resolution timestamp value is never zero", hr_ts1, 0);
 
-         // do something that consumes a little time
-         Botan::OS::get_process_id();
+         size_t counts = 0;
+         while(counts < max_trials && (Botan::OS::get_high_resolution_clock() == hr_ts1))
+            ++counts;
 
-         uint64_t hr_ts2 = Botan::OS::get_high_resolution_clock();
+         result.test_lt("high resolution clock eventually changes value", counts, max_repeats);
 
-         result.test_ne("high resolution timestamp does not duplicate", hr_ts1, hr_ts2);
          return result;
          }
 

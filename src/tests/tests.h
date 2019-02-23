@@ -45,6 +45,7 @@ class Test_Error final : public Botan::Exception
    {
    public:
       explicit Test_Error(const std::string& what) : Exception("Test error", what) {}
+      Botan::ErrorType error_type() const noexcept override { return Botan::ErrorType::Unknown; }
    };
 
 class Test_Options
@@ -53,11 +54,13 @@ class Test_Options
       Test_Options() = default;
 
       Test_Options(const std::vector<std::string>& requested_tests,
+                   const std::vector<std::string>& skip_tests,
                    const std::string& data_dir,
                    const std::string& pkcs11_lib,
                    const std::string& provider,
                    const std::string& drbg_seed,
                    size_t test_runs,
+                   size_t test_threads,
                    bool verbose,
                    bool log_success,
                    bool run_online_tests,
@@ -65,21 +68,27 @@ class Test_Options
                    bool abort_on_first_fail,
                    bool undefined_behavior_allowed) :
          m_requested_tests(requested_tests),
+         m_skip_tests(skip_tests.begin(), skip_tests.end()),
          m_data_dir(data_dir),
          m_pkcs11_lib(pkcs11_lib),
          m_provider(provider),
          m_drbg_seed(drbg_seed),
          m_test_runs(test_runs),
+         m_test_threads(test_threads),
          m_verbose(verbose),
          m_log_success(log_success),
          m_run_online_tests(run_online_tests),
          m_run_long_tests(run_long_tests),
          m_abort_on_first_fail(abort_on_first_fail),
          m_undefined_behavior_allowed(undefined_behavior_allowed)
-         {}
+         {
+         }
 
       const std::vector<std::string>& requested_tests() const
          { return m_requested_tests; }
+
+      const std::set<std::string>& skip_tests() const
+         { return m_skip_tests; }
 
       const std::string& data_dir() const { return m_data_dir; }
 
@@ -90,6 +99,8 @@ class Test_Options
       const std::string& drbg_seed() const { return m_drbg_seed; }
 
       size_t test_runs() const { return m_test_runs; }
+
+      size_t test_threads() const { return m_test_threads; }
 
       bool log_success() const { return m_log_success; }
 
@@ -113,11 +124,13 @@ class Test_Options
 
    private:
       std::vector<std::string> m_requested_tests;
+      std::set<std::string> m_skip_tests;
       std::string m_data_dir;
       std::string m_pkcs11_lib;
       std::string m_provider;
       std::string m_drbg_seed;
       size_t m_test_runs;
+      size_t m_test_threads;
       bool m_verbose;
       bool m_log_success;
       bool m_run_online_tests;
@@ -303,6 +316,7 @@ class Test
 
             bool test_lt(const std::string& what, size_t produced, size_t expected);
             bool test_lte(const std::string& what, size_t produced, size_t expected);
+            bool test_gt(const std::string& what, size_t produced, size_t expected);
             bool test_gte(const std::string& what, size_t produced, size_t expected);
 
             template<typename T>
@@ -427,22 +441,19 @@ class Test
             std::vector<std::string> m_log;
          };
 
-      class Registration final
-         {
-         public:
-            Registration(const std::string& name, Test* test);
-         };
-
       virtual ~Test() = default;
       virtual std::vector<Test::Result> run() = 0;
 
       virtual std::vector<std::string> possible_providers(const std::string&);
 
-      static std::map<std::string, std::unique_ptr<Test>>& global_registry();
+      static void register_test(const std::string& name,
+                                std::function<Test* ()> maker_fn);
+
+      static std::map<std::string, std::function<Test* ()>>& global_registry();
 
       static std::set<std::string> registered_tests();
 
-      static Test* get_test(const std::string& test_name);
+      static std::unique_ptr<Test> get_test(const std::string& test_name);
 
       static std::string data_file(const std::string& what);
 
@@ -505,8 +516,48 @@ class Test
 /*
 * Register the test with the runner
 */
-#define BOTAN_REGISTER_TEST(type, Test_Class) \
-   Test::Registration reg_ ## Test_Class ## _tests(type, new Test_Class)
+template<typename Test_Class>
+class TestClassRegistration
+   {
+   public:
+      TestClassRegistration(const std::string& name)
+         {
+         auto test_maker = []() -> Test* { return new Test_Class; };
+         Test::register_test(name, test_maker);
+         }
+   };
+
+#define BOTAN_REGISTER_TEST(name, Test_Class)                 \
+   TestClassRegistration<Test_Class> reg_ ## Test_Class ## _tests(name)
+
+typedef Test::Result (*test_fn)();
+
+class FnTest : public Test
+   {
+   public:
+      FnTest(test_fn fn) : m_fn(fn) {}
+
+      std::vector<Test::Result> run() override
+         {
+         return {m_fn()};
+         }
+
+   private:
+      test_fn m_fn;
+   };
+
+class TestFnRegistration
+   {
+   public:
+      TestFnRegistration(const std::string& name, test_fn fn)
+         {
+         auto test_maker = [=]() -> Test* { return new FnTest(fn); };
+         Test::register_test(name, test_maker);
+         }
+   };
+
+#define BOTAN_REGISTER_TEST_FN(name, fn_name)         \
+   TestFnRegistration reg_ ## fn_name(name, fn_name)
 
 class VarMap
    {
@@ -528,6 +579,8 @@ class VarMap
       std::vector<uint8_t> get_req_bin(const std::string& key) const;
       std::vector<uint8_t> get_opt_bin(const std::string& key) const;
 
+      std::vector<std::vector<uint8_t>> get_req_bin_list(const std::string& key) const;
+
 #if defined(BOTAN_HAS_BIGINT)
       Botan::BigInt get_req_bn(const std::string& key) const;
       Botan::BigInt get_opt_bn(const std::string& key, const Botan::BigInt& def_value) const;
@@ -538,7 +591,13 @@ class VarMap
                               const std::string& def_value) const;
 
       size_t get_req_sz(const std::string& key) const;
+
+      uint8_t get_req_u8(const std::string& key) const;
+      uint32_t get_req_u32(const std::string& key) const;
+
       size_t get_opt_sz(const std::string& key, const size_t def_value) const;
+
+      uint64_t get_opt_u64(const std::string& key, const uint64_t def_value) const;
 
    private:
       std::unordered_map<std::string, std::string> m_vars;

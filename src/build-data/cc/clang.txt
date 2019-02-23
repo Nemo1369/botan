@@ -18,7 +18,7 @@ default   -> address,undefined
 
 address   -> "-fsanitize=address"
 undefined -> "-fsanitize=undefined -fno-sanitize-recover=undefined"
-coverage  -> "-fsanitize-coverage=edge,indirect-calls,8bit-counters"
+coverage  -> "-fsanitize-coverage=edge,indirect-calls,trace-pc-guard,trace-cmp,trace-gep"
 memory    -> "-fsanitize=memory"
 </sanitizers>
 
@@ -42,6 +42,7 @@ linux         -> "$(LINKER) -Wl,-rpath=\$$ORIGIN"
 freebsd       -> "$(LINKER) -Wl,-rpath=\$$ORIGIN"
 default       -> "$(LINKER)"
 llvm          -> "llvm-link"
+emscripten    -> "em++"
 </binary_link_commands>
 
 <isa_flags>
@@ -57,7 +58,7 @@ rdseed -> "-mrdseed"
 sha    -> "-msha"
 altivec -> "-maltivec"
 
-arm64:armv8crypto -> ""
+arm64:armv8crypto -> "-march=armv8+crypto"
 
 arm32:neon    -> "-mfpu=neon"
 arm64:neon    -> ""
@@ -68,7 +69,7 @@ llvm    -> "-emit-llvm -fno-use-cxa-atexit"
 </cpu_flags>
 
 <mach_abi_linking>
-all!haiku -> "-pthread"
+all!haiku,llvm -> "-pthread"
 
 openmp  -> "-fopenmp"
 

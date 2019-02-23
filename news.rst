@@ -1,8 +1,167 @@
 Release Notes
 ========================================
 
-Version 2.8.0, Not Yet Released
+Version 2.10.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Added a new certificate store implementation that can access the
+  MacOS keychain certificate store. (GH #1830)
+
+* Redesigned ``Memory_Pool`` class, which services allocations out of a
+  set of pages locked into memory (using ``mlock``/``VirtualLock``). It is now
+  faster and with improved exploit mitigations. (GH #1800)
+
+* Add BMI2 implementations of SHA-512 and SHA-3 which improve performance by
+  25-35% on common CPUs. (GH #1815)
+
+* Unroll SHA-3 computation improving performance by 10-12% (GH #1838)
+
+* Add a ``Thread_Pool`` class. It is now possible to run the tests in multiple
+  threads with `--test-threads=N`` flag to select the number of threads to use.
+  Use ``--test-threads=0`` to run with as many CPU cores as are available on the
+  current system. The default remains single threaded. (GH #1819)
+
+* Some functions related to encoding and decoding BigInts have been deprecated.
+  (GH #1817)
+
+* Binary encoding and decoding of BigInts has been optimized by performing
+  word-size operations when possible. (GH #1817)
+
+* Rename the exception ``Integrity_Failure`` to ``Invalid_Authentication_Tag`` to make
+  its meaning and usage more clear. The old name remains as a typedef. (GH #1816)
+
+* Support for using Boost ``filesystem`` and MSVC's ``std::filesystem`` have been
+  removed, since already POSIX and Win32 versions had to be maintained for
+  portability. (GH #1814)
+
+* Newly generated McEliece and XMSS keys now default to being encrypted using
+  SIV mode, support for which was added in 2.8.0. Previously GCM was used by
+  default for these algorithms.
+
+* Add a facility for sandboxing the command line util. Currently FreeBSD
+  (Capsicum) and OpenBSD (``pledge``) sandboxes are supported. (GH #1808)
+
+* Use ``if constexpr`` when available.
+
+* Add support for using ``sccache`` to cache the Windows CI build (GH #1807)
+
+* Add ``--extra-cxxflags`` option which allows adding compilation flags without
+  overriding the default set. (GH #1826)
+
+* Add ``--format=`` option to the ``hash`` cli which allows formatting the output
+  as base64 or base58, default output remains hex.
+
+* Minor HMAC optimizations.
+
+* Build fixes for GNU/Hurd.
+
+* Fix a bug that prevented generating or verifying Ed25519 signatures in the CLI
+  (GH #1828 #1829)
+
+* Fix a compilation error when building the amalgamation outside of the original
+  source directory when AVX2 was enabled. (GH #1812)
+
+* Fix a crash when creating the amalgamation if a header file was edited on
+  Windows but then the amalgamation was built on Linux (GH #1763)
+
+Version 2.9.0, 2019-01-04
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* CVE-2018-20187 Address a side channel during ECC key generation,
+  which used an unblinded Montgomery ladder. As a result, a timing
+  attack can reveal information about the high bits of the secret key.
+
+* Fix bugs in TLS which caused negotiation failures when the client
+  used an unknown signature algorithm or version (GH #1711 #1709 #1708)
+
+* Fix bug affecting GCM, EAX and ChaCha20Poly1305 where if the associated data
+  was set after starting a message, the new AD was not reflected in the produced
+  tag. Now with these modes setting an AD after beginning a message throws an
+  exception.
+
+* Use a smaller sieve which improves performance of prime generation.
+
+* Fixed a bug that caused ChaCha to produce incorrect output after encrypting
+  256 GB. (GH #1728)
+
+* Add NEON and AltiVec implementations of ChaCha (GH #1719 #1728 #1729)
+
+* Optimize AVX2 ChaCha (GH #1730)
+
+* Many more operations in BigInt, ECC and RSA code paths are either fully const time
+  or avoid problematic branches that could potentially be exploited in a side
+  channel attack. (GH #1738 #1750 #1754 #1755 #1757 #1758 #1759 #1762 #1765
+  #1770 #1773 #1774 #1779 #1780 #1794 #1795 #1796 #1797)
+
+* Several optimizations for BigInt and ECC, improving ECDSA performance by as
+  much as 30%. (GH #1734 #1737 #1777 #1750 #1737 #1788)
+
+* Support recovering an ECDSA public key from a message/signature pair (GH #664 #1784)
+
+* Add base58 encoding/decoding functions (GH #1783)
+
+* In the command line interface, add support for reading passphrases from the
+  terminal with echo disabled (GH #1756)
+
+* Add ``CT::Mask`` type to simplify const-time programming (GH #1751)
+
+* Add new configure options ``--disable-bmi2``, ``--disable-rdrand``,
+  and ``--disable-rdseed`` to prevent use of those instruction sets.
+
+* Add ``error_type`` and ``error_code`` functions to Exception type (GH #1744)
+
+* Now on POSIX systems ``posix_memalign`` is used instead of ``mmap`` for
+  allocating the page-locked memory pool. This avoids issues with ``fork``.
+  (GH #602 #1798)
+
+* When available, use RDRAND to generate the additional data in
+  ``Stateful_RNG::randomize_with_ts_input``
+
+* Use vzeroall/vzeroupper intrinsics to avoid AVX2/SSE transition penalties.
+
+* Support for Visual C++ 2013 has been removed (GH #1557 #1697)
+
+* Resolve a memory leak when verifying ECDSA signatures with versions
+  of OpenSSL before 1.1.0 (GH #1698)
+
+* Resolve a memory leak using ECDH via OpenSSL (GH #1767)
+
+* Fix an error in XTS which prohibited encrypting values which were
+  exactly the same length as the underlying block size. Messages of
+  this size are allowed by the standard and other XTS implementations.
+  (GH #1706)
+
+* Resolve a bug in TSS which resulted in it using an incorrect length
+  field in the shares. Now the correct length is encoded, but either
+  correct or buggy lengths are accepted when decoding. (GH #1722)
+
+* Correct a bug when reducing a negative ``BigInt`` modulo a small power of 2.
+  (GH #1755)
+
+* Add CLI utils for threshold secret splitting. (GH #1722)
+
+* Fix a bug introduced in 2.8.0 that caused compilation failure if using
+  a single amalgamation file with AVX2 enabled. (GH #1700)
+
+* Add an explicit OS target for Emscripten and improve support for it.
+  (GH #1702)
+
+* Fix small issues when building for QNX
+
+* Switch the Travis CI build to using Ubuntu 16.04 (GH #1767)
+
+* Add options to ``configure.py`` to disable generation of ``pkg-config``
+  file, and (for systems where ``pkg-config`` support defaults to off,
+  like Windows), to enable generating it. (GH #1268)
+
+* Modify ``configure.py`` to accept empty lists or trailing/extra commas.
+  (GH #1705)
+
+Version 2.8.0, 2018-10-01
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add support for using Apple CommonCrypto library for hashing (GH #1667),
+  cipher modes (GH #1674) and block ciphers (GH #1673).
 
 * Support for negotiating TLS versions 1.0 and 1.1 is disabled in the default
   TLS policy. In addition, support for negotiating TLS ciphersuites using CBC or
@@ -19,12 +178,15 @@ Version 2.8.0, Not Yet Released
 
 * Add AVX2 implementations of ChaCha (GH #1662) and Serpent (GH #1660)
 
+* Add a new password hashing interface in pwdhash.h (GH #1670)
+
 * C binding improvements. Added functions to get name and supported
   keylengths of cipher, hash and MAC objects, support for FE1 format
   preserving encryption (GH #1625 #1646), functions to load and save
   RSA keys in PKCS #1 format (GH #1621), HOTP and TOTP algorithms,
-  scrypt, certificate verification (GH #1647), and functions to get
-  the output length of public key operations (GH #1642).
+  scrypt, certificate verification (GH #1647), functions to get the
+  output length of public key operations (GH #1642), and functions for
+  loading and serializing X25519 keys (GH #1681)
 
 * Support for building with BOTAN_MP_WORD_BITS set to 8 or 16 has been removed.
 
@@ -35,6 +197,9 @@ Version 2.8.0, Not Yet Released
 * The ``Cipher_Mode`` class now derives from ``SymmetricAlgorithm`` (GH #1639)
 
 * Add support for using the ARMv8 instructions for SM4 encryption (GH #1622)
+
+* The entropy source using ``SecRandomCopyBytes`` has been removed as it was
+  redundant with other entropy sources (GH #1668)
 
 * The Python module has much better error checking and reporting, and offers new
   functionality such as scrypt, MPI and FPE. (GH #1643 #1646)
@@ -50,6 +215,9 @@ Version 2.8.0, Not Yet Released
 * In ECC private keys, include the public key data for compatibility with
   GnuTLS (GH #1634 #1635)
 
+* Add support for using Linux ``getrandom`` syscall to access the system PRNG.
+  This is disabled by default, use ``--with-os-feature=getrandom`` to enable.
+
 * It is now possible to encrypt private keys using SIV mode.
 
 * The FFI function botan_privkey_load now ignores its rng argument.
@@ -62,10 +230,13 @@ Version 2.8.0, Not Yet Released
 * Handle an error seen when verifying invalid ECDSA signatures using LibreSSL
   on non x86-64 platforms (GH #1627 #1628)
 
+* Fix bugs in PKCS7 and X9.23 CBC padding schemes, which would ignore
+  the first byte in the event the padding took up the entire block. (GH #1690)
+
 * Correct bugs which would cause CFB, OCB, and GCM modes to crash when they
   were used in an unkeyed state. (GH #1639)
 
-* Optimizations for SM4
+* Optimizations for SM4 and Poly1305
 
 * Avoid a cache side channel in the AES key schedule
 
@@ -74,6 +245,8 @@ Version 2.8.0, Not Yet Released
 * Now ``asn1print`` CLI defaults to printing context-specific fields.
 
 * Use codec_base for Base64, which matches how Base32 is implemented (GH #1597)
+
+* The ``cast`` module has been split up into ``cast128`` and ``cast256`` (GH #1685)
 
 * When building under Visual C++ 2013, the user must acknowledge the upcoming
   removal of support using the configure.py flag ``--ack-vc2013-deprecated``

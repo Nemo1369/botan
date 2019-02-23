@@ -40,6 +40,14 @@ def have_prog(prog):
             return True
     return False
 
+def find_rst2man():
+    possible_names = ['rst2man', 'rst2man.py']
+
+    for name in possible_names:
+        if have_prog(name):
+            return name
+    raise Exception("Was configured with rst2man but could not be located in PATH")
+
 def touch(fname):
     try:
         os.utime(fname, None)
@@ -62,30 +70,16 @@ def copy_files(src_path, dest_dir):
 
 def run_and_check(cmd_line, cwd=None):
 
-    logging.debug("Executing %s", ' '.join(cmd_line))
-
-    stdout = None
-    stderr = None
+    logging.info("Starting %s", ' '.join(cmd_line))
 
     try:
-        proc = subprocess.Popen(cmd_line,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                cwd=cwd)
+        proc = subprocess.Popen(cmd_line, cwd=cwd)
 
-        (stdout, stderr) = proc.communicate()
+        proc.communicate()
     except OSError as e:
         logging.error("Executing %s failed (%s)", ' '.join(cmd_line), e)
 
-    if stdout:
-        logging.info(stdout.decode())
-
-    if stderr:
-        logging.info(stderr.decode())
-
     if proc.returncode != 0:
-        logging.info(stdout.decode())
-        logging.info(stderr.decode())
         logging.error("Error running %s", ' '.join(cmd_line))
         sys.exit(1)
 
@@ -135,10 +129,20 @@ def sphinx_supports_concurrency():
     match = re.match(r'^(?:[a-zA-Z_-]+) v?(([0-9]+)\.([0-9]+))', output)
     # default to using concurrency when uncertain
     version = StrictVersion(match.group(1)) if match else StrictVersion('1.2')
-    return version >= StrictVersion('1.2')
+    return version >= StrictVersion('1.4')
+
+def read_config(config):
+    try:
+        f = open(config)
+        cfg = json.load(f)
+        f.close()
+    except OSError:
+        raise Exception('Failed to load build config %s - is build dir correct?' % (config))
+
+    return cfg
 
 def main(args=None):
-    # pylint: disable=too-many-branches,too-many-locals
+    # pylint: disable=too-many-branches
 
     if args is None:
         args = sys.argv
@@ -151,8 +155,7 @@ def main(args=None):
     if options is None:
         return 1
 
-    with open(os.path.join(options.build_dir, 'build_config.json')) as f:
-        cfg = json.load(f)
+    cfg = read_config(os.path.join(options.build_dir, 'build_config.json'))
 
     with_docs = bool(cfg['with_documentation'])
     with_sphinx = bool(cfg['with_sphinx'])
@@ -189,15 +192,6 @@ def main(args=None):
     else:
         # otherwise just copy it
         cmds.append(['cp', manual_src, manual_output])
-
-    def find_rst2man():
-        possible_names = ['rst2man', 'rst2man.py']
-
-        for name in possible_names:
-            if have_prog(name):
-                return name
-
-        raise Exception("Was configured with rst2man but could not be located in PATH")
 
     if with_rst2man:
         cmds.append([find_rst2man(),

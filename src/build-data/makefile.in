@@ -3,6 +3,7 @@
 CXX            = %{cxx}
 LINKER         = %{linker}
 AR             = %{ar_command}
+AR_OPTIONS     = %{ar_options}
 PYTHON_EXE     = %{python_exe}
 
 # Compiler Flags
@@ -11,7 +12,7 @@ ABI_FLAGS      = %{cc_sysroot} %{cxx_abi_flags}
 LANG_FLAGS     = %{cc_lang_flags}
 CXXFLAGS       = %{cc_compile_flags}
 WARN_FLAGS     = %{cc_warning_flags}
-SO_OBJ_FLAGS   = %{shared_flags}
+LIB_FLAGS      = %{lib_flags}
 LDFLAGS        = %{ldflags}
 
 EXE_LINK_CMD   = %{exe_link_cmd}
@@ -26,7 +27,7 @@ SCRIPTS_DIR    = %{scripts_dir}
 INSTALLED_LIB_DIR = %{prefix}/%{libdir}
 
 # The primary target
-all: libs cli docs tests
+all: libs cli tests docs
 
 # Executable targets
 CLI           = %{cli_exe}
@@ -54,7 +55,7 @@ distclean:
 	$(PYTHON_EXE) $(SCRIPTS_DIR)/cleanup.py --build-dir="%{build_dir}" --distclean
 
 install: libs cli docs
-	$(PYTHON_EXE) $(SCRIPTS_DIR)/install.py --prefix=%{prefix} --build-dir="%{build_dir}" --bindir=%{bindir} --libdir=%{libdir} --docdir=%{docdir} --includedir=%{includedir}
+	$(PYTHON_EXE) $(SCRIPTS_DIR)/install.py --prefix="%{prefix}" --build-dir="%{build_dir}" --bindir=%{bindir} --libdir=%{libdir} --docdir=%{docdir} --includedir=%{includedir}
 
 # Object Files
 LIBOBJS = %{join lib_objs}
@@ -92,7 +93,7 @@ fuzzer_corpus_zip: fuzzer_corpus
 %{if build_static_lib}
 
 %{out_dir}/%{static_lib_name}: $(LIBOBJS)
-	$(AR) %{ar_options} %{ar_output_to}$@ $(LIBOBJS)
+	$(AR) $(AR_OPTIONS) %{ar_output_to}$@ $(LIBOBJS)
 
 %{endif}
 
@@ -110,7 +111,7 @@ fuzzer_corpus_zip: fuzzer_corpus
 
 %{for lib_build_info}
 %{obj}: %{src}
-	$(CXX) $(SO_OBJ_FLAGS) $(BUILD_FLAGS) %{isa_flags} %{include_paths} %{dash_c} %{src} %{dash_o}$@
+	$(CXX) $(LIB_FLAGS) $(BUILD_FLAGS) %{isa_flags} %{include_paths} %{dash_c} %{src} %{dash_o}$@
 %{endfor}
 
 %{for cli_build_info}

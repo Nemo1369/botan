@@ -9,6 +9,7 @@
 #include <botan/pow_mod.h>
 #include <botan/reducer.h>
 #include <botan/monty.h>
+#include <botan/divide.h>
 #include <botan/rng.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>
@@ -83,7 +84,7 @@ BigInt gcd(const BigInt& a, const BigInt& b)
 */
 BigInt lcm(const BigInt& a, const BigInt& b)
    {
-   return ((a * b) / gcd(a, b));
+   return ct_divide(a * b, gcd(a, b));
    }
 
 /*
@@ -292,9 +293,8 @@ BigInt inverse_mod(const BigInt& n, const BigInt& mod)
       throw BigInt::DivideByZero();
    if(mod.is_negative() || n.is_negative())
       throw Invalid_Argument("inverse_mod: arguments must be non-negative");
-
-   if(n.is_zero() || (n.is_even() && mod.is_even()))
-      return 0; // fast fail checks
+   if(n.is_zero())
+      return 0;
 
    if(mod.is_odd() && n < mod)
       return ct_inverse_mod_odd_modulus(n, mod);
@@ -314,83 +314,100 @@ BigInt inverse_euclid(const BigInt& n, const BigInt& mod)
 
    BigInt u = mod, v = n;
    BigInt A = 1, B = 0, C = 0, D = 1;
+   BigInt T0, T1, T2;
 
    while(u.is_nonzero())
       {
       const size_t u_zero_bits = low_zero_bits(u);
       u >>= u_zero_bits;
-      for(size_t i = 0; i != u_zero_bits; ++i)
-         {
-         if(A.is_odd() || B.is_odd())
-            { A += n; B -= mod; }
-         A >>= 1; B >>= 1;
-         }
 
       const size_t v_zero_bits = low_zero_bits(v);
       v >>= v_zero_bits;
-      for(size_t i = 0; i != v_zero_bits; ++i)
+
+      const bool u_gte_v = (u >= v);
+
+      for(size_t i = 0; i != u_zero_bits; ++i)
          {
-         if(C.is_odd() || D.is_odd())
-            { C += n; D -= mod; }
-         C >>= 1; D >>= 1;
+         const bool needs_adjust = A.is_odd() || B.is_odd();
+
+         T0 = A + n;
+         T1 = B - mod;
+
+         A.ct_cond_assign(needs_adjust, T0);
+         B.ct_cond_assign(needs_adjust, T1);
+
+         A >>= 1;
+         B >>= 1;
          }
 
-      if(u >= v) { u -= v; A -= C; B -= D; }
-      else       { v -= u; C -= A; D -= B; }
+      for(size_t i = 0; i != v_zero_bits; ++i)
+         {
+         const bool needs_adjust = C.is_odd() || D.is_odd();
+         T0 = C + n;
+         T1 = D - mod;
+
+         C.ct_cond_assign(needs_adjust, T0);
+         D.ct_cond_assign(needs_adjust, T1);
+
+         C >>= 1;
+         D >>= 1;
+         }
+
+      T0 = u - v;
+      T1 = A - C;
+      T2 = B - D;
+
+      T0.cond_flip_sign(!u_gte_v);
+      T1.cond_flip_sign(!u_gte_v);
+      T2.cond_flip_sign(!u_gte_v);
+
+      u.ct_cond_assign(u_gte_v, T0);
+      A.ct_cond_assign(u_gte_v, T1);
+      B.ct_cond_assign(u_gte_v, T2);
+
+      v.ct_cond_assign(!u_gte_v, T0);
+      C.ct_cond_assign(!u_gte_v, T1);
+      D.ct_cond_assign(!u_gte_v, T2);
       }
 
    if(v != 1)
       return 0; // no modular inverse
 
-   while(D.is_negative()) D += mod;
-   while(D >= mod) D -= mod;
+   while(D.is_negative())
+      D += mod;
+   while(D >= mod)
+      D -= mod;
 
    return D;
    }
 
-word monty_inverse(word input)
+word monty_inverse(word a)
    {
-   if(input == 0)
-      throw Exception("monty_inverse: divide by zero");
+   if(a % 2 == 0)
+      throw Invalid_Argument("monty_inverse only valid for odd integers");
 
-   word b = input;
-   word x2 = 1, x1 = 0, y2 = 0, y1 = 1;
+   /*
+   * From "A New Algorithm for Inversion mod p^k" by Çetin Kaya Koç
+   * https://eprint.iacr.org/2017/411.pdf sections 5 and 7.
+   */
 
-   // First iteration, a = n+1
-   word q = bigint_divop(1, 0, b);
-   word r = (MP_WORD_MAX - q*b) + 1;
-   word x = x2 - q*x1;
-   word y = y2 - q*y1;
+   word b = 1;
+   word r = 0;
 
-   word a = b;
-   b = r;
-   x2 = x1;
-   x1 = x;
-   y2 = y1;
-   y1 = y;
-
-   while(b > 0)
+   for(size_t i = 0; i != BOTAN_MP_WORD_BITS; ++i)
       {
-      q = a / b;
-      r = a - q*b;
-      x = x2 - q*x1;
-      y = y2 - q*y1;
+      const word bi = b % 2;
+      r >>= 1;
+      r += bi << (BOTAN_MP_WORD_BITS - 1);
 
-      a = b;
-      b = r;
-      x2 = x1;
-      x1 = x;
-      y2 = y1;
-      y1 = y;
+      b -= a * bi;
+      b >>= 1;
       }
 
-   const word check = y2 * input;
-   BOTAN_ASSERT_EQUAL(check, 1, "monty_inverse result is inverse of input");
-
    // Now invert in addition space
-   y2 = (MP_WORD_MAX - y2) + 1;
+   r = (MP_WORD_MAX - r) + 1;
 
-   return y2;
+   return r;
    }
 
 /*
@@ -478,20 +495,22 @@ bool is_prime(const BigInt& n,
    if(n <= 1 || n.is_even())
       return false;
 
+   const size_t n_bits = n.bits();
+
    // Fast path testing for small numbers (<= 65521)
-   if(n <= PRIMES[PRIME_TABLE_SIZE-1])
+   if(n_bits <= 16)
       {
       const uint16_t num = static_cast<uint16_t>(n.word_at(0));
 
       return std::binary_search(PRIMES, PRIMES + PRIME_TABLE_SIZE, num);
       }
 
-   const size_t t = miller_rabin_test_iterations(n.bits(), prob, is_random);
-
    Modular_Reducer mod_n(n);
 
    if(rng.is_seeded())
       {
+      const size_t t = miller_rabin_test_iterations(n_bits, prob, is_random);
+
       if(is_miller_rabin_probable_prime(n, mod_n, rng, t) == false)
          return false;
 

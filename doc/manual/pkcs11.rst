@@ -105,7 +105,7 @@ All possible PKCS#11 return values are represented by the enum class:
 
 All methods of the :cpp:class:`LowLevel` class have a default parameter ``ReturnValue* return_value = ThrowException``.
 This parameter controls the error handling of all :cpp:class:`LowLevel` methods. The default
-behaviour ``return_value = ThrowException`` is to throw an exception if the method does
+behavior ``return_value = ThrowException`` is to throw an exception if the method does
 not complete successfully. If a non-``NULL`` pointer is passed, ``return_value`` receives the
 return value of the PKCS#11 function and no exception is thrown. In case ``nullptr`` is
 passed as ``return_value``, the exact return value is ignored and the method just returns
@@ -445,7 +445,7 @@ Attributes can be set in an :cpp:class:`AttributeContainer` by various ``add_`` 
 
       Add a bool attribute (e.g. :c:macro:`CKA_SENSITIVE` / :cpp:enumerator:`AttributeType::Sensitive`).
 
-    .. cpp:function:: template<typename T> void AttributeContainer::add_numeric(AttributeType attribute, T value)
+   .. cpp:function:: template<typename T> void AttributeContainer::add_numeric(AttributeType attribute, T value)
 
        Add a numeric attribute (e.g. :c:macro:`CKA_MODULUS_BITS` / :cpp:enumerator:`AttributeType::ModulusBits`).
 
@@ -493,7 +493,7 @@ The remaining hierarchy is defined as follows:
 * :cpp:class:`PrivateKeyProperties` inherits from :cpp:class:`KeyProperties`
 * :cpp:class:`SecretKeyProperties` inherits from :cpp:class:`KeyProperties`
 
-PKCS#11 objects themself are represented by the :cpp:class:`Object` class.
+PKCS#11 objects themselves are represented by the :cpp:class:`Object` class.
 
 .. cpp:class:: Object
 

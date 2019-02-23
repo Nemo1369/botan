@@ -69,7 +69,7 @@ class L_computer final
                // ntz(4*i+2) == 1
                // ntz(4*i+3) == 0
                block_index += 4;
-               const size_t ntz4 = ctz<uint32_t>(block_index);
+               const size_t ntz4 = var_ctz32(static_cast<uint32_t>(block_index));
 
                xor_buf(offsets, m_offset.data(), L0.data(), m_BS);
                offsets += m_BS;
@@ -91,7 +91,7 @@ class L_computer final
 
          for(size_t i = 0; i != blocks; ++i)
             { // could be done in parallel
-            const size_t ntz = ctz<uint32_t>(block_index + i + 1);
+            const size_t ntz = var_ctz32(static_cast<uint32_t>(block_index + i + 1));
             xor_buf(m_offset.data(), get(ntz).data(), m_BS);
             copy_mem(offsets, m_offset.data(), m_BS);
             offsets += m_BS;
@@ -136,7 +136,7 @@ secure_vector<uint8_t> ocb_hash(const L_computer& L,
    for(size_t i = 0; i != ad_blocks; ++i)
       {
       // this loop could run in parallel
-      offset ^= L.get(ctz<uint32_t>(i+1));
+      offset ^= L.get(var_ctz32(static_cast<uint32_t>(i+1)));
       buf = offset;
       xor_buf(buf.data(), &ad[BS*i], BS);
       cipher.encrypt(buf);
@@ -523,7 +523,7 @@ void OCB_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    const uint8_t* included_tag = &buf[remaining];
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("OCB tag check failed");
+      throw Invalid_Authentication_Tag("OCB tag check failed");
 
    // remove tag from end of message
    buffer.resize(remaining + offset);

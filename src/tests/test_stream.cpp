@@ -24,7 +24,7 @@ class Stream_Cipher_Tests final : public Text_Based_Test
          const std::vector<uint8_t> key      = vars.get_req_bin("Key");
          const std::vector<uint8_t> expected = vars.get_req_bin("Out");
          const std::vector<uint8_t> nonce    = vars.get_opt_bin("Nonce");
-         const size_t seek                   = vars.get_opt_sz("Seek", 0);
+         const uint64_t seek                 = vars.get_opt_u64("Seek", 0);
          std::vector<uint8_t> input          = vars.get_opt_bin("In");
 
          if(input.empty())
@@ -106,6 +106,17 @@ class Stream_Cipher_Tests final : public Text_Based_Test
                   accepted_nonce_early = true;
                   }
                catch(Botan::Invalid_State&) {}
+               }
+
+            /*
+            * Different providers may have additional restrictions on key sizes.
+            * Avoid testing the cipher with a key size that it does not natively support.
+            */
+            if(!cipher->valid_keylength(key.size()))
+               {
+               result.test_note("Skipping test with provider " + provider +
+                                " as it does not support key length " + std::to_string(key.size()));
+               continue;
                }
 
             cipher->set_key(key);

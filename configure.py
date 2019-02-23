@@ -146,12 +146,12 @@ class Version(object):
             (stdout, stderr) = vc.communicate()
 
             if vc.returncode != 0:
-                logging.debug('Error getting rev from %s - %d (%s)'
-                              % (cmdname, vc.returncode, stderr))
+                logging.debug('Error getting rev from %s - %d (%s)',
+                              cmdname, vc.returncode, stderr)
                 return 'unknown'
 
             rev = str(stdout).strip()
-            logging.debug('%s reported revision %s' % (cmdname, rev))
+            logging.debug('%s reported revision %s', cmdname, rev)
 
             return '%s:%s' % (cmdname, rev)
         except OSError as e:
@@ -309,17 +309,23 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
     target_group.add_option('--cc-bin', dest='compiler_binary', metavar='BINARY',
                             help='set path to compiler binary')
 
-    target_group.add_option('--cc-abi-flags', metavar='FLAG', default='',
+    target_group.add_option('--cc-abi-flags', metavar='FLAGS', default='',
                             help='set compiler ABI flags')
 
-    target_group.add_option('--cxxflags', metavar='FLAG', default=None,
-                            help='set compiler flags')
+    target_group.add_option('--cxxflags', metavar='FLAGS', default=None,
+                            help='override all compiler flags')
 
-    target_group.add_option('--ldflags', metavar='FLAG',
+    target_group.add_option('--extra-cxxflags', metavar='FLAGS', default=None,
+                            help='set extra compiler flags')
+
+    target_group.add_option('--ldflags', metavar='FLAGS',
                             help='set linker flags', default=None)
 
     target_group.add_option('--ar-command', dest='ar_command', metavar='AR', default=None,
                             help='set path to static archive creator')
+
+    target_group.add_option('--ar-options', dest='ar_options', metavar='AR_OPTIONS', default=None,
+                            help='set options for ar')
 
     target_group.add_option('--msvc-runtime', metavar='RT', default=None,
                             help='specify MSVC runtime (MT, MD, MTd, MDd)')
@@ -333,8 +339,8 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
                             help='specify OS features to disable')
 
     isa_extensions = [
-        'SSE2', 'SSSE3', 'SSE4.1', 'SSE4.2', 'AVX2',
-        'AES-NI', 'SHA',
+        'SSE2', 'SSSE3', 'SSE4.1', 'SSE4.2', 'AVX2', 'BMI2', 'RDRAND', 'RDSEED',
+        'AES-NI', 'SHA-NI',
         'AltiVec', 'NEON', 'ARMv8Crypto']
 
     for isa_extn_name in isa_extensions:
@@ -434,6 +440,9 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
                            action='store_true', default=False,
                            help="Enable extra warnings")
 
+    build_group.add_option('--no-store-vc-rev', action='store_true', default=False,
+                           help=optparse.SUPPRESS_HELP)
+
     build_group.add_option('--with-python-versions', dest='python_version',
                            metavar='N.M',
                            default='%d.%d' % (sys.version_info[0], sys.version_info[1]),
@@ -469,7 +478,9 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
     build_group.add_option('--with-debug-asserts', action='store_true', default=False,
                            help=optparse.SUPPRESS_HELP)
 
-    build_group.add_option('--ack-vc2013-deprecated', action='store_true', default=False,
+    build_group.add_option('--with-pkg-config', action='store_true', default=None,
+                           help=optparse.SUPPRESS_HELP)
+    build_group.add_option('--without-pkg-config', dest='with_pkg_config', action='store_false',
                            help=optparse.SUPPRESS_HELP)
 
     docs_group = optparse.OptionGroup(parser, 'Documentation Options')
@@ -523,7 +534,7 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
                           help='minimize build')
 
     # Should be derived from info.txt but this runs too early
-    third_party = ['bearssl', 'boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm']
+    third_party = ['bearssl', 'boost', 'bzip2', 'lzma', 'openssl', 'commoncrypto', 'sqlite3', 'zlib', 'tpm']
 
     for mod in third_party:
         mods_group.add_option('--with-%s' % (mod),
@@ -619,7 +630,8 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
     def parse_multiple_enable(modules):
         if modules is None:
             return []
-        return sorted(set(flatten([s.split(',') for s in modules])))
+
+        return sorted({m for m in flatten([s.split(',') for s in modules]) if m != ''})
 
     options.enabled_modules = parse_multiple_enable(options.enabled_modules)
     options.disabled_modules = parse_multiple_enable(options.disabled_modules)
@@ -633,6 +645,8 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
 
     if options.ar_command is None:
         options.ar_command = os.getenv('AR')
+    if options.ar_options is None:
+        options.ar_options = os.getenv('AR_OPTIONS')
     if options.compiler_binary is None:
         options.compiler_binary = os.getenv('CXX')
     if options.cxxflags is None:
@@ -854,7 +868,7 @@ class ModuleInfo(InfoObject):
         for key, value in defines.items():
             if not re.match('^[0-9A-Za-z_]{3,30}$', key):
                 raise InternalError('Module defines key has invalid format: "%s"' % key)
-            if not re.match('^[0-9]{8}$', value):
+            if not re.match('^20[0-9]{6}$', value):
                 raise InternalError('Module defines value has invalid format: "%s"' % value)
 
     def cross_check(self, arch_info, cc_info, all_os_features):
@@ -1059,7 +1073,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
             infofile,
             [],
             ['cpu_flags', 'cpu_flags_no_debug', 'so_link_commands', 'binary_link_commands',
-             'mach_abi_linking', 'isa_flags', 'sanitizers'],
+             'mach_abi_linking', 'isa_flags', 'sanitizers', 'lib_flags'],
             {
                 'binary_name': None,
                 'linker_name': None,
@@ -1107,6 +1121,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.debug_info_flags = lex.debug_info_flags
         self.isa_flags = lex.isa_flags
         self.lang_flags = lex.lang_flags
+        self.lib_flags = lex.lib_flags
         self.linker_name = lex.linker_name
         self.mach_abi_linking = lex.mach_abi_linking
         self.macro_name = lex.macro_name
@@ -1160,15 +1175,20 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
         return " ".join(sorted(flags))
 
-    def gen_shared_flags(self, options):
+    def gen_lib_flags(self, options, variables):
         """
-        Return the shared library build flags, if any
+        Return any flags specific to building the library
+        (vs the cli or tests)
         """
 
         def flag_builder():
             if options.build_shared_lib:
                 yield self.shared_flags
                 yield self.visibility_build_flags
+
+            if 'debug' in self.lib_flags and options.with_debug_info:
+                yield process_template_string(self.lib_flags['debug'], variables, self.infofile)
+
 
         return ' '.join(list(flag_builder()))
 
@@ -1177,22 +1197,22 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
             return self.visibility_attribute
         return ''
 
-    def mach_abi_link_flags(self, options, with_debug_info=None):
+    def mach_abi_link_flags(self, options, debug_mode=None):
         #pylint: disable=too-many-branches
 
         """
         Return the machine specific ABI flags
         """
 
-        if with_debug_info is None:
-            with_debug_info = options.with_debug_info
+        if debug_mode is None:
+            debug_mode = options.debug_mode
 
         def mach_abi_groups():
 
             yield 'all'
 
             if options.msvc_runtime is None:
-                if with_debug_info:
+                if debug_mode:
                     yield 'rt-debug'
                 else:
                     yield 'rt'
@@ -1269,6 +1289,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         return self.lang_flags
 
     def cc_compile_flags(self, options, with_debug_info=None, enable_optimizations=None):
+        #pylint: disable=too-many-branches
+
         def gen_flags(with_debug_info, enable_optimizations):
 
             sanitizers_enabled = options.with_sanitizers or (len(options.enable_sanitizers) > 0)
@@ -1302,6 +1324,9 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
                 if not (options.debug_mode or sanitizers_enabled):
                     yield self.cpu_flags_no_debug[options.arch]
+
+            if options.extra_cxxflags:
+                yield options.extra_cxxflags
 
         return (' '.join(gen_flags(with_debug_info, enable_optimizations))).strip()
 
@@ -1365,6 +1390,9 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'cli_exe_name': 'botan',
                 'lib_prefix': 'lib',
                 'library_name': 'botan{suffix}-{major}',
+                'shared_lib_symlinks': 'yes',
+                'default_compiler': 'gcc',
+                'uses_pkg_config': 'yes',
             })
 
         if lex.ar_command == 'ar' and lex.ar_options == '':
@@ -1411,6 +1439,9 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.static_suffix = lex.static_suffix
         self.target_features = lex.target_features
         self.use_stack_protector = (lex.use_stack_protector == "true")
+        self.shared_lib_uses_symlinks = (lex.shared_lib_symlinks == 'yes')
+        self.default_compiler = lex.default_compiler
+        self.uses_pkg_config = (lex.uses_pkg_config == 'yes')
 
     def matches_name(self, nm):
         if nm in self._aliases:
@@ -1490,7 +1521,7 @@ def read_textfile(filepath):
         return ''.join(f.readlines())
 
 
-def process_template(template_file, variables):
+def process_template_string(template_text, variables, template_source):
     # pylint: disable=too-many-branches,too-many-statements
 
     """
@@ -1589,11 +1620,14 @@ def process_template(template_file, variables):
             return self.value_pattern.sub(insert_value, output) + '\n'
 
     try:
-        return SimpleTemplate(variables).substitute(read_textfile(template_file))
+        return SimpleTemplate(variables).substitute(template_text)
     except KeyError as e:
-        logging.error('Unbound var %s in template %s' % (e, template_file))
+        logging.error('Unbound var %s in template %s' % (e, template_source))
     except Exception as e: # pylint: disable=broad-except
-        logging.error('Exception %s during template processing file %s' % (e, template_file))
+        logging.error('Exception %s during template processing file %s' % (e, template_source))
+
+def process_template(template_file, variables):
+    return process_template_string(read_textfile(template_file), variables, template_file)
 
 def yield_objectfile_list(sources, obj_dir, obj_suffix):
     obj_suffix = '.' + obj_suffix
@@ -1755,11 +1789,13 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
     def innosetup_arch(os_name, arch):
         if os_name == 'windows':
-            inno_arch = {'x86_32': '', 'x86_64': 'x64', 'ia64': 'ia64'}
+            inno_arch = {'x86_32': '',
+                         'x86_64': 'x64',
+                         'ia64': 'ia64'}
             if arch in inno_arch:
                 return inno_arch[arch]
             else:
-                logging.warning('Unknown arch in innosetup_arch %s' % (arch))
+                logging.warning('Unknown arch %s in innosetup_arch' % (arch))
         return None
 
     def configure_command_line():
@@ -1799,7 +1835,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         elif options.cpu.endswith('el') or options.cpu.endswith('le'):
             return 'little'
 
-        logging.info('Defaulting to assuming %s endian', arch_info.endian)
+        if arch_info.endian:
+            logging.info('Defaulting to assuming %s endian', arch_info.endian)
         return arch_info.endian
 
     build_dir = options.with_build_dir or os.path.curdir
@@ -1811,16 +1848,11 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             return path
         return os.path.join(build_dir, path)
 
-    def shared_lib_uses_symlinks():
-        if options.os in ['windows', 'openbsd']:
-            return False
-        return True
-
     variables = {
         'version_major':  Version.major(),
         'version_minor':  Version.minor(),
         'version_patch':  Version.patch(),
-        'version_vc_rev': Version.vc_rev(),
+        'version_vc_rev': 'unknown' if options.no_store_vc_rev else Version.vc_rev(),
         'abi_rev':        Version.so_rev(),
 
         'version':        Version.as_string(),
@@ -1882,7 +1914,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'build_coverage' : options.with_coverage_info or options.with_coverage,
 
-        'symlink_shared_lib': options.build_shared_lib and shared_lib_uses_symlinks(),
+        'symlink_shared_lib': options.build_shared_lib and osinfo.shared_lib_uses_symlinks,
 
         'libobj_dir': build_paths.libobj_dir,
         'cliobj_dir': build_paths.cliobj_dir,
@@ -1934,8 +1966,6 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'output_to_exe': cc.output_to_exe,
         'cc_macro': cc.macro_name,
 
-        'shared_flags': cc.gen_shared_flags(options),
-        'cmake_shared_flags': cmake_escape(cc.gen_shared_flags(options)),
         'visibility_attribute': cc.gen_visibility_attribute(options),
 
         'lib_link_cmd': cc.so_link_command_for(osinfo.basename, options) + external_link_cmd(),
@@ -1943,7 +1973,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'post_link_cmd': '',
 
         'ar_command': ar_command(),
-        'ar_options': cc.ar_options or osinfo.ar_options,
+        'ar_options': options.ar_options or cc.ar_options or osinfo.ar_options,
         'ar_output_to': cc.ar_output_to,
 
         'link_to': ' '.join(
@@ -1976,9 +2006,12 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'optimize_for_size': options.optimize_for_size,
 
         'mod_list': sorted([m.basename for m in modules])
-        }
+    }
 
-    if options.os != 'windows':
+    variables['lib_flags'] = cc.gen_lib_flags(options, variables)
+    variables['cmake_shared_flags'] = cmake_escape(variables['lib_flags'])
+
+    if options.with_pkg_config:
         variables['botan_pkgconfig'] = os.path.join(build_paths.build_dir, 'botan-%d.pc' % (Version.major()))
 
     # The name is always set because Windows build needs it
@@ -2041,14 +2074,14 @@ class ModulesChooser(object):
             self._modules, self._options.enabled_modules, self._options.disabled_modules)
 
     def _check_usable(self, module, modname):
-        if not module.compatible_os(self._osinfo, self._options):
+        if not module.compatible_cpu(self._archinfo, self._options):
+            self._not_using_because['incompatible CPU'].add(modname)
+            return False
+        elif not module.compatible_os(self._osinfo, self._options):
             self._not_using_because['incompatible OS'].add(modname)
             return False
         elif not module.compatible_compiler(self._ccinfo, self._cc_min_version, self._archinfo.basename):
             self._not_using_because['incompatible compiler'].add(modname)
-            return False
-        elif not module.compatible_cpu(self._archinfo, self._options):
-            self._not_using_because['incompatible CPU'].add(modname)
             return False
         return True
 
@@ -2438,7 +2471,8 @@ class AmalgamationHeader(object):
 class AmalgamationGenerator(object):
     filename_prefix = 'botan_all'
 
-    _header_guard_pattern = re.compile('^#define BOTAN_.*_H_$')
+    _header_guard_pattern = re.compile(r'^#define BOTAN_.*_H_\s*$')
+    _header_endif_pattern = re.compile(r'^#endif\s*$')
 
     @staticmethod
     def read_header(filepath):
@@ -2463,7 +2497,7 @@ class AmalgamationGenerator(object):
 
         end_header_guard_index = None
         for index, line in enumerate(lines):
-            if line == '#endif\n':
+            if AmalgamationGenerator._header_endif_pattern.match(line):
                 end_header_guard_index = index # override with last found
         if end_header_guard_index is None:
             raise InternalError("No header guard end found in " + header_name)
@@ -2517,9 +2551,11 @@ class AmalgamationGenerator(object):
         pub_header_amalag.write_to_file(header_name, "BOTAN_AMALGAMATION_H_")
 
         isa_headers = {}
-        internal_headers = []
+        internal_headers_list = []
 
         def known_isa_header(hdr):
+            if self._options.single_amalgamation_file:
+                return None
             if hdr == 'simd_avx2.h':
                 return 'avx2'
             return None
@@ -2527,11 +2563,12 @@ class AmalgamationGenerator(object):
         for hdr in self._build_paths.internal_headers:
             isa = known_isa_header(os.path.basename(hdr))
             if isa:
-                isa_headers[isa] = ''.join(AmalgamationGenerator.read_header(hdr))
+                isa_headers[isa] = ''.join([line for line in AmalgamationGenerator.read_header(hdr)
+                                            if AmalgamationHelper.is_botan_include(line) is None])
             else:
-                internal_headers.append(hdr)
+                internal_headers_list.append(hdr)
 
-        internal_headers = AmalgamationHeader(internal_headers)
+        internal_headers = AmalgamationHeader(internal_headers_list)
         header_int_name = '%s_internal.h' % (AmalgamationGenerator.filename_prefix)
         logging.info('Writing amalgamation header to %s' % (header_int_name))
         internal_headers.write_to_file(header_int_name, "BOTAN_AMALGAMATION_INTERNAL_H_")
@@ -2728,7 +2765,7 @@ def robust_makedirs(directory, max_retries=5):
 # This is for otions that have --with-XYZ and --without-XYZ. If user does not
 # set any of those, we choose a default here.
 # Mutates `options`
-def set_defaults_for_unset_options(options, info_arch, info_cc): # pylint: disable=too-many-branches
+def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pylint: disable=too-many-branches
     if options.os is None:
         system_from_python = platform.system().lower()
         if re.match('^cygwin_.*', system_from_python):
@@ -2738,44 +2775,47 @@ def set_defaults_for_unset_options(options, info_arch, info_cc): # pylint: disab
             options.os = system_from_python
         logging.info('Guessing target OS is %s (use --os to set)' % (options.os))
 
+    if options.os not in info_os:
+        def find_canonical_os_name(os_name_variant):
+            for (canonical_os_name, os_info) in info_os.items():
+                if os_info.matches_name(os_name_variant):
+                    return canonical_os_name
+            return os_name_variant # not found
+        options.os = find_canonical_os_name(options.os)
+
     def deduce_compiler_type_from_cc_bin(cc_bin):
         if cc_bin.find('clang') != -1 or cc_bin in ['emcc', 'em++']:
             return 'clang'
-        if cc_bin.find('-g++') != -1:
+        if cc_bin.find('-g++') != -1 or cc_bin.find('g++') != -1:
             return 'gcc'
         return None
 
     if options.compiler is None and options.compiler_binary is not None:
         options.compiler = deduce_compiler_type_from_cc_bin(options.compiler_binary)
 
-    if options.compiler is None:
-        if options.os == 'windows':
-            if have_program('g++') and not have_program('cl'):
-                options.compiler = 'gcc'
-            else:
-                options.compiler = 'msvc'
-        elif options.os in ['darwin', 'freebsd', 'openbsd', 'ios']:
-            # Prefer Clang on these systems
-            if have_program('clang++'):
-                options.compiler = 'clang'
-            else:
-                options.compiler = 'gcc'
-                if options.os == 'openbsd':
-                    # The assembler shipping with OpenBSD 5.9 does not support avx2
-                    del info_cc['gcc'].isa_flags['avx2']
-        else:
-            options.compiler = 'gcc'
-
         if options.compiler is None:
-            logging.error('Could not guess which compiler to use, use --cc or CXX to set')
-        else:
-            logging.info('Guessing to use compiler %s (use --cc or CXX to set)' % (options.compiler))
+            logging.error("Could not figure out what compiler type '%s' is, use --cc to set" % (
+                options.compiler_binary))
+
+    if options.compiler is None:
+
+        options.compiler = info_os[options.os].default_compiler
+
+        if not have_program(info_cc[options.compiler].binary_name):
+            logging.error("Default compiler for system is %s but could not find binary '%s'; use --cc to set" % (
+                options.compiler, info_cc[options.compiler].binary_name))
+
+        logging.info('Guessing to use compiler %s (use --cc or CXX to set)' % (options.compiler))
 
     if options.cpu is None:
         (arch, cpu) = guess_processor(info_arch)
         options.arch = arch
         options.cpu = cpu
         logging.info('Guessing target processor is a %s (use --cpu to set)' % (options.arch))
+
+    # OpenBSD uses an old binutils that does not support AVX2
+    if options.os == 'openbsd':
+        del info_cc['gcc'].isa_flags['avx2']
 
     if options.with_documentation is True:
         if options.with_sphinx is None and have_program('sphinx-build'):
@@ -2785,17 +2825,12 @@ def set_defaults_for_unset_options(options, info_arch, info_cc): # pylint: disab
             logging.info('Found rst2man (use --without-rst2man to disable)')
             options.with_rst2man = True
 
+    if options.with_pkg_config is None:
+        options.with_pkg_config = info_os[options.os].uses_pkg_config
 
 # Mutates `options`
 def canonicalize_options(options, info_os, info_arch):
     # pylint: disable=too-many-branches
-    if options.os not in info_os:
-        def find_canonical_os_name(os_name_variant):
-            for (canonical_os_name, os_info) in info_os.items():
-                if os_info.matches_name(os_name_variant):
-                    return canonical_os_name
-            return os_name_variant # not found
-        options.os = find_canonical_os_name(options.os)
 
     # canonical ARCH/CPU
     options.arch = canon_processor(info_arch, options.cpu)
@@ -2808,10 +2843,10 @@ def canonicalize_options(options, info_os, info_arch):
     shared_libs_supported = options.os in info_os and info_os[options.os].building_shared_supported()
 
     if not shared_libs_supported:
-        if options.build_shared_lib is not None:
+        if options.build_shared_lib is True:
             logging.warning('Shared libs not supported on %s, disabling shared lib support' % (options.os))
             options.build_shared_lib = False
-        else:
+        elif options.build_shared_lib is None:
             logging.info('Shared libs not supported on %s, disabling shared lib support' % (options.os))
 
     if options.os == 'windows' and options.build_shared_lib is None and options.build_static_lib is None:
@@ -2863,11 +2898,15 @@ def validate_options(options, info_os, info_cc, available_module_policies):
     if options.module_policy and options.module_policy not in available_module_policies:
         raise UserError("Unknown module set %s" % options.module_policy)
 
-    if options.os == 'llvm' or options.cpu == 'llvm':
+    if options.cpu == 'llvm' or options.os in ['llvm', 'emscripten']:
         if options.compiler != 'clang':
             raise UserError('LLVM target requires using Clang')
-        if options.os != options.cpu:
-            raise UserError('LLVM target requires both CPU and OS be set to llvm')
+
+        if options.cpu != 'llvm':
+            raise UserError('LLVM target requires CPU target set to LLVM bitcode (llvm)')
+
+        if options.os not in ['llvm', 'emscripten']:
+            raise UserError('Target OS is not an LLVM bitcode target')
 
     if options.build_fuzzers is not None:
         if options.build_fuzzers not in ['libfuzzer', 'afl', 'klee', 'test']:
@@ -2941,8 +2980,10 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
         'msvc': r'^ *MSVC ([0-9]{2})([0-9]{2})$',
         'gcc': r'^ *GCC ([0-9]+) ([0-9]+)$',
         'clang': r'^ *CLANG ([0-9]+) ([0-9]+)$',
-        'xlc': r'^ *XLC (0x[0-9a-fA-F]{2})([0-9a-fA-F]{2})$'
+        'xlc': r'^ *XLC ([0-9]+) ([0-9]+)$',
     }
+
+    unknown_pattern = r'UNKNOWN 0 0'
 
     if ccinfo.basename not in version_patterns:
         logging.info("No compiler version detection available for %s" % (ccinfo.basename))
@@ -2951,6 +2992,10 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
     detect_version_source = os.path.join(source_paths.build_data_dir, "detect_version.cpp")
 
     cc_output = run_compiler_preproc(options, ccinfo, detect_version_source, "0.0")
+
+    if re.search(unknown_pattern, cc_output) is not None:
+        logging.warning('Failed to get version for %s from macro check' % (ccinfo.basename))
+        return "0.0"
 
     match = re.search(version_patterns[ccinfo.basename], cc_output, flags=re.MULTILINE)
     if match is None:
@@ -2962,12 +3007,6 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
     minor_version = int(match.group(2), 0)
     cc_version = "%d.%d" % (major_version, minor_version)
     logging.info('Auto-detected compiler version %s' % (cc_version))
-
-    if ccinfo.basename == 'msvc':
-        if major_version == 18:
-            logging.warning('MSVC 2013 support is deprecated, and will be removed in Jan 2019')
-            if not options.ack_vc2013_deprecated:
-                logging.error('Acknowledge this deprecation by adding flag --ack-vc2013-deprecated')
 
     return cc_version
 
@@ -3125,6 +3164,10 @@ def main(argv):
 
     setup_logging(options)
 
+    if not options.list_modules:
+        logging.info('Configuring to build Botan %s (revision %s)' % (
+            Version.as_string(), Version.vc_rev()))
+
     source_paths = SourcePaths(os.path.dirname(argv[0]))
 
     info_modules = load_info_files(source_paths.lib_dir, 'Modules', "info.txt", ModuleInfo)
@@ -3158,7 +3201,7 @@ def main(argv):
     logging.debug('Known CPU names: ' + ' '.join(
         sorted(flatten([[ainfo.basename] + ainfo.aliases for ainfo in info_arch.values()]))))
 
-    set_defaults_for_unset_options(options, info_arch, info_cc)
+    set_defaults_for_unset_options(options, info_arch, info_cc, info_os)
     canonicalize_options(options, info_os, info_arch)
     validate_options(options, info_os, info_cc, info_module_policies)
 

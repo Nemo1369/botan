@@ -24,7 +24,7 @@ passed in results in some change in the state, such as a handshake
 completing, or some data or an alert being received from the other
 side, then the appropriate user provided callback will be invoked.
 
-If the reader is familiar with OpenSSL's BIO layer, it might be analagous
+If the reader is familiar with OpenSSL's BIO layer, it might be analogous
 to saying the only way of interacting with Botan's TLS is via a `BIO_mem` I/O
 abstraction. This makes the library completely agnostic to how you
 write your network layer, be it blocking sockets, libevent, asio, a
@@ -45,7 +45,7 @@ information about the connection.
 
     As an example you could ``send`` to perform a blocking write on a socket,
     or append the data to a queue managed by your application, and initiate
-    an asyncronous write.
+    an asynchronous write.
 
     For TLS all writes must occur *in the order requested*.
     For DTLS this ordering is not strictly required, but is still recommended.
@@ -64,7 +64,7 @@ information about the connection.
      For TLS the record number will always increase.
 
      For DTLS, it is possible to receive records with the `rec_no` field out of
-     order, or with gaps, cooresponding to reordered or lost datagrams.
+     order, or with gaps, corresponding to reordered or lost datagrams.
 
  .. cpp:function:: void tls_alert(Alert alert)
 
@@ -93,7 +93,7 @@ information about the connection.
                    const Policy& policy)
 
      Optional - default implementation should work for many users.
-     It can be overrided for implementing extra validation routines
+     It can be overridden for implementing extra validation routines
      such as public key pinning.
 
      Verifies the certificate chain in *cert_chain*, assuming the leaf
@@ -211,7 +211,7 @@ available:
 
      If the current TLS connection state is unable to transmit new
      application records (for example because a handshake has not
-     yet completed or the connnection has already ended due to an
+     yet completed or the connection has already ended due to an
      error) an exception will be thrown.
 
    .. cpp:function:: void close()
@@ -484,7 +484,7 @@ TLS Servers
          )
 
 The first 5 arguments as well as the final argument
-*reserved_io_buffer_size*, are treated similiarly to the :ref:`client
+*reserved_io_buffer_size*, are treated similarly to the :ref:`client
 <tls_client>`.
 
 If a client sends the ALPN extension, the ``callbacks`` function
@@ -866,7 +866,7 @@ policy settings from a file.
         protections against the Lucky13 attack are somewhat more
         effective for SHA-256 than SHA-384.
 
-.. cpp:function:: std::vector<std::string> allowed_key_exchange_methods() const
+ .. cpp:function:: std::vector<std::string> allowed_key_exchange_methods() const
 
      Returns the list of key exchange methods we are willing to use,
      in order of preference.
@@ -887,7 +887,7 @@ policy settings from a file.
         simply allow only ECDH key exchange in the application policy. DH
         exchange also often involves transferring several additional Kb (without
         the benefit of post quantum security) so if CECPQ1 is being disabled for
-        traffic overhread reasons, DH should also be avoid.
+        traffic overhead reasons, DH should also be avoid.
 
      Also allowed: "RSA", "SRP_SHA", "ECDHE_PSK", "DHE_PSK", "PSK"
 
@@ -1054,37 +1054,37 @@ policy settings from a file.
 
      Default: 2048 bits
 
-.. cpp:function:: bool allow_tls10() const
+ .. cpp:function:: bool allow_tls10() const
 
       Return true from here to allow TLS v1.0. Since 2.8.0, returns
       ``false`` by default.
 
-.. cpp:function:: bool allow_tls11() const
+ .. cpp:function:: bool allow_tls11() const
 
       Return true from here to allow TLS v1.1. Since 2.8.0, returns
       ``false`` by default.
 
-.. cpp:function:: bool allow_tls12() const
+ .. cpp:function:: bool allow_tls12() const
 
       Return true from here to allow TLS v1.2. Returns ``true`` by default.
 
-.. cpp:function:: size_t minimum_rsa_bits() const
+ .. cpp:function:: size_t minimum_rsa_bits() const
 
      Minimum accepted RSA key size. Default 2048 bits.
 
-.. cpp:function:: size_t minimum_dsa_group_size() const
+ .. cpp:function:: size_t minimum_dsa_group_size() const
 
      Minimum accepted DSA key size. Default 2048 bits.
 
-.. cpp:function:: size_t minimum_ecdsa_group_size() const
+ .. cpp:function:: size_t minimum_ecdsa_group_size() const
 
      Minimum size for ECDSA keys (256 bits).
 
-.. cpp:function:: size_t minimum_ecdh_group_size() const
+ .. cpp:function:: size_t minimum_ecdh_group_size() const
 
      Minimum size for ECDH keys (255 bits).
 
-.. cpp:function:: void check_peer_key_acceptable(const Public_Key& public_key) const
+ .. cpp:function:: void check_peer_key_acceptable(const Public_Key& public_key) const
 
      Allows the policy to examine peer public keys. Throw an exception
      if the key should be rejected. Default implementation checks
@@ -1126,7 +1126,7 @@ TLS Ciphersuites
 
  .. cpp:function:: std::string to_string() const
 
-     Return the ful name of ciphersuite (for example
+     Return the full name of ciphersuite (for example
      "RSA_WITH_RC4_128_SHA" or "ECDHE_RSA_WITH_AES_128_GCM_SHA256")
 
  .. cpp:function:: std::string kex_algo() const

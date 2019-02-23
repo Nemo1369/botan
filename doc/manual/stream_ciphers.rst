@@ -7,8 +7,17 @@ of the cipher and encryption of plaintext with arbitrary length is possible in
 one go (in byte amounts). All implemented stream ciphers derive from the base
 class :cpp:class:`StreamCipher` (`botan/stream_cipher.h`).
 
-Note that some of the implemented stream ciphers require a fresh initialisation
-vector.
+.. warning::
+
+   Using a stream cipher without an authentication code is extremely insecure,
+   because an attacker can trivially modify messages. Prefer using an
+   authenticated cipher mode such as GCM or SIV.
+
+.. warning::
+
+   Encrypting more than one message with the same key requires careful management
+   of initialization vectors. Otherwise the keystream will be reused, which causes
+   the security of the cipher to completely fail.
 
 .. cpp:class:: StreamCipher
 
@@ -36,12 +45,12 @@ vector.
 
   .. cpp:function:: size_t minimum_keylength() const
 
-     Return the smallest key length (in bytes) that is acceptible for the
+     Return the smallest key length (in bytes) that is acceptable for the
      algorithm.
 
   .. cpp:function:: size_t maximum_keylength() const
 
-     Return the largest key length (in bytes) that is acceptible for the
+     Return the largest key length (in bytes) that is acceptable for the
      algorithm.
 
   .. cpp:function:: bool valid_iv_length(size_t iv_len) const
@@ -197,6 +206,6 @@ does not support IVs or seeking within the cipher stream.
 .. warning::
 
    RC4 is now badly broken. **Avoid in new code** and use only if required for
-   compatability with existing systems.
+   compatibility with existing systems.
 
 Available if ``BOTAN_HAS_RC4`` is defined.

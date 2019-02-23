@@ -391,6 +391,16 @@ class TLS_Handshake_Test final
             void tls_modify_extensions(Botan::TLS::Extensions& extn, Botan::TLS::Connection_Side which_side) override
                {
                extn.add(new Test_Extension(which_side));
+
+               // Insert an unsupported signature scheme as highest prio, to ensure we are tolerant of this
+               if(auto sig_algs = extn.get<Botan::TLS::Signature_Algorithms>())
+                  {
+                  std::vector<Botan::TLS::Signature_Scheme> schemes = sig_algs->supported_schemes();
+                  // 0x0301 is RSA PKCS1/SHA-224, which is not supported anymore
+                  schemes.insert(schemes.begin(), static_cast<Botan::TLS::Signature_Scheme>(0x0301));
+                  // This replaces the previous extension value
+                  extn.add(new Botan::TLS::Signature_Algorithms(schemes));
+                  }
                }
 
             void tls_examine_extensions(const Botan::TLS::Extensions& extn, Botan::TLS::Connection_Side which_side) override
@@ -405,16 +415,22 @@ class TLS_Handshake_Test final
                   {
                   Botan::TLS::Unknown_Extension* unknown_ext = dynamic_cast<Botan::TLS::Unknown_Extension*>(test_extn);
 
-                  const std::vector<uint8_t> val = unknown_ext->value();
-
-                  if(m_results.test_eq("Expected size for test extn", val.size(), 7))
+                  if(unknown_ext)
                      {
-                     if(which_side == Botan::TLS::CLIENT)
-                        m_results.test_eq("Expected extension value", val, "06636C69656E74");
-                     else
-                        m_results.test_eq("Expected extension value", val, "06736572766572");
-                     }
+                     const std::vector<uint8_t> val = unknown_ext->value();
 
+                     if(m_results.test_eq("Expected size for test extn", val.size(), 7))
+                        {
+                        if(which_side == Botan::TLS::CLIENT)
+                           m_results.test_eq("Expected extension value", val, "06636C69656E74");
+                        else
+                           m_results.test_eq("Expected extension value", val, "06736572766572");
+                        }
+                     }
+                  else
+                     {
+                     m_results.test_failure("Unknown extension type had unexpected type at runtime");
+                     }
                   }
                }
 
@@ -831,7 +847,7 @@ class TLS_Unit_Tests final : public Test
             test_all_versions("AES-128 RSA", results, *client_ses, *server_ses, *creds, "RSA", "AES-128", "SHA-256 SHA-1", etm_setting);
             test_all_versions("AES-128 ECDH", results, *client_ses, *server_ses, *creds, "ECDH", "AES-128", "SHA-256 SHA-1", etm_setting);
 
-#if defined(BOTAN_HAS_CAMELLIA)
+#if defined(BOTAN_HAS_CAMELLIA) && defined(BOTAN_HAS_TLS_CBC)
             test_all_versions("Camellia-128 RSA", results, *client_ses, *server_ses,
                               *creds, "RSA", "Camellia-128", "SHA-256 SHA-1", etm_setting);
             test_all_versions("Camellia-256 RSA SHA-2", results, *client_ses, *server_ses,
@@ -887,8 +903,10 @@ class TLS_Unit_Tests final : public Test
 
          client_ses->remove_all();
 
-#if defined(BOTAN_HAS_CAMELLIA)
+#if defined(BOTAN_HAS_CAMELLIA) && defined(BOTAN_HAS_TLS_CBC)
          test_modern_versions("Camellia-256 SHA-2", results, *client_ses, *server_ses, *creds, "RSA", "Camellia-256", "SHA-384 SHA-256");
+#endif
+#if defined(BOTAN_HAS_CAMELLIA) && defined(BOTAN_HAS_GCM)
          test_modern_versions("Camellia-128/GCM ECDH", results, *client_ses, *server_ses, *creds, "ECDH", "Camellia-128/GCM", "AEAD");
 #endif
 

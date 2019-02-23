@@ -14,6 +14,9 @@ in the source.
 
 - The headers ``botan.h``, ``init.h``, ``lookup.h``, ``threefish.h``, ``sm2_enc.h``
 
+- Using a default output length for "SHAKE-128" and "SHAKE-256". Instead,
+  always specify the desired output length.
+
 - All or nothing package transform (``package.h``)
 
 - The TLS constructors taking `std::function` for callbacks. Instead
@@ -21,15 +24,13 @@ in the source.
 
 - Using ``X509_Certificate::subject_info`` and ``issuer_info`` to access any
   information that is not included in the DN or subject alternative name. Prefer
-  using the specific accessor functions for other data, eg instead of
+  using the specific assessor functions for other data, eg instead of
   ``cert.subject_info("X509.Certificate.serial")`` use ``cert.serial_number()``.
 
 - The Buffered_Computation base class. In a future release the class will be
   removed, and all of member functions instead declared directly on
   MessageAuthenticationCode and HashFunction. So this only affects you if you
   are directly referencing `Botan::Buffered_Computation` in some way.
-
-- Support for Visual C++ 2013
 
 - Platform support for Google Native Client
 
@@ -40,6 +41,10 @@ in the source.
 - TLS: Anonymous DH/ECDH ciphersuites
 
 - TLS: DHE-PSK ciphersuites
+
+- TLS: SRP ciphersuites. All available TLS-SRP suites use obsolete
+  ciphers. It would be better to instead perform a standard TLS
+  negotiation, then a PAKE authentication within the TLS channel.
 
 - TLS: DSA ciphersuites/certs
 

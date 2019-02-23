@@ -11,6 +11,7 @@
 
 #include <botan/base64.h>
 #include <botan/hex.h>
+#include <botan/rng.h>
 
 #include <botan/pk_keys.h>
 #include <botan/x509_key.h>
@@ -59,7 +60,7 @@ class PK_Keygen final : public Command
             throw CLI_Error_Unsupported("keygen", algo);
             }
 
-         const std::string pass = get_arg("passphrase");
+         const std::string pass = get_passphrase_arg("Key passphrase", "passphrase");
          const bool der_out = flag_set("der-out");
 
          const std::chrono::milliseconds pbe_millis(get_arg_sz("pbe-millis"));
@@ -96,21 +97,40 @@ BOTAN_REGISTER_COMMAND("keygen", PK_Keygen);
 
 namespace {
 
-std::string algo_default_emsa(const std::string& key)
-   {
-   if(key == "RSA")
+std::string choose_sig_padding(const std::string& key, const std::string& emsa, const std::string& hash)
+{
+   std::string emsa_or_default = [&]() -> std::string
       {
-      return "EMSA4";
-      } // PSS
-   else if(key == "ECDSA" || key == "DSA")
+      if(!emsa.empty())
+         {
+         return emsa;
+         }
+
+      if(key == "RSA")
+         {
+         return "EMSA4";
+         } // PSS
+      else if(key == "ECDSA" || key == "DSA")
+         {
+         return "EMSA1";
+         }
+      else if(key == "Ed25519")
+         {
+         return "";
+         }
+      else
+         {
+         return "EMSA1";
+         }
+      }();
+
+   if(emsa_or_default.empty())
       {
-      return "EMSA1";
+      return hash;
       }
-   else
-      {
-      return "EMSA1";
-      }
-   }
+
+   return emsa_or_default + "(" + hash + ")";
+}
 
 }
 
@@ -167,11 +187,11 @@ class PK_Sign final : public Command
 
       void go() override
          {
-         std::unique_ptr<Botan::Private_Key> key(
-            Botan::PKCS8::load_key(
-               get_arg("key"),
-               rng(),
-               get_arg("passphrase")));
+         const std::string key_file = get_arg("key");
+         const std::string passphrase = get_passphrase_arg("Passphrase for " + key_file, "passphrase");
+
+         Botan::DataSource_Stream input(key_file);
+         std::unique_ptr<Botan::Private_Key> key = Botan::PKCS8::load_key(input, passphrase);;
 
          if(!key)
             {
@@ -179,7 +199,7 @@ class PK_Sign final : public Command
             }
 
          const std::string sig_padding =
-            get_arg_or("emsa", algo_default_emsa(key->algo_name())) + "(" + get_arg("hash") + ")";
+            choose_sig_padding(key->algo_name(), get_arg("emsa"), get_arg("hash"));
 
          const Botan::Signature_Format format =
             flag_set("der-format") ? Botan::DER_SEQUENCE : Botan::IEEE_1363;
@@ -224,7 +244,7 @@ class PK_Verify final : public Command
             }
 
          const std::string sig_padding =
-            get_arg_or("emsa", algo_default_emsa(key->algo_name())) + "(" + get_arg("hash") + ")";
+            choose_sig_padding(key->algo_name(), get_arg("emsa"), get_arg("hash"));
 
          const Botan::Signature_Format format =
             flag_set("der-format") ? Botan::DER_SEQUENCE : Botan::IEEE_1363;
@@ -264,9 +284,10 @@ class PKCS8_Tool final : public Command
 
       void go() override
          {
-         const std::string pass_in = get_arg("pass-in");
+         const std::string key_file = get_arg("key");
+         const std::string pass_in = get_passphrase_arg("Password for " + key_file, "pass-in");
 
-         Botan::DataSource_Memory key_src(slurp_file(get_arg("key")));
+         Botan::DataSource_Memory key_src(slurp_file(key_file));
          std::unique_ptr<Botan::Private_Key> key;
 
          if(pass_in.empty())
@@ -295,7 +316,7 @@ class PKCS8_Tool final : public Command
             }
          else
             {
-            const std::string pass_out = get_arg("pass-out");
+            const std::string pass_out = get_passphrase_arg("Passphrase to encrypt key", "pass-out");
 
             if(der_out)
                {
@@ -341,7 +362,7 @@ class EC_Group_Info final : public Command
 
       std::string description() const override
          {
-         return "Print raw elliptic curve domain parameters of the standarized curve name";
+         return "Print raw elliptic curve domain parameters of the standardized curve name";
          }
 
       void go() override
@@ -382,7 +403,7 @@ class DL_Group_Info final : public Command
 
       std::string description() const override
          {
-         return "Print raw Diffie-Hellman parameters (p,g) of the standarized DH group name";
+         return "Print raw Diffie-Hellman parameters (p,g) of the standardized DH group name";
          }
 
       void go() override

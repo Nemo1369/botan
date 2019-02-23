@@ -9,6 +9,35 @@ obviously all open for future improvement.
 The following text assumes the reader is already familiar with cryptographic
 implementations, side channel attacks, and common countermeasures.
 
+Modular Exponentiation
+------------------------
+
+Modular exponentiation uses a fixed window algorithm with Montgomery
+representation. A side channel silent table lookup is used to access the
+precomputed powers. The caller provides the maximum possible bit length of the
+exponent, and the exponent is zero-padded as required. For example, in a DSA
+signature with 256-bit q, the caller will specify a maximum length of exponent
+of 256 bits, even if the k that was generated was 250 bits. This avoids leaking
+the length of the exponent through the number of loop iterations.
+See monty_exp.cpp and monty.cpp
+
+Karatsuba multiplication algorithm avoids any conditional branches; in
+cases where different operations must be performed it instead uses masked
+operations. See mp_karat.cpp for details.
+
+The Montgomery reduction is written to run in constant time.
+The final reduction is handled with a masked subtraction. See mp_monty.cpp.
+
+Barrett Reduction
+--------------------
+
+The Barrett reduction code is written to avoid input dependent branches. The
+Barrett algorithm only works for inputs up to a certain size, and larger values
+fall back on a different (slower) division algorithm. This secondary algorithm
+is also const time, but the branch allows detecting when a value larger than
+2^{2k} was reduced, where k is the word length of the modulus. This leaks only
+the size of the two values, and not anything else about their value.
+
 RSA
 ----------------------
 
@@ -105,33 +134,6 @@ coming from the length of the RSA key (which is public information).
 
 See eme_oaep.cpp.
 
-Modular Exponentiation
-------------------------
-
-Modular exponentiation uses a fixed window algorithm with Montgomery
-representation. A side channel silent table lookup is used to access the
-precomputed powers. The caller provides the maximum possible bit length of the
-exponent, and the exponent is zero-padded as required. For example, in a DSA
-signature with 256-bit q, the caller will specify a maximum length of exponent
-of 256 bits, even if the k that was generated was 250 bits. This avoids leaking
-the length of the exponent through the number of loop iterations.
-See monty_exp.cpp and monty.cpp
-
-Karatsuba multiplication algorithm avoids any conditional branches; in
-cases where different operations must be performed it instead uses masked
-operations. See mp_karat.cpp for details.
-
-The Montgomery reduction is written (and tested) to run in constant time.
-The final reduction is handled with a masked subtraction. See mp_monty.cpp.
-
-Barrett Reduction
---------------------
-
-The Barrett reduction code is written to avoid input dependent branches.
-However the Barrett algorithm only works for inputs that are most the
-square of the modulus; larger values fall back to the schoolbook
-division algorithm which is not const time.
-
 ECC point decoding
 ----------------------
 
@@ -170,9 +172,12 @@ The base point multiplication algorithm is a comb-like technique which
 precomputes ``P^i,(2*P)^i,(3*P)^i`` for all ``i`` in the range of valid scalars.
 This means the scalar multiplication involves only point additions and no
 doublings, which may help against attacks which rely on distinguishing between
-point doublings and point additions. The elements of the table are accessed
-by masked lookups, so as not to leak information about bits of the scalar
-via a cache side channel.
+point doublings and point additions. The elements of the table are accessed by
+masked lookups, so as not to leak information about bits of the scalar via a
+cache side channel. However, whenever 3 sequential bits of the scalar are all 0,
+no operation is performed in that iteration of the loop. This exposes the scalar
+multiply to a cache-based side channel attack; scalar blinding is necessary to
+prevent this attack from leaking information about the scalar.
 
 The variable point multiplication algorithm uses a fixed-window algorithm. Since
 this is normally invoked using untrusted points (eg during ECDH key exchange) it
@@ -346,8 +351,8 @@ such a way that it is guaranteed that the compiler will not elide the
 'additional' (seemingly unnecessary) writes to zero out the memory.
 
 The function secure_scrub_memory (in mem_ops.cpp) uses some system specific
-trick to zero out an array. On Windows it uses the directly supported API
-function RtlSecureZeroMemory.
+trick to zero out an array. If possible an OS provided routine (such as
+``RtlSecureZeroMemory`` or ``explicit_bzero``) is used.
 
 On other platforms, by default the trick of referencing memset through a
 volatile function pointer is used. This approach is not guaranteed to work on
@@ -365,16 +370,15 @@ Botan's secure_vector type is a std::vector with a custom allocator. The
 allocator calls secure_scrub_memory before freeing memory.
 
 Some operating systems support an API call to lock a range of pages
-into memory, such that they will never be swapped out (mlock on POSIX,
-VirtualLock on Windows). On many POSIX systems mlock is only usable by
+into memory, such that they will never be swapped out (``mlock`` on POSIX,
+``VirtualLock`` on Windows). On many POSIX systems ``mlock`` is only usable by
 root, but on Linux, FreeBSD and possibly other systems a small amount
-of memory can be mlock'ed by processes without extra credentials.
+of memory can be locked by processes without extra credentials.
 
-If available, Botan uses such a region for storing key material. It is
-created in anonymous mapped memory (not disk backed), locked in
-memory, and scrubbed on free. This memory pool is used by
-secure_vector when available. It can be disabled at runtime setting
-the environment variable BOTAN_MLOCK_POOL_SIZE to 0.
+If available, Botan uses such a region for storing key material. A page-aligned
+block of memory is allocated and locked, then the memory is scrubbed before
+freeing. This memory pool is used by secure_vector when available. It can be
+disabled at runtime setting the environment variable BOTAN_MLOCK_POOL_SIZE to 0.
 
 Automated Analysis
 ---------------------

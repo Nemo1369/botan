@@ -86,6 +86,17 @@ class Block_Cipher_Tests final : public Text_Based_Test
             cipher->encrypt(garbage);
             cipher->clear();
 
+            /*
+            * Different providers may have additional restrictions on key sizes.
+            * Avoid testing the cipher with a key size that it does not natively support.
+            */
+            if(!cipher->valid_keylength(key.size()))
+               {
+               result.test_note("Skipping test with provider " + provider +
+                                " as it does not support key length " + std::to_string(key.size()));
+               continue;
+               }
+
             cipher->set_key(key);
 
             if(tweak.size() > 0)
@@ -126,7 +137,7 @@ class Block_Cipher_Tests final : public Text_Based_Test
             // Now test misaligned buffers
             const size_t blocks = input.size() / cipher->block_size();
             buf.resize(input.size() + 1);
-            std::memcpy(buf.data() + 1, input.data(), input.size());
+            Botan::copy_mem(buf.data() + 1, input.data(), input.size());
 
             for(size_t i = 0; i != iterations; ++i)
                {
@@ -138,7 +149,7 @@ class Block_Cipher_Tests final : public Text_Based_Test
                            expected.data(), expected.size());
 
             // always decrypt expected ciphertext vs what we produced above
-            std::memcpy(buf.data() + 1, expected.data(), expected.size());
+            Botan::copy_mem(buf.data() + 1, expected.data(), expected.size());
 
             for(size_t i = 0; i != iterations; ++i)
                {

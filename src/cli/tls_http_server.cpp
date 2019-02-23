@@ -127,7 +127,7 @@ class HTTP_Parser
             headers[hdr_name] = hdr_val;
 
             if(headers.size() > 1024)
-               throw std::runtime_error("That's an awful lot of headers");
+               throw Botan::Invalid_Argument("Too many HTTP headers sent in request");
             }
 
          if(verb != "" && location != "")
@@ -531,7 +531,7 @@ class TLS_HTTP_Server final : public Command
          if(!sessions_db.empty())
             {
 #if defined(BOTAN_HAS_TLS_SQLITE3_SESSION_MANAGER)
-            const std::string sessions_passphrase = get_arg("session-db-pass");
+            const std::string sessions_passphrase = get_passphrase_arg("Session DB passphrase", "session-db-pass");
             session_mgr.reset(new Botan::TLS::Session_Manager_SQLite(sessions_passphrase, rng(), sessions_db));
 #else
             throw CLI_Error_Unsupported("Sqlite3 support not available");

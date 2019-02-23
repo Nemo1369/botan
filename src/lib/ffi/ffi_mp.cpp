@@ -19,7 +19,7 @@ using namespace Botan_FFI;
 
 int botan_mp_init(botan_mp_t* mp_out)
    {
-   return ffi_guard_thunk(BOTAN_CURRENT_FUNCTION, [=]() -> int {
+   return ffi_guard_thunk(__func__, [=]() -> int {
       if(mp_out == nullptr)
          return BOTAN_FFI_ERROR_NULL_POINTER;
 
@@ -100,7 +100,7 @@ int botan_mp_to_hex(const botan_mp_t mp, char* out)
    {
    return BOTAN_FFI_DO(Botan::BigInt, mp, bn, {
       const std::string hex = bn.to_hex_string();
-      std::strcpy(out, hex.c_str());
+      std::memcpy(out, hex.c_str(), 1 + hex.size());
       });
    }
 

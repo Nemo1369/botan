@@ -105,7 +105,7 @@ secure_vector<uint8_t> PKCS8_decode(
       if(is_encrypted)
          {
          if(OIDS::lookup(pbe_alg_id.get_oid()) != "PBE-PKCS5v20")
-            throw Exception("Unknown PBE type " + pbe_alg_id.get_oid().as_string());
+            throw PKCS8_Exception("Unknown PBE type " + pbe_alg_id.get_oid().as_string());
 #if defined(BOTAN_HAS_PKCS5_PBES2)
          key = pbes2_decrypt(key_data, get_passphrase(), pbe_alg_id.get_parameters());
 #else
@@ -159,18 +159,34 @@ choose_pbe_params(const std::string& pbe_algo, const std::string& key_algo)
    {
    if(pbe_algo.empty())
       {
-      // Defaults:
-      if(key_algo == "Curve25519" || key_algo == "McEliece")
+      /*
+      * For algorithms where we are using a non-RFC format anyway, default to
+      * SIV or GCM. For others (RSA, ECDSA, ...) default to something widely
+      * compatible.
+      */
+      const bool nonstandard_pk = (key_algo == "McEliece" || key_algo == "XMSS");
+
+      if(nonstandard_pk)
+         {
+#if defined(BOTAN_HAS_AEAD_SIV) && defined(BOTAN_HAS_SHA2_64)
+         return std::make_pair("AES-256/SIV", "SHA-512");
+#elif defined(BOTAN_HAS_AEAD_GCM) && defined(BOTAN_HAS_SHA2_64)
          return std::make_pair("AES-256/GCM", "SHA-512");
-      else // for everything else (RSA, DSA, ECDSA, GOST, ...)
-         return std::make_pair("AES-256/CBC", "SHA-256");
+#endif
+         }
+
+      // Default is something compatible with everyone else
+      return std::make_pair("AES-256/CBC", "SHA-256");
       }
 
    SCAN_Name request(pbe_algo);
-   if(request.arg_count() != 2)
-      throw Exception("Unsupported PBE " + pbe_algo);
-   if(request.algo_name() != "PBE-PKCS5v20" && request.algo_name() != "PBES2")
-      throw Exception("Unsupported PBE " + pbe_algo);
+
+   if(request.arg_count() != 2 ||
+      (request.algo_name() != "PBE-PKCS5v20" && request.algo_name() != "PBES2"))
+      {
+      throw Invalid_Argument("Unsupported PBE " + pbe_algo);
+      }
+
    return std::make_pair(request.arg(0), request.arg(1));
    }
 

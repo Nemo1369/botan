@@ -50,8 +50,11 @@ namespace Botan {
       B0 = B0.rotr<13>();                                          \
    } while(0)
 
-void Serpent::avx2_encrypt_8(const uint8_t in[64], uint8_t out[64]) const
+BOTAN_FUNC_ISA("avx2")
+void Serpent::avx2_encrypt_8(const uint8_t in[128], uint8_t out[128]) const
    {
+   SIMD_8x32::reset_registers();
+
    SIMD_8x32 B0 = SIMD_8x32::load_le(in);
    SIMD_8x32 B1 = SIMD_8x32::load_le(in + 32);
    SIMD_8x32 B2 = SIMD_8x32::load_le(in + 64);
@@ -97,10 +100,15 @@ void Serpent::avx2_encrypt_8(const uint8_t in[64], uint8_t out[64]) const
    B1.store_le(out + 32);
    B2.store_le(out + 64);
    B3.store_le(out + 96);
+
+   SIMD_8x32::zero_registers();
    }
 
-void Serpent::avx2_decrypt_8(const uint8_t in[64], uint8_t out[64]) const
+BOTAN_FUNC_ISA("avx2")
+void Serpent::avx2_decrypt_8(const uint8_t in[128], uint8_t out[128]) const
    {
+   SIMD_8x32::reset_registers();
+
    SIMD_8x32 B0 = SIMD_8x32::load_le(in);
    SIMD_8x32 B1 = SIMD_8x32::load_le(in + 32);
    SIMD_8x32 B2 = SIMD_8x32::load_le(in + 64);
@@ -150,6 +158,12 @@ void Serpent::avx2_decrypt_8(const uint8_t in[64], uint8_t out[64]) const
    B1.store_le(out + 32);
    B2.store_le(out + 64);
    B3.store_le(out + 96);
+
+   SIMD_8x32::zero_registers();
    }
+
+#undef key_xor
+#undef transform
+#undef i_transform
 
 }

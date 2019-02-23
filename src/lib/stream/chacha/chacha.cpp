@@ -8,6 +8,7 @@
 #include <botan/chacha.h>
 #include <botan/exceptn.h>
 #include <botan/loadstor.h>
+#include <botan/rotate.h>
 #include <botan/cpuid.h>
 
 namespace Botan {
@@ -74,10 +75,10 @@ std::string ChaCha::provider() const
       }
 #endif
 
-#if defined(BOTAN_HAS_CHACHA_SSE2)
-   if(CPUID::has_sse2())
+#if defined(BOTAN_HAS_CHACHA_SIMD32)
+   if(CPUID::has_simd_32())
       {
-      return "sse2";
+      return "simd32";
       }
 #endif
 
@@ -96,11 +97,11 @@ void ChaCha::chacha_x8(uint8_t output[64*8], uint32_t input[16], size_t rounds)
       }
 #endif
 
-#if defined(BOTAN_HAS_CHACHA_SSE2)
-   if(CPUID::has_sse2())
+#if defined(BOTAN_HAS_CHACHA_SIMD32)
+   if(CPUID::has_simd_32())
       {
-      ChaCha::chacha_sse2_x4(output, input, rounds);
-      ChaCha::chacha_sse2_x4(output + 4*64, input, rounds);
+      ChaCha::chacha_simd32_x4(output, input, rounds);
+      ChaCha::chacha_simd32_x4(output + 4*64, input, rounds);
       return;
       }
 #endif
@@ -161,7 +162,7 @@ void ChaCha::chacha_x8(uint8_t output[64*8], uint32_t input[16], size_t rounds)
       store_le(x15, output + 64 * i + 4 * 15);
 
       input[12]++;
-      input[13] += input[12] < i; // carry?
+      input[13] += (input[12] == 0);
       }
    }
 
@@ -176,11 +177,14 @@ void ChaCha::cipher(const uint8_t in[], uint8_t out[], size_t length)
 
    while(length >= m_buffer.size() - m_position)
       {
-      xor_buf(out, in, &m_buffer[m_position], m_buffer.size() - m_position);
-      length -= (m_buffer.size() - m_position);
-      in += (m_buffer.size() - m_position);
-      out += (m_buffer.size() - m_position);
+      const size_t available = m_buffer.size() - m_position;
+
+      xor_buf(out, in, &m_buffer[m_position], available);
       chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
+
+      length -= available;
+      in += available;
+      out += available;
       m_position = 0;
       }
 
@@ -195,10 +199,13 @@ void ChaCha::write_keystream(uint8_t out[], size_t length)
 
    while(length >= m_buffer.size() - m_position)
       {
-      copy_mem(out, &m_buffer[m_position], m_buffer.size() - m_position);
-      length -= (m_buffer.size() - m_position);
-      out += (m_buffer.size() - m_position);
+      const size_t available = m_buffer.size() - m_position;
+
+      copy_mem(out, &m_buffer[m_position], available);
       chacha_x8(m_buffer.data(), m_state.data(), m_rounds);
+
+      length -= available;
+      out += available;
       m_position = 0;
       }
 

@@ -389,7 +389,7 @@ PKIX::check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate
                                                 /*redirects*/1,
                                                 timeout);
                   }
-               catch(std::exception& e)
+               catch(std::exception&)
                   {
                   // log e.what() ?
                   }
@@ -452,7 +452,7 @@ PKIX::check_crl_online(const std::vector<std::shared_ptr<const X509_Certificate>
          {
          // Avoid creating a thread for this case
          future_crls.emplace_back(std::async(std::launch::deferred, [&]() -> std::shared_ptr<const X509_CRL> {
-               throw Exception("No CRL distribution point for this certificate");
+               throw Not_Implemented("No CRL distribution point for this certificate");
                }));
          }
       else
@@ -476,7 +476,7 @@ PKIX::check_crl_online(const std::vector<std::shared_ptr<const X509_Certificate>
             {
             crls[i] = future_crls[i].get();
             }
-         catch(std::exception& e)
+         catch(std::exception&)
             {
             // crls[i] left null
             // todo: log exception e.what() ?
@@ -741,7 +741,7 @@ PKIX::build_all_certificate_paths(std::vector<std::vector<std::shared_ptr<const 
    if(cert_paths_out.empty())
       {
       if(stats.empty())
-         throw Exception("X509 path building failed for unknown reasons");
+         throw Internal_Error("X509 path building failed for unknown reasons");
       else
          // arbitrarily return the first error
          return stats[0];
@@ -1005,9 +1005,9 @@ Path_Validation_Result::Path_Validation_Result(CertificatePathStatusCodes status
 const X509_Certificate& Path_Validation_Result::trust_root() const
    {
    if(m_cert_path.empty())
-      throw Exception("Path_Validation_Result::trust_root no path set");
+      throw Invalid_State("Path_Validation_Result::trust_root no path set");
    if(result() != Certificate_Status_Code::VERIFIED)
-      throw Exception("Path_Validation_Result::trust_root meaningless with invalid status");
+      throw Invalid_State("Path_Validation_Result::trust_root meaningless with invalid status");
 
    return *m_cert_path[m_cert_path.size()-1];
    }
@@ -1029,7 +1029,7 @@ bool Path_Validation_Result::successful_validation() const
 
 bool Path_Validation_Result::no_warnings() const
    {
-   for(auto status_set_i : m_warnings) 
+   for(auto status_set_i : m_warnings)
       if(!status_set_i.empty())
          return false;
    return true;

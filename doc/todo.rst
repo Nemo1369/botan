@@ -15,22 +15,28 @@ Ciphers, Hashes, PBKDF
 * Compressed tables for AES
 * AES using vector permutes for NEON
 * Camellia using AES-NI
-* ChaCha20 using NEON
+* Poly1305 using AVX2
 * ASCON 1.2 (CAESAR)
 * NORX-64 3.0 (CAESAR)
 * Argon2 PBKDF (draft-irtf-cfrg-argon2)
 * Skein-MAC
 * PMAC
 * SIV-PMAC
+* GCM-SIV (draft-irtf-cfrg-gcmsiv)
 * Extend Cascade_Cipher to support arbitrary number of ciphers
 * EME* tweakable block cipher (https://eprint.iacr.org/2004/125.pdf)
 * FFX format preserving encryption (NIST 800-38G)
+* SHA-512 using BMI2+AVX2
+* Constant time DES using BMI2
+* Threefish-1024
+* SIMD evaluation of SHA-2 and SHA-3 compression functions
 
 Public Key Crypto, Math
 ----------------------------------------
 
 * Abstract representation of ECC point elements to allow specific
   implementations of the field arithmetic depending upon the curve.
+* Use NAF (joint sparse form) for ECC multi-exponentiation
 * Curves for pairings (BN-256 is widely implemented)
 * Identity based encryption
 * BBS group signatures
@@ -40,16 +46,18 @@ Public Key Crypto, Math
 * OPAQUE PAKE (draft-krawczyk-cfrg-opaque)
 * SPHINX password store (https://eprint.iacr.org/2018/695)
 * SPAKE2+ (draft-irtf-cfrg-spake2)
-* SPHINCS-256
+* SPHINCS+
+* Dilithium lattice based signatures
+* Kyber lattice based KEM
 * X448 and Ed448
 * FHMQV
 * Use GLV decomposition to speed up secp256k1 operations
-* Recover ECDSA public key from signature/message pair (GH #664)
 
 Utility Functions
 ------------------
 
-* base58 encoding
+* Add a memory span type
+* Make Memory_Pool more concurrent (currently uses a global lock)
 
 Multiparty Protocols
 ----------------------
@@ -65,10 +73,11 @@ External Providers, Hardware Support
 * Support using BoringSSL instead of OpenSSL or LibreSSL
 * /dev/crypto provider (ciphers, hashes)
 * Windows CryptoNG provider (ciphers, hashes)
-* Apple CommonCrypto
+* Extend Apple CommonCrypto provider (HMAC, CMAC, RSA, ECDSA, ECDH)
 * POWER8 crypto extensions (SHA-2, GCM)
 * Better TPM support: NVRAM, PCR measurements, sealing
 * Intel SGX support
+* Support Intel QuickAssist accelerator cards
 
 TLS
 ----------------------------------------
@@ -110,12 +119,12 @@ New Protocols / Formats
 * PKCS12 / PFX
 * NaCl compatible cryptobox functions
 * Off-The-Record v3 https://otr.cypherpunks.ca/
+* Certificate Management Protocol (RFC 5273); requires CMS
 * Fernet symmetric encryption (https://cryptography.io/en/latest/fernet/)
 * Useful OpenPGP subset 1: symmetrically encrypted files.
   Not aiming to process arbitrary OpenPGP, but rather produce
   something that happens to be readable by `gpg` and is relatively
-  simple to process for decryption. Require a 128-bit block cipher and
-  MDC packet.
+  simple to process for decryption. Require AEAD mode (EAX/OCB).
 * Useful OpenPGP subset 2: Process OpenPGP public keys
 * Useful OpenPGP subset 3: Verification of OpenPGP signatures
 
@@ -129,10 +138,9 @@ Compat Headers
 
 * OpenSSL compatible API headers: EVP, TLS, certificates, etc
 
-FFI and Bindings
+New C APIs
 ----------------------------------------
 
-* Expose NewHope and CECPQ1
 * X.509 CRL handling
 * PKCS10 requests
 * Certificate signing
@@ -140,6 +148,15 @@ FFI and Bindings
 * Expose NIST key wrap with padding
 * Expose secret sharing
 * Expose deterministic PRNG
+* base32
+* base58
+
+Python
+----------------
+
+* Anywhere Pylint warnings too-many-locals, too-many-branches, or
+  too-many-statements are skipped, fix the code so Pylint no longer warns.
+
 * Write a CLI or HTTPS client in Python
 
 Library Infrastructure
@@ -157,9 +174,16 @@ Build/Test
 * Code signing for Windows installers
 * Test runner python script that captures backtraces and other
   debug info during CI
+* Build for Android in CI
+* Support hardcoding all test vectors into the botan-test binary
+  so it can run as a standalone item (copied to a device, etc)
+* Run iOS binary under simulator in CI
 * Run the TPM tests against an emulator
   (https://github.com/PeterHuewe/tpm-emulator)
 * Add clang-tidy, clang-analyzer, cppcheck to CI
+* Add support for vxWorks
+* Add support for Fuschia OS
+* Add support for CloudABI
 
 FIPS 140 Build
 ---------------------------------------
@@ -180,6 +204,8 @@ CLI
 * `encrypt` / `decrypt` tools providing password based file encryption
 * Clone of `minisign` signature utility
 * Implementation of `tlsdate`
+* Utils for base32 and base58 encoding
+* TOTP calculator
 
 Documentation
 ----------------------------------------

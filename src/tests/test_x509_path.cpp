@@ -135,7 +135,7 @@ class X509test_Path_Validation_Tests final : public Test
             Botan::Path_Validation_Result path_result = Botan::x509_path_validate(
                      certs, restrictions, trusted,
                      "www.tls.test", Botan::Usage_Type::TLS_SERVER_AUTH,
-                     validation_time, 
+                     validation_time,
                      /* activate check_ocsp_online */ std::chrono::milliseconds(1000), {});
 
             if(path_result.successful_validation() && path_result.trust_root() != root)
@@ -146,13 +146,13 @@ class X509test_Path_Validation_Tests final : public Test
             // certificate verification succeed even if no OCSP URL (softfail)
             result.confirm("test success", path_result.successful_validation());
             result.test_eq("test " + filename, path_result.result_string(), "Verified");
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+#if defined(BOTAN_TARGET_OS_HAS_THREADS) && defined(BOTAN_HAS_HTTP_UTIL)
             // if softfail, there is warnings
             result.confirm("test warnings", !path_result.no_warnings());
             result.test_eq("test warnings string", path_result.warnings_string(), "[0] OCSP URL not available");
 #endif
             result.end_timer();
-            results.push_back(result);  
+            results.push_back(result);
             }
 
          return results;
@@ -580,8 +580,8 @@ std::vector<Test::Result> BSI_Path_Validation_Tests::run()
           */
          struct random_bit_generator {
             using result_type = size_t;
-            static BOTAN_CONSTEXPR result_type min() { return 0; }
-            static BOTAN_CONSTEXPR result_type max() { return std::numeric_limits<size_t>::max(); }
+            static constexpr result_type min() { return 0; }
+            static constexpr result_type max() { return std::numeric_limits<size_t>::max(); }
             result_type operator()()
                {
                size_t s;
@@ -634,19 +634,17 @@ std::vector<Test::Result> BSI_Path_Validation_Tests::run()
       /* Some certificates are rejected when executing the X509_Certificate constructor
        * by throwing a Decoding_Error exception.
        */
-      catch(const Botan::Decoding_Error& d)
+      catch(const Botan::Exception& e)
          {
-         result.test_eq(test_name + " path validation result", d.what(),
-                        expected_result);
-         }
-      catch(const Botan::X509_CRL::X509_CRL_Error& e)
-         {
-         result.test_eq(test_name + " path validation result", e.what(),
-                        expected_result);
-         }
-      catch(const std::exception& e)
-         {
-         result.test_failure(test_name, e.what());
+         if(e.error_type() == Botan::ErrorType::DecodingFailure)
+            {
+            result.test_eq(test_name + " path validation result", e.what(),
+                           expected_result);
+            }
+         else
+            {
+            result.test_failure(test_name, e.what());
+            }
          }
 
       result.end_timer();

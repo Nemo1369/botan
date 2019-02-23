@@ -101,11 +101,27 @@
   #include <botan/internal/openssl.h>
 #endif
 
+#if defined(BOTAN_HAS_COMMONCRYPTO)
+  #include <botan/internal/commoncrypto.h>
+#endif
+
 namespace Botan {
 
 std::unique_ptr<HashFunction> HashFunction::create(const std::string& algo_spec,
                                                    const std::string& provider)
    {
+
+#if defined(BOTAN_HAS_COMMONCRYPTO)
+   if(provider.empty() || provider == "commoncrypto")
+      {
+      if(auto hash = make_commoncrypto_hash(algo_spec))
+         return hash;
+
+      if(!provider.empty())
+         return nullptr;
+      }
+#endif
+
 #if defined(BOTAN_HAS_OPENSSL)
    if(provider.empty() || provider == "openssl")
       {
@@ -127,8 +143,6 @@ std::unique_ptr<HashFunction> HashFunction::create(const std::string& algo_spec,
          return nullptr;
       }
 #endif
-
-   // TODO: CommonCrypto hashes
 
    if(provider.empty() == false && provider != "base")
       return nullptr; // unknown provider
@@ -247,7 +261,7 @@ std::unique_ptr<HashFunction> HashFunction::create(const std::string& algo_spec,
 #endif
 
 #if defined(BOTAN_HAS_BLAKE2B)
-   if(req.algo_name() == "Blake2b")
+   if(req.algo_name() == "Blake2b" || req.algo_name() == "BLAKE2b")
       {
       return std::unique_ptr<HashFunction>(
          new Blake2b(req.arg_as_integer(0, 512)));
@@ -354,7 +368,7 @@ HashFunction::create_or_throw(const std::string& algo,
 
 std::vector<std::string> HashFunction::providers(const std::string& algo_spec)
    {
-   return probe_providers_of<HashFunction>(algo_spec, {"base", "bearssl", "openssl"});
+   return probe_providers_of<HashFunction>(algo_spec, {"base", "bearssl", "openssl", "commoncrypto"});
    }
 
 }

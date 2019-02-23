@@ -15,6 +15,11 @@ If ``botan`` is run with an unknown command, or without any command, or with the
 command is run with the ``--help`` option (like ``botan <command> --help``)
 some information about the usage of the command is printed.
 
+Starting in version 2.9, commands that take a passphrase (such as
+``gen_bcrypt`` or ``pkcs8``) will also accept the literal `-` to mean
+ask for the passphrase on the terminal. If supported by the operating
+system, echo will be disabled while reading the passphrase.
+
 Hash Function
 ----------------
 ``hash --algo=SHA-256 --buf-size=4096 --no-fsname files``
@@ -50,7 +55,7 @@ Public Key Cryptography
   key, it is recommended to encrypt it with a provided *passphrase*. *pbe* is
   the name of the desired encryption algorithm, which uses *pbe-millis*
   milliseconds to derive the encryption key from the passed
-  *passphrase*. Algorithm specific parameters, as the desired bitlength of an
+  *passphrase*. Algorithm specific parameters, as the desired bit length of an
   RSA key, can be passed with *params*.
 
     - For RSA *params* specifies the bit length of the RSA modulus. It defaults to 3072.
@@ -105,11 +110,11 @@ Public Key Cryptography
       in fact generate a valid DSA group, the command will fail.
 
 ``dl_group_info --pem name``
-  Print raw Diffie-Hellman parameters (p,g) of the standarized DH group
+  Print raw Diffie-Hellman parameters (p,g) of the standardized DH group
   *name*. If *pem* is set, the X9.42 encoded group is printed.
 
 ``ec_group_info --pem name``
-  Print raw elliptic curve domain parameters of the standarized curve *name*. If
+  Print raw elliptic curve domain parameters of the standardized curve *name*. If
   *pem* is set, the encoded domain is printed.
 
 ``pk_encrypt --aead=AES-256/GCM rsa_pubkey datafile``
@@ -160,7 +165,7 @@ X.509
   used, the certificate's fingerprint is also printed.
 
 ``cert_verify subject *ca_certs``
-  Verify if the provided X.509 certificate *subject* can be sucessfully
+  Verify if the provided X.509 certificate *subject* can be successfully
   validated. The list of trusted CA certificates is passed with *ca_certs*,
   which is a list of one or more certificates.
 
@@ -180,7 +185,7 @@ TLS Server/Client
   none of the TLS version flags is set, the latest supported version is
   chosen. The client honors the TLS policy defined in the *policy* file and
   prints all certificates in the chain, if *print-certs* is passed.
-  *next-protocols* is a comma seperated list and specifies the protocols to
+  *next-protocols* is a comma separated list and specifies the protocols to
   advertise with Application-Layer Protocol Negotiation (ALPN).
 
 ``tls_server cert key --port=443 --type=tcp --policy=``
@@ -234,6 +239,23 @@ The PSK database commands are only available if sqlite3 support was compiled in.
     $ botan psk_list psk.db deadba55
     bunny
 
+Secret Sharing
+------------------
+
+Split a file into several shares.
+
+``tss_split M N data_file --id= --share-prefix=share --share-suffix=tss --hash=SHA-256``
+  Split a file into ``N`` pieces any ``M`` of which suffices to
+  recover the original input. The ID allows specifying a unique key ID
+  which may be up to 16 bytes long, this ensures that shares can be
+  uniquely matched.  If not specified a random 16 byte value is
+  used. A checksum can be appended to the data to help verify correct
+  recovery, this can be disabled using ``--hash=None``.
+
+``tss_recover *shares``
+  Recover some data split by ``tss_split``. If insufficient number of
+  shares are provided an error is printed.
+
 Data Encoding/Decoding
 ------------------------
 
@@ -268,7 +290,7 @@ Miscellaneous Commands
   Decode and print *file* with ASN.1 Basic Encoding Rules (BER).
 
 ``http_get url``
-  Retrieve ressource from the passed http *url*.
+  Retrieve resource from the passed http *url*.
 
 ``speed --msec=500 --provider= --buf-size=1024 algos``
   Measures the speed of the passed *algos*. If no *algos* are passed all

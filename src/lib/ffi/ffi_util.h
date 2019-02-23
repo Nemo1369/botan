@@ -24,7 +24,9 @@ class BOTAN_UNSTABLE_API FFI_Error final : public Botan::Exception
          m_err_code(err_code)
          {}
 
-      int error_code() const { return m_err_code; }
+      int error_code() const noexcept override { return m_err_code; }
+
+      Botan::ErrorType error_type() const noexcept override { return Botan::ErrorType::InvalidArgument; }
 
    private:
       int m_err_code;
@@ -84,7 +86,7 @@ int apply_fn(botan_struct<T, M>* o, const char* func_name, F func)
    }
 
 #define BOTAN_FFI_DO(T, obj, param, block)                              \
-   apply_fn(obj, BOTAN_CURRENT_FUNCTION,                                \
+   apply_fn(obj, __func__,                                \
             [=](T& param) -> int { do { block } while(0); return BOTAN_FFI_SUCCESS; })
 
 template<typename T, uint32_t M>
@@ -111,7 +113,7 @@ int ffi_delete_object(botan_struct<T, M>* obj, const char* func_name)
       }
    }
 
-#define BOTAN_FFI_CHECKED_DELETE(o) ffi_delete_object(o, BOTAN_CURRENT_FUNCTION)
+#define BOTAN_FFI_CHECKED_DELETE(o) ffi_delete_object(o, __func__)
 
 inline int write_output(uint8_t out[], size_t* out_len, const uint8_t buf[], size_t buf_len)
    {
@@ -128,7 +130,10 @@ inline int write_output(uint8_t out[], size_t* out_len, const uint8_t buf[], siz
       }
    else
       {
-      Botan::clear_mem(out, avail);
+      if(out != nullptr)
+         {
+         Botan::clear_mem(out, avail);
+         }
       return BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE;
       }
    }

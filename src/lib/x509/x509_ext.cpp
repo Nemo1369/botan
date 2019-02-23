@@ -99,7 +99,7 @@ Extensions::create_extn_obj(const OID& oid,
       {
       extn->decode_inner(body);
       }
-   catch(Decoding_Error& e)
+   catch(Decoding_Error&)
       {
       extn.reset(new Cert_Extension::Unknown_Extension(oid, critical));
       extn->decode_inner(body);
@@ -345,7 +345,7 @@ std::vector<uint8_t> Key_Usage::encode_inner() const
    if(m_constraints == NO_CONSTRAINTS)
       throw Encoding_Error("Cannot encode zero usage constraints");
 
-   const size_t unused_bits = low_bit(m_constraints) - 1;
+   const size_t unused_bits = ctz(static_cast<uint32_t>(m_constraints));
 
    std::vector<uint8_t> der;
    der.push_back(BIT_STRING);

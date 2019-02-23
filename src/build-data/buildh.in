@@ -120,18 +120,25 @@
 /* How much to allocate for a buffer of no particular size */
 #define BOTAN_DEFAULT_BUFFER_SIZE 1024
 
-/* Minimum and maximum sizes to allocate out of the mlock pool (bytes)
-   Default min is 16 as smaller values are easily bruteforceable and thus
-   likely not cryptographic keys.
-*/
-#define BOTAN_MLOCK_ALLOCATOR_MIN_ALLOCATION 16
-#define BOTAN_MLOCK_ALLOCATOR_MAX_ALLOCATION 128
-
 /*
 * Total maximum amount of RAM (in KiB) we will lock into memory, even
 * if the OS would let us lock more
 */
 #define BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB 512
+
+/*
+* If BOTAN_MEM_POOL_USE_MMU_PROTECTIONS is defined, the Memory_Pool
+* class used for mlock'ed memory will use OS calls to set page
+* permissions so as to prohibit access to pages on the free list, then
+* enable read/write access when the page is set to be used. This will
+* turn (some) use after free bugs into a crash.
+*
+* The additional syscalls have a substantial performance impact, which
+* is why this option is not enabled by default.
+*/
+#if defined(BOTAN_HAS_VALGRIND) || defined(BOTAN_ENABLE_DEBUG_ASSERTS)
+   #define BOTAN_MEM_POOL_USE_MMU_PROTECTIONS
+#endif
 
 /*
 * If enabled uses memset via volatile function pointer to zero memory,
@@ -170,8 +177,8 @@
 * broken system RNG.
 */
 #define BOTAN_ENTROPY_DEFAULT_SOURCES \
-   { "rdseed", "rdrand", "darwin_secrandom", "getentropy", \
-     "dev_random", "system_rng", "proc_walk", "system_stats" }
+   { "rdseed", "rdrand", "getentropy", "dev_random", \
+     "system_rng", "proc_walk", "system_stats" }
 
 /* Multiplier on a block cipher's native parallelism */
 #define BOTAN_BLOCK_CIPHER_PAR_MULT 4
@@ -180,7 +187,7 @@
 * These control the RNG used by the system RNG interface
 */
 #define BOTAN_SYSTEM_RNG_DEVICE "/dev/urandom"
-#define BOTAN_SYSTEM_RNG_POLL_DEVICES { "/dev/urandom", "/dev/random", "/dev/srandom" }
+#define BOTAN_SYSTEM_RNG_POLL_DEVICES { "/dev/urandom", "/dev/random" }
 
 /*
 * This directory will be monitored by ProcWalking_EntropySource and
@@ -212,6 +219,12 @@ Each read generates 32 bits of output
 * Define the number of retries here
 */
 #define BOTAN_ENTROPY_RDSEED_RETRIES 20
+
+/*
+* When a PBKDF is self-tuning parameters, it will attempt to take about this
+* amount of time to self-benchmark.
+*/
+#define BOTAN_PBKDF_TUNING_TIME std::chrono::milliseconds(10)
 
 /*
 * If no way of dynamically determining the cache line size for the

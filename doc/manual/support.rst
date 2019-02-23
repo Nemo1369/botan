@@ -26,24 +26,24 @@ For Botan 2, the tier-2 supported platforms are
 * Android arm32, NDK Clang
 * FreeBSD x86-64, Clang 3.8+
 * IncludeOS x86-32, Clang 3.8+
-* Windows x86-64, Visual C++ 2013
 
-Some (but not all) of the tier-2 platforms are tested by CI. Things should
-mostly work, and if problems are encountered, the Botan devs will probably be
-able to help. But they are not as well tested as tier-1.
+Some (but not all) of the tier-2 platforms are tested by CI. Everything should
+work, and if problems are encountered, the developers will probably be able to
+help. But they are not as carefully tested as tier-1.
 
-Of course many other modern OSes such as OpenBSD, NetBSD, AIX, Solaris or QNX
-are also probably fine (Botan has been tested on all of them successfully in the
-past), but none of the core developers run these OSes and may not be able to
-help so much in debugging problems. Patches to improve the build for these
-platforms are welcome, as are any reports of successful use.
+Of course most other modern OSes such as QNX, AIX, OpenBSD, NetBSD, and Solaris
+also work just fine. Some are tested occasionally, usually just before a new
+release. But very little code specific to these platforms is written by the
+primary developers. For example, any functionality in the library which
+utilizes OpenBSD specific APIs was likely contributed by someone interested in
+that platform.
 
-In theory any working C++11 compiler is fine but in practice, we only test with
-GCC, Clang, and Visual C++.  There is support in the build system for several
-commercial C++ compilers (Intel, PGI, Sun Studio, Ekopath, etc) all of which
-worked with older (C++98) versions of both the code and the compilers, but it is
-not known if the latest versions of these compilers can compile the library
-properly.
+In theory any working C++11 compiler is fine but in practice, we only regularly
+test with GCC, Clang, and Visual C++. Recent versions of IBM XLC can compile
+the library but occasionally codegen bugs occur. Several other compilers (such
+as Intel and PGI) are supported by the build system but are not tested by the
+developers and may have build or codegen problems. Patches to improve support
+for these compilers is welcome.
 
 Branch Support Status
 -------------------------
@@ -58,6 +58,7 @@ Branch         First Release  End of Active Development  End of Life
 1.8            2008-12-08     2010-08-31                 2016-02-13
 1.10           2011-06-20     2012-07-10                 2018-12-31
 2.x            2017-01-06     2020?                      2022 or later
+3.x            2020?          ?                          ?
 ============== ============== ========================== ============
 
 "Active development" refers to adding new features and optimizations. At the
@@ -68,10 +69,3 @@ Getting Help
 
 To get help with Botan, open an issue on
 `GitHub <https://github.com/randombit/botan/issues>`_
-
-Custom Development or Support
------------------------------------------
-
-Jack Lloyd, the primary developer, is available for projects including custom
-development, extended support, developer training, and reviewing code or
-protocol specifications for security flaws. Email him for more information.

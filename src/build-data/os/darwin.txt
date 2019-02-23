@@ -1,4 +1,6 @@
 
+default_compiler clang
+
 soname_pattern_base  "lib{libname}.dylib"
 soname_pattern_abi   "lib{libname}.{abi_rev}.dylib"
 soname_pattern_patch "lib{libname}.{abi_rev}.{version_minor}.{version_patch}.dylib"
@@ -14,11 +16,13 @@ posix1
 posix_mlock
 arc4random
 dev_random
-security_framework
 
+commoncrypto
 sockets
 threads
 filesystem
+
+apple_keychain
 </target_features>
 
 <aliases>

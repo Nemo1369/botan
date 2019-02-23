@@ -64,6 +64,13 @@ The following enum values are defined in the FFI header:
    An exception was thrown while processing this request, but no further
    details are available.
 
+   .. note::
+
+      If the environment variable ``BOTAN_FFI_PRINT_EXCEPTIONS`` is
+      set, then any exception which is caught by the FFI layer will
+      first print the exception message to stderr before returning an
+      error. This is sometimes useful for debugging.
+
 .. cpp:enumerator:: BOTAN_FFI_ERROR_OUT_OF_MEMORY = -21
 
    Memory allocation failed
@@ -125,7 +132,8 @@ Versioning
 
 .. cpp:function:: const char* botan_version_string()
 
-   Returns a free-from version string, e.g., 2.0.0
+   Returns a free-form string describing the version.  The return
+   value is a statically allocated string.
 
 .. cpp:function:: uint32_t botan_version_major()
 
@@ -141,9 +149,24 @@ Versioning
 
 .. cpp:function:: uint32_t botan_version_datestamp()
 
-   Returns the date this version was released as an integer, or 0
-   if an unreleased version
+   Returns the date this version was released as an integer YYYYMMDD,
+   or 0 if an unreleased version
 
+
+FFI Versions
+^^^^^^^^^^^^^
+
+This maps the FFI API version to the first version of the library that
+supported it.
+
+============== ===================
+FFI Version    Supported Starting
+============== ===================
+20180713       2.8.0
+20170815       2.3.0
+20170327       2.1.0
+20150515       2.0.0
+============== ===================
 
 Utility Functions
 ----------------------------------------
@@ -214,6 +237,8 @@ Random Number Generators
 Block Ciphers
 ----------------------------------------
 
+.. versionadded:: 2.1.0
+
 This is a 'raw' interface to ECB mode block ciphers. Most applications
 want the higher level cipher API which provides authenticated
 encryption. This API exists as an escape hatch for applications which
@@ -243,7 +268,7 @@ need to implement custom primitives using a PRP.
                                                      size_t* out_keylength_modulo)
 
    Return the limits on the key which can be provided to this cipher. If any of the
-   parameters are null, no output is written to that field. This allows retreiving only
+   parameters are null, no output is written to that field. This allows retrieving only
    (say) the maximum supported keylength, if that is the only information needed.
 
 .. cpp:function:: int botan_block_cipher_clear(botan_block_cipher_t bc)
@@ -377,7 +402,7 @@ Symmetric Ciphers
 
 .. cpp:function:: size_t botan_cipher_get_tag_length(botan_cipher_t cipher, size_t* tag_len)
 
-   Write the tag length of the cipher to ``tag_len``. This will be zero for non-authenticted
+   Write the tag length of the cipher to ``tag_len``. This will be zero for non-authenticated
    ciphers.
 
 .. cpp:function:: int botan_cipher_valid_nonce_length(botan_cipher_t cipher, size_t nl)

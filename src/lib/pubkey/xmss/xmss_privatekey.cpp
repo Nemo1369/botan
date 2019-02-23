@@ -37,7 +37,7 @@ XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
 
    if(raw_key.size() != size())
       {
-      throw Integrity_Failure("Invalid XMSS private key size detected.");
+      throw Decoding_Error("Invalid XMSS private key size detected.");
       }
 
    // extract & copy unused leaf index from raw_key.
@@ -52,8 +52,7 @@ XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
 
    if(unused_leaf >= (1ull << XMSS_PublicKey::m_xmss_params.tree_height()))
       {
-      throw Integrity_Failure("XMSS private key leaf index out of "
-                              "bounds.");
+      throw Decoding_Error("XMSS private key leaf index out of bounds");
       }
 
    begin = end;
@@ -112,9 +111,9 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
       }
 
-   size_t subtrees = 1 << split_level;
-   size_t last_idx = static_cast<size_t>(1 << (target_node_height)) + start_idx;
-   size_t offs = (last_idx - start_idx) / subtrees;
+   const size_t subtrees = static_cast<size_t>(1) << split_level;
+   const size_t last_idx = (static_cast<size_t>(1) << (target_node_height)) + start_idx;
+   const size_t offs = (last_idx - start_idx) / subtrees;
    uint8_t level = split_level; // current level in the tree
 
    BOTAN_ASSERT((last_idx - start_idx) % subtrees == 0,
@@ -230,7 +229,7 @@ XMSS_PrivateKey::tree_hash_subtree(secure_vector<uint8_t>& result,
 
    uint8_t level = 0; // current level on the node stack.
    XMSS_WOTS_PublicKey pk(m_wots_priv_key.wots_parameters().oid(), seed);
-   size_t last_idx = static_cast<size_t>(1 << target_node_height) + start_idx;
+   const size_t last_idx = (static_cast<size_t>(1) << target_node_height) + start_idx;
 
    for(size_t i = start_idx; i < last_idx; i++)
       {

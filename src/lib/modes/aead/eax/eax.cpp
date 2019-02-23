@@ -102,6 +102,8 @@ void EAX_Mode::key_schedule(const uint8_t key[], size_t length)
 */
 void EAX_Mode::set_associated_data(const uint8_t ad[], size_t length)
    {
+   if(m_nonce_mac.empty() == false)
+      throw Invalid_State("Cannot set AD for EAX while processing a message");
    m_ad_mac = eax_prf(1, block_size(), *m_cmac, ad, length);
    }
 
@@ -182,7 +184,7 @@ void EAX_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    mac ^= m_ad_mac;
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("EAX tag check failed");
+      throw Invalid_Authentication_Tag("EAX tag check failed");
 
    buffer.resize(offset + remaining);
 

@@ -22,7 +22,7 @@ def get_concurrency():
 
     try:
         import multiprocessing
-        return max(def_concurrency, multiprocessing.cpu_count())
+        return multiprocessing.cpu_count()
     except ImportError:
         return def_concurrency
 
@@ -41,26 +41,27 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if is_cross_target:
         if target_os == 'osx':
             target_os = 'ios'
-        elif target == 'cross-win32':
+        elif target == 'cross-win64':
             target_os = 'mingw'
 
     make_prefix = []
     test_prefix = []
     test_cmd = [os.path.join(root_dir, 'botan-test')]
 
-    fast_tests = ['block', 'aead', 'hash', 'stream', 'mac', 'modes',
+    if target in ['shared', 'static', 'sanitizer', 'fuzzers', 'gcc4.8', 'cross-i386', 'bsi', 'nist']:
+        test_cmd += ['--test-threads=%d' % (get_concurrency())]
+
+    fast_tests = ['block', 'aead', 'hash', 'stream', 'mac', 'modes', 'kdf',
                   'hmac_drbg', 'hmac_drbg_unit',
                   'tls', 'ffi',
-                  'rsa_sign', 'rsa_verify', 'dh_kat', 'ecdsa_sign', 'curve25519_scalar',
-                  'simd_32', 'os_utils', 'util', 'util_dates']
+                  'rsa_sign', 'rsa_verify', 'dh_kat',
+                  'ecc_randomized', 'ecdh_kat', 'ecdsa_sign', 'curve25519_scalar',
+                  'cpuid', 'simd_32', 'os_utils', 'util', 'util_dates']
 
     install_prefix = os.path.join(tempfile.gettempdir(), 'botan-install')
     flags = ['--prefix=%s' % (install_prefix),
              '--cc=%s' % (target_cc),
              '--os=%s' % (target_os)]
-
-    if target_cc == 'msvc':
-        flags += ['--ack-vc2013-deprecated']
 
     if target_cpu is not None:
         flags += ['--cpu=%s' % (target_cpu)]
@@ -74,11 +75,12 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if target in ['mini-static', 'mini-shared']:
         flags += ['--minimized-build', '--enable-modules=system_rng,sha2_32,sha2_64,aes']
 
-    if target == 'shared' and target_os != 'osx':
-        # Enabling amalgamation build for shared is somewhat arbitrary, but we want to test it
-        # somewhere. In addition the majority of the Windows builds are shared, and MSVC is
-        # much faster compiling via the amalgamation than individual files.
+    if target == 'static':
+        # Arbitrarily test amalgamation with the static lib builds
         flags += ['--amalgamation']
+
+        if target_cc == 'msvc':
+            flags += ['--single-amalgamation-file']
 
     if target in ['bsi', 'nist']:
         # Arbitrarily test disable static on module policy builds
@@ -94,7 +96,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if target == 'coverage':
         flags += ['--with-coverage-info', '--test-mode']
     if target == 'valgrind':
-        flags += ['--with-valgrind']
+        # valgrind in 16.04 has a bug with rdrand handling
+        flags += ['--with-valgrind', '--disable-rdrand']
         test_prefix = ['valgrind', '--error-exitcode=9', '-v', '--leak-check=full', '--show-reachable=yes']
         test_cmd += fast_tests
     if target == 'fuzzers':
@@ -105,12 +108,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if target in ['fuzzers', 'coverage']:
         flags += ['--build-fuzzers=test']
     if target in ['fuzzers', 'sanitizer']:
+        flags += ['--with-sanitizers', '--with-debug-asserts']
 
-        # On VC iterator debugging comes from generic debug mode
-        if target_cc == 'msvc':
-            flags += ['--with-debug-info']
-        else:
-            flags += ['--with-sanitizers']
     if target in ['valgrind', 'sanitizer', 'fuzzers']:
         flags += ['--disable-modules=locking_allocator']
 
@@ -121,8 +120,13 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         if target_os != 'linux' or target_cc != 'clang':
             raise Exception('Only Linux/clang supported in Sonar target currently')
 
+        # Use of -Os here is a little odd, but the issue is that the build time
+        # is quite long (because ccache from Xenial doesn't work right with
+        # these profiling flags) but we can't use --no-optimizations as that
+        # will make running the tests too slow.
         flags += ['--cc-abi-flags=-fprofile-instr-generate -fcoverage-mapping',
-                  '--disable-shared']
+                  '--disable-shared',
+                  '--optimize-for-size']
 
         make_prefix = [os.path.join(root_dir, 'build-wrapper-linux-x86/build-wrapper-linux-x86-64'),
                        '--out-dir', 'bw-outputs']
@@ -137,10 +141,15 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
                 flags += ['--cpu=arm64', '--cc-abi-flags=-arch arm64 -stdlib=libc++']
             else:
                 raise Exception("Unknown cross target '%s' for iOS" % (target))
-        elif target == 'cross-win32':
-            cc_bin = 'i686-w64-mingw32-g++'
-            flags += ['--cpu=x86_32', '--cc-abi-flags=-static', '--ar-command=i686-w64-mingw32-ar']
-            test_cmd = [os.path.join(root_dir, 'botan-test.exe')]
+        elif target == 'cross-i386':
+            flags += ['--cpu=x86_32']
+
+        elif target == 'cross-win64':
+            # MinGW in 16.04 is lacking std::mutex for unknown reason
+            cc_bin = 'x86_64-w64-mingw32-g++'
+            flags += ['--cpu=x86_64', '--cc-abi-flags=-static',
+                      '--ar-command=x86_64-w64-mingw32-ar', '--without-os-feature=threads']
+            test_cmd = [os.path.join(root_dir, 'botan-test.exe')] + test_cmd[1:]
             # No runtime prefix required for Wine
         else:
             # Build everything but restrict what is run
@@ -161,21 +170,32 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
             elif target == 'cross-ppc64':
                 flags += ['--cpu=ppc64', '--with-endian=little']
                 cc_bin = 'powerpc64le-linux-gnu-g++'
-                test_prefix = ['qemu-ppc64le', '-L', '/usr/powerpc64le-linux-gnu/']
+                test_prefix = ['qemu-ppc64le', '-cpu', 'POWER8', '-L', '/usr/powerpc64le-linux-gnu/']
+            elif target == 'cross-mips64':
+                flags += ['--cpu=mips64', '--with-endian=big']
+                cc_bin = 'mips64-linux-gnuabi64-g++'
+                test_prefix = ['qemu-mips64', '-L', '/usr/mips64-linux-gnuabi64/']
             else:
                 raise Exception("Unknown cross target '%s' for Linux" % (target))
     else:
         # Flags specific to native targets
 
+        if target == 'gcc4.8':
+            cc_bin = 'g++-4.8'
+
         if target_os in ['osx', 'linux']:
             flags += ['--with-bzip2', '--with-sqlite', '--with-zlib']
+
+        if target_os in ['osx', 'ios']:
+            flags += ['--with-commoncrypto']
 
         if target_os == 'osx':
             # Test Boost on OS X
             flags += ['--with-boost']
             # Travis has 10.12 as default image
             flags += ['--with-os-features=getentropy']
-        elif target_os == 'linux':
+
+        if target_os == 'linux':
             flags += ['--with-lzma']
 
         if target_os == 'linux':
@@ -196,6 +216,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         flags += ['--cc-bin=%s' % (ccache)]
     else:
         flags += ['--cc-bin=%s %s' % (ccache, cc_bin)]
+        # Avoid putting the revision in build.h, which helps ccache hit rates
+        flags += ['--no-store-vc-rev']
 
     if test_cmd is None:
         run_test_command = None
@@ -231,7 +253,7 @@ def run_cmd(cmd, root_dir):
         print("Ran for %d seconds" % (time_taken))
 
     if proc.returncode != 0:
-        print("Command failed with error code %d" % (proc.returncode))
+        print("Command '%s' failed with error code %d" % (' '.join(cmd), proc.returncode))
 
         if cmd[0] not in ['lcov']:
             sys.exit(proc.returncode)
@@ -275,16 +297,21 @@ def parse_args(args):
     parser.add_option('--build-jobs', metavar='J', default=get_concurrency(),
                       help='Set number of jobs to run in parallel (default %default)')
 
-    parser.add_option('--compiler-cache', default=None,
-                      help='Set a compiler cache to use (ccache, clcache)')
+    parser.add_option('--compiler-cache', default=None, metavar='CC',
+                      help='Set a compiler cache to use (ccache, sccache, clcache)')
 
-    parser.add_option('--pkcs11-lib', default=None,
+    parser.add_option('--pkcs11-lib', default=None, metavar='LIB',
                       help='Set PKCS11 lib to use for testing')
 
     parser.add_option('--with-python3', dest='use_python3', action='store_true', default=None,
                       help='Enable using python3')
     parser.add_option('--without-python3', dest='use_python3', action='store_false',
                       help='Disable using python3')
+
+    parser.add_option('--with-pylint3', dest='use_pylint3', action='store_true', default=True,
+                      help='Enable using python3 pylint')
+    parser.add_option('--without-pylint3', dest='use_pylint3', action='store_false',
+                      help='Disable using python3 pylint')
 
     return parser.parse_args(args)
 
@@ -365,7 +392,7 @@ def main(args=None):
             raise Exception('No python interpreters found cannot lint')
 
         pylint_rc = '--rcfile=%s' % (os.path.join(root_dir, 'src/configs/pylint.rc'))
-        pylint_flags = [pylint_rc, '--reports=no', '--score=no']
+        pylint_flags = [pylint_rc, '--reports=no']
 
         # Some disabled rules specific to Python2
         # superfluous-parens: needed for Python3 compatible print statements
@@ -387,18 +414,18 @@ def main(args=None):
             'src/scripts/website.py',
             'src/scripts/bench.py',
             'src/scripts/test_python.py',
+            'src/scripts/test_fuzzers.py',
             'src/scripts/test_cli.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py']
 
-        for target in py_scripts:
-            target_path = os.path.join(root_dir, target)
+        full_paths = [os.path.join(root_dir, s) for s in py_scripts]
 
-            if use_python2:
-                cmds.append(['python2', '-m', 'pylint'] + pylint_flags + [py2_flags, target_path])
+        if use_python2:
+            cmds.append(['python2', '-m', 'pylint'] + pylint_flags + [py2_flags] + full_paths)
 
-            if use_python3:
-                cmds.append(['python3', '-m', 'pylint'] + pylint_flags + [py3_flags, target_path])
+        if use_python3 and options.use_pylint3:
+            cmds.append(['python3', '-m', 'pylint'] + pylint_flags + [py3_flags] + full_paths)
 
     else:
         config_flags, run_test_command, make_prefix = determine_flags(
@@ -418,10 +445,15 @@ def main(args=None):
         if target == 'docs':
             cmds.append(make_cmd + ['docs'])
         else:
-            if options.compiler_cache == 'ccache':
-                cmds.append(['ccache', '--show-stats'])
-            elif options.compiler_cache == 'clcache':
-                cmds.append(['clcache', '-s'])
+
+            ccache_show_stats = {
+                'ccache': '--show-stats',
+                'sccache': '--show-stats',
+                'clcache': '-s'
+            }
+
+            if options.compiler_cache in ccache_show_stats:
+                cmds.append([options.compiler_cache, ccache_show_stats[options.compiler_cache]])
 
             make_targets = ['libs', 'cli', 'tests']
             if target in ['coverage', 'fuzzers']:
@@ -429,10 +461,8 @@ def main(args=None):
 
             cmds.append(make_prefix + make_cmd + make_targets)
 
-            if options.compiler_cache == 'ccache':
-                cmds.append(['ccache', '--show-stats'])
-            elif options.compiler_cache == 'clcache':
-                cmds.append(['clcache', '-s'])
+            if options.compiler_cache in ccache_show_stats:
+                cmds.append([options.compiler_cache, ccache_show_stats[options.compiler_cache]])
 
         if run_test_command is not None:
             cmds.append(run_test_command)

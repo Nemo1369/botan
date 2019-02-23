@@ -7,6 +7,7 @@
 */
 
 #include "cli.h"
+#include "sandbox.h"
 
 #if defined(BOTAN_HAS_TLS) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM) && \
    (defined(BOTAN_TARGET_OS_HAS_SOCKETS) || defined(BOTAN_TARGET_OS_HAS_WINSOCK2))
@@ -87,6 +88,12 @@ class TLS_Server final : public Command, public Botan::TLS::Callbacks
 
          output() << "Listening for new connections on " << transport << " port " << port << std::endl;
 
+	 if(!m_sandbox.init())
+            {
+            error_output() << "Failed sandboxing\n";
+	    return;
+	    }
+
          int server_fd = make_server_socket(port);
          size_t clients_served = 0;
 
@@ -104,7 +111,10 @@ class TLS_Server final : public Command, public Botan::TLS::Callbacks
                struct sockaddr_in from;
                socklen_t from_len = sizeof(sockaddr_in);
 
-               if(::recvfrom(server_fd, nullptr, 0, MSG_PEEK, reinterpret_cast<struct sockaddr*>(&from), &from_len) != 0)
+               // macOS handles zero size buffers differently - it will return 0 even if there's no incoming data,
+               // and after that connect() will fail as sockaddr_in from is not initialized
+               int dummy;
+               if(::recvfrom(server_fd, reinterpret_cast<char*>(&dummy), sizeof(dummy), MSG_PEEK, reinterpret_cast<struct sockaddr*>(&from), &from_len) != 0)
                   {
                   throw CLI_Error("Could not peek next packet");
                   }
@@ -213,7 +223,7 @@ class TLS_Server final : public Command, public Botan::TLS::Callbacks
             }
 
          sockaddr_in socket_info;
-         ::memset(&socket_info, 0, sizeof(socket_info));
+         Botan::clear_mem(&socket_info, 1);
          socket_info.sin_family = AF_INET;
          socket_info.sin_port = htons(port);
 
@@ -323,6 +333,7 @@ class TLS_Server final : public Command, public Botan::TLS::Callbacks
       bool m_is_tcp = false;
       std::string m_line_buf;
       std::list<std::string> m_pending_output;
+      Sandbox m_sandbox;
    };
 
 BOTAN_REGISTER_COMMAND("tls_server", TLS_Server);

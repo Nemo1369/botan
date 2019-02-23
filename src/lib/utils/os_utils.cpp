@@ -1,6 +1,6 @@
 /*
 * OS and machine specific utility functions
-* (C) 2015,2016,2017 Jack Lloyd
+* (C) 2015,2016,2017,2018 Jack Lloyd
 * (C) 2016 Daniel Neus
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -11,6 +11,7 @@
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 
@@ -23,10 +24,23 @@
   #include <sys/resource.h>
   #include <sys/mman.h>
   #include <signal.h>
+  #include <stdlib.h>
   #include <setjmp.h>
   #include <unistd.h>
   #include <errno.h>
-#elif defined(BOTAN_TARGET_OS_HAS_WIN32)
+  #include <termios.h>
+  #undef B0
+#endif
+
+#if defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
+  #include <emscripten/emscripten.h>
+#endif
+
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
+  #include <sys/auxv.h>
+#endif
+
+#if defined(BOTAN_TARGET_OS_HAS_WIN32)
   #define NOMINMAX 1
   #include <windows.h>
 #endif
@@ -42,13 +56,16 @@ void secure_scrub_memory(void* ptr, size_t n)
 #elif defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
    ::explicit_bzero(ptr, n);
 
+#elif defined(BOTAN_TARGET_OS_HAS_EXPLICIT_MEMSET)
+   (void)::explicit_memset(ptr, 0, n);
+
 #elif defined(BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO) && (BOTAN_USE_VOLATILE_MEMSET_FOR_ZERO == 1)
    /*
    Call memset through a static volatile pointer, which the compiler
    should not elide. This construct should be safe in conforming
    compilers, but who knows. I did confirm that on x86-64 GCC 6.1 and
    Clang 3.8 both create code that saves the memset address in the
-   data segment and uncondtionally loads and jumps to that address.
+   data segment and unconditionally loads and jumps to that address.
    */
    static void* (*const volatile memset_ptr)(void*, int, size_t) = std::memset;
    (memset_ptr)(ptr, 0, n);
@@ -74,7 +91,18 @@ uint32_t OS::get_process_id()
 #endif
    }
 
-uint64_t OS::get_processor_timestamp()
+bool OS::running_in_privileged_state()
+   {
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) && defined(AT_SECURE)
+   return ::getauxval(AT_SECURE) != 0;
+#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   return (::getuid() != ::geteuid()) || (::getgid() != ::getegid());
+#else
+   return false;
+#endif
+   }
+
+uint64_t OS::get_cpu_cycle_counter()
    {
    uint64_t rtc = 0;
 
@@ -127,7 +155,7 @@ uint64_t OS::get_processor_timestamp()
    asm volatile("mfctl 16,%0" : "=r" (rtc)); // 64-bit only?
 
 #else
-   //#warning "OS::get_processor_timestamp not implemented"
+   //#warning "OS::get_cpu_cycle_counter not implemented"
 #endif
 
 #endif
@@ -137,8 +165,12 @@ uint64_t OS::get_processor_timestamp()
 
 uint64_t OS::get_high_resolution_clock()
    {
-   if(uint64_t cpu_clock = OS::get_processor_timestamp())
+   if(uint64_t cpu_clock = OS::get_cpu_cycle_counter())
       return cpu_clock;
+
+#if defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
+   return emscripten_get_now();
+#endif
 
    /*
    If we got here either we either don't have an asm instruction
@@ -199,26 +231,30 @@ uint64_t OS::get_system_timestamp_ns()
 
 size_t OS::system_page_size()
    {
+   const size_t default_page_size = 4096;
+
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    long p = ::sysconf(_SC_PAGESIZE);
    if(p > 1)
       return static_cast<size_t>(p);
    else
-      return 4096;
+      return default_page_size;
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
    SYSTEM_INFO sys_info;
    ::GetSystemInfo(&sys_info);
    return sys_info.dwPageSize;
+#else
+   return default_page_size;
 #endif
-
-   // default value
-   return 4096;
    }
 
 size_t OS::get_memory_locking_limit()
    {
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK) && defined(RLIMIT_MEMLOCK)
    /*
+   * If RLIMIT_MEMLOCK is not defined, likely the OS does not support
+   * unprivileged mlock calls.
+   *
    * Linux defaults to only 64 KiB of mlockable memory per process
    * (too small) but BSDs offer a small fraction of total RAM (more
    * than we need). Bound the total mlock size to 512 KiB which is
@@ -227,22 +263,10 @@ size_t OS::get_memory_locking_limit()
    * programs), but small enough that we should not cause problems
    * even if many processes are mlocking on the same machine.
    */
-   size_t mlock_requested = BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB;
+   const size_t user_req = read_env_variable_sz("BOTAN_MLOCK_POOL_SIZE", BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
 
-   /*
-   * Allow override via env variable
-   */
-   if(const char* env = std::getenv("BOTAN_MLOCK_POOL_SIZE"))
-      {
-      try
-         {
-         const size_t user_req = std::stoul(env, nullptr);
-         mlock_requested = std::min(user_req, mlock_requested);
-         }
-      catch(std::exception&) { /* ignore it */ }
-      }
+   const size_t mlock_requested = std::min<size_t>(user_req, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
 
-#if defined(RLIMIT_MEMLOCK)
    if(mlock_requested > 0)
       {
       struct ::rlimit limits;
@@ -258,13 +282,6 @@ size_t OS::get_memory_locking_limit()
 
       return std::min<size_t>(limits.rlim_cur, mlock_requested * 1024);
       }
-#else
-   /*
-   * If RLIMIT_MEMLOCK is not defined, likely the OS does not support
-   * unprivileged mlock calls.
-   */
-   return 0;
-#endif
 
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
    SIZE_T working_min = 0, working_max = 0;
@@ -275,111 +292,159 @@ size_t OS::get_memory_locking_limit()
 
    // According to Microsoft MSDN:
    // The maximum number of pages that a process can lock is equal to the number of pages in its minimum working set minus a small overhead
-   // In the book "Windows Internals Part 2": the maximum lockable pages are minimum working set size - 8 pages 
+   // In the book "Windows Internals Part 2": the maximum lockable pages are minimum working set size - 8 pages
    // But the information in the book seems to be inaccurate/outdated
    // I've tested this on Windows 8.1 x64, Windows 10 x64 and Windows 7 x86
    // On all three OS the value is 11 instead of 8
-   size_t overhead = OS::system_page_size() * 11ULL;
+   const size_t overhead = OS::system_page_size() * 11;
    if(working_min > overhead)
       {
-      size_t lockable_bytes = working_min - overhead;
-      if(lockable_bytes < (BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024ULL))
-         {
-         return lockable_bytes;
-         }
-      else
-         {
-         return BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024ULL;
-         }
+      const size_t lockable_bytes = working_min - overhead;
+      return std::min<size_t>(lockable_bytes, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024);
       }
 #endif
 
+   // Not supported on this platform
    return 0;
    }
 
-void* OS::allocate_locked_pages(size_t length)
+const char* OS::read_env_variable(const std::string& name)
    {
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   if(running_in_privileged_state())
+      return nullptr;
+
+   return std::getenv(name.c_str());
+   }
+
+size_t OS::read_env_variable_sz(const std::string& name, size_t def)
+   {
+   if(const char* env = read_env_variable(name))
+      {
+      try
+         {
+         const size_t val = std::stoul(env, nullptr);
+         return val;
+         }
+      catch(std::exception&) { /* ignore it */ }
+      }
+
+   return def;
+   }
+
+std::vector<void*> OS::allocate_locked_pages(size_t count)
+   {
+   std::vector<void*> result;
+   result.reserve(count);
+
+   const size_t page_size = OS::system_page_size();
+
+   for(size_t i = 0; i != count; ++i)
+      {
+      void* ptr = nullptr;
+
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
 
 #if !defined(MAP_NOCORE)
    #define MAP_NOCORE 0
 #endif
 
-#if !defined(MAP_ANONYMOUS)
-   #define MAP_ANONYMOUS MAP_ANON
-#endif
+      ptr = ::mmap(nullptr, 2*page_size,
+                   PROT_READ | PROT_WRITE,
+                   MAP_ANONYMOUS | MAP_PRIVATE | MAP_NOCORE,
+                   /*fd=*/-1, /*offset=*/0);
 
-   void* ptr = ::mmap(nullptr,
-                      length,
-                      PROT_READ | PROT_WRITE,
-                      MAP_ANONYMOUS | MAP_SHARED | MAP_NOCORE,
-                      /*fd*/-1,
-                      /*offset*/0);
+      if(ptr == MAP_FAILED)
+         {
+         continue;
+         }
 
-   if(ptr == MAP_FAILED)
-      {
-      return nullptr;
-      }
+      // failed to lock
+      if(::mlock(ptr, page_size) != 0)
+         {
+         ::munmap(ptr, 2*page_size);
+         continue;
+         }
 
 #if defined(MADV_DONTDUMP)
-   ::madvise(ptr, length, MADV_DONTDUMP);
+      // we ignore errors here, as DONTDUMP is just a bonus
+      ::madvise(ptr, page_size, MADV_DONTDUMP);
 #endif
 
-#if defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
-   if(::mlock(ptr, length) != 0)
-      {
-      ::munmap(ptr, length);
-      return nullptr; // failed to lock
-      }
-#endif
-
-   ::memset(ptr, 0, length);
-
-   return ptr;
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
-   LPVOID ptr = ::VirtualAlloc(nullptr, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-   if(!ptr)
-      {
-      return nullptr;
-      }
+      ptr = ::VirtualAlloc(nullptr, 2*page_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-   if(::VirtualLock(ptr, length) == 0)
-      {
-      ::VirtualFree(ptr, 0, MEM_RELEASE);
-      return nullptr; // failed to lock
-      }
+      if(ptr == nullptr)
+         continue;
 
-   return ptr;
-#else
-   BOTAN_UNUSED(length);
-   return nullptr; /* not implemented */
+      if(::VirtualLock(ptr, page_size) == 0)
+         {
+         ::VirtualFree(ptr, 0, MEM_RELEASE);
+         continue;
+         }
 #endif
+
+      if(ptr != nullptr)
+         {
+         // Make guard page following the data page
+         page_prohibit_access(static_cast<uint8_t*>(ptr) + page_size);
+
+         std::memset(ptr, 0, page_size);
+         result.push_back(ptr);
+         }
+      }
+
+   return result;
    }
 
-void OS::free_locked_pages(void* ptr, size_t length)
+void OS::page_allow_access(void* page)
    {
-   if(ptr == nullptr || length == 0)
-      return;
-
+   const size_t page_size = OS::system_page_size();
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
-   secure_scrub_memory(ptr, length);
-
-#if defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
-   ::munlock(ptr, length);
-#endif
-
-   ::munmap(ptr, length);
+   ::mprotect(page, page_size, PROT_READ | PROT_WRITE);
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
-   secure_scrub_memory(ptr, length);
-   ::VirtualUnlock(ptr, length);
-   ::VirtualFree(ptr, 0, MEM_RELEASE);
-#else
-   // Invalid argument because no way this pointer was allocated by us
-   throw Invalid_Argument("Invalid ptr to free_locked_pages");
+   DWORD old_perms = 0;
+   ::VirtualProtect(page, page_size, PAGE_READWRITE, &old_perms);
+   BOTAN_UNUSED(old_perms);
 #endif
    }
 
+void OS::page_prohibit_access(void* page)
+   {
+   const size_t page_size = OS::system_page_size();
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   ::mprotect(page, page_size, PROT_NONE);
+#elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   DWORD old_perms = 0;
+   ::VirtualProtect(page, page_size, PAGE_NOACCESS, &old_perms);
+   BOTAN_UNUSED(old_perms);
+#endif
+   }
+
+void OS::free_locked_pages(const std::vector<void*>& pages)
+   {
+   const size_t page_size = OS::system_page_size();
+
+   for(size_t i = 0; i != pages.size(); ++i)
+      {
+      void* ptr = pages[i];
+
+      secure_scrub_memory(ptr, page_size);
+
+      // ptr points to the data page, guard page follows
+      page_allow_access(static_cast<uint8_t*>(ptr) + page_size);
+
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
+      ::munlock(ptr, page_size);
+      ::munmap(ptr, 2*page_size);
+#elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+      ::VirtualUnlock(ptr, page_size);
+      ::VirtualFree(ptr, 0, MEM_RELEASE);
+#endif
+      }
+   }
+
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && !defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
+
 namespace {
 
 static ::sigjmp_buf g_sigill_jmp_buf;
@@ -390,13 +455,14 @@ void botan_sigill_handler(int)
    }
 
 }
+
 #endif
 
 int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    {
    volatile int probe_result = -3;
 
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && !defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
    struct sigaction old_sigaction;
    struct sigaction sigaction;
 
@@ -407,7 +473,7 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    int rc = ::sigaction(SIGILL, &sigaction, &old_sigaction);
 
    if(rc != 0)
-      throw Exception("run_cpu_instruction_probe sigaction failed");
+      throw System_Error("run_cpu_instruction_probe sigaction failed", errno);
 
    rc = sigsetjmp(g_sigill_jmp_buf, /*save sigs*/1);
 
@@ -425,7 +491,7 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    // Restore old SIGILL handler, if any
    rc = ::sigaction(SIGILL, &old_sigaction, nullptr);
    if(rc != 0)
-      throw Exception("run_cpu_instruction_probe sigaction restore failed");
+      throw System_Error("run_cpu_instruction_probe sigaction restore failed", errno);
 
 #elif defined(BOTAN_TARGET_OS_IS_WINDOWS) && defined(BOTAN_TARGET_COMPILER_IS_MSVC)
 
@@ -440,9 +506,110 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
       probe_result = -1;
       }
 
+#else
+   BOTAN_UNUSED(probe_fn);
 #endif
 
    return probe_result;
+   }
+
+std::unique_ptr<OS::Echo_Suppression> OS::suppress_echo_on_terminal()
+   {
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   class POSIX_Echo_Suppression : public Echo_Suppression
+      {
+      public:
+         POSIX_Echo_Suppression()
+            {
+            m_stdin_fd = fileno(stdin);
+            if(::tcgetattr(m_stdin_fd, &m_old_termios) != 0)
+               throw System_Error("Getting terminal status failed", errno);
+
+            struct termios noecho_flags = m_old_termios;
+            noecho_flags.c_lflag &= ~ECHO;
+            noecho_flags.c_lflag |= ECHONL;
+
+            if(::tcsetattr(m_stdin_fd, TCSANOW, &noecho_flags) != 0)
+               throw System_Error("Clearing terminal echo bit failed", errno);
+            }
+
+         void reenable_echo() override
+            {
+            if(m_stdin_fd > 0)
+               {
+               if(::tcsetattr(m_stdin_fd, TCSANOW, &m_old_termios) != 0)
+                  throw System_Error("Restoring terminal echo bit failed", errno);
+               m_stdin_fd = -1;
+               }
+            }
+
+         ~POSIX_Echo_Suppression()
+            {
+            try
+               {
+               reenable_echo();
+               }
+            catch(...)
+               {
+               }
+            }
+
+      private:
+         int m_stdin_fd;
+         struct termios m_old_termios;
+      };
+
+   return std::unique_ptr<Echo_Suppression>(new POSIX_Echo_Suppression);
+
+#elif defined(BOTAN_TARGET_OS_HAS_WIN32)
+
+   class Win32_Echo_Suppression : public Echo_Suppression
+      {
+      public:
+         Win32_Echo_Suppression()
+            {
+            m_input_handle = ::GetStdHandle(STD_INPUT_HANDLE);
+            if(::GetConsoleMode(m_input_handle, &m_console_state) == 0)
+               throw System_Error("Getting console mode failed", ::GetLastError());
+
+            DWORD new_mode = ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
+            if(::SetConsoleMode(m_input_handle, new_mode) == 0)
+               throw System_Error("Setting console mode failed", ::GetLastError());
+            }
+
+         void reenable_echo() override
+            {
+            if(m_input_handle != INVALID_HANDLE_VALUE)
+               {
+               if(::SetConsoleMode(m_input_handle, m_console_state) == 0)
+                  throw System_Error("Setting console mode failed", ::GetLastError());
+               m_input_handle = INVALID_HANDLE_VALUE;
+               }
+            }
+
+         ~Win32_Echo_Suppression()
+            {
+            try
+               {
+               reenable_echo();
+               }
+            catch(...)
+               {
+               }
+            }
+
+      private:
+         HANDLE m_input_handle;
+         DWORD m_console_state;
+      };
+
+   return std::unique_ptr<Echo_Suppression>(new Win32_Echo_Suppression);
+
+#else
+
+   // Not supported on this platform, return null
+   return std::unique_ptr<Echo_Suppression>();
+#endif
    }
 
 }

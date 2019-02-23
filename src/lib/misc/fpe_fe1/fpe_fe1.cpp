@@ -50,7 +50,7 @@ void factor(BigInt n, BigInt& a, BigInt& b)
    a *= n;
 
    if(a <= 1 || b <= 1)
-      throw Exception("Could not factor n for use in FPE");
+      throw Internal_Error("Could not factor n for use in FPE");
    }
 
 }
@@ -69,7 +69,7 @@ FPE_FE1::FPE_FE1(const BigInt& n,
    m_n_bytes = BigInt::encode(n);
 
    if(m_n_bytes.size() > MAX_N_BYTES)
-      throw Exception("N is too large for FPE encryption");
+      throw Invalid_Argument("N is too large for FPE encryption");
 
    factor(n, m_a, m_b);
 
@@ -151,7 +151,7 @@ BigInt FPE_FE1::encrypt(const BigInt& input, const uint8_t tweak[], size_t tweak
    BigInt L, R, Fi;
    for(size_t i = 0; i != m_rounds; ++i)
       {
-      divide(X, m_b, L, R);
+      ct_divide(X, m_b, L, R);
       Fi = F(R, i, tweak_mac, tmp);
       X = m_a * R + mod_a->reduce(L + Fi);
       }
@@ -169,7 +169,7 @@ BigInt FPE_FE1::decrypt(const BigInt& input, const uint8_t tweak[], size_t tweak
    BigInt W, R, Fi;
    for(size_t i = 0; i != m_rounds; ++i)
       {
-      divide(X, m_a, R, W);
+      ct_divide(X, m_a, R, W);
 
       Fi = F(R, m_rounds-i-1, tweak_mac, tmp);
       X = m_b * mod_a->reduce(W - Fi) + R;

@@ -59,7 +59,7 @@ std::string GCM_Mode::provider() const
 
 size_t GCM_Mode::update_granularity() const
    {
-   return GCM_BS;
+   return GCM_BS * std::max<size_t>(2, BOTAN_BLOCK_CIPHER_PAR_MULT);
    }
 
 bool GCM_Mode::valid_nonce_length(size_t len) const
@@ -150,7 +150,7 @@ void GCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    uint8_t* buf = buffer.data() + offset;
 
    if(sz < tag_size())
-      throw Exception("Insufficient input for GCM decryption, tag missing");
+      throw Decoding_Error("Insufficient input for GCM decryption, tag missing");
 
    const size_t remaining = sz - tag_size();
 
@@ -166,7 +166,7 @@ void GCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    const uint8_t* included_tag = &buffer[remaining+offset];
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("GCM tag check failed");
+      throw Invalid_Authentication_Tag("GCM tag check failed");
 
    buffer.resize(offset + remaining);
    }

@@ -7,9 +7,10 @@
 
 #include <botan/serpent.h>
 #include <botan/loadstor.h>
+#include <botan/rotate.h>
 #include <botan/internal/serpent_sbox.h>
 
-#if defined(BOTAN_HAS_SERPENT_SIMD)
+#if defined(BOTAN_HAS_SERPENT_SIMD) || defined(BOTAN_HAS_SERPENT_AVX2)
   #include <botan/cpuid.h>
 #endif
 
@@ -276,6 +277,13 @@ void Serpent::clear()
 
 std::string Serpent::provider() const
    {
+#if defined(BOTAN_HAS_SERPENT_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return "avx2";
+      }
+#endif
+
 #if defined(BOTAN_HAS_SERPENT_SIMD)
    if(CPUID::has_simd_32())
       {
@@ -285,5 +293,7 @@ std::string Serpent::provider() const
 
    return "base";
    }
+
+#undef key_xor
 
 }

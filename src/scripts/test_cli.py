@@ -40,13 +40,10 @@ def setup_logging(options):
     logging.getLogger().setLevel(log_level)
 
 
-def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None):
+def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None, expected_stderr=None):
     global TESTS_RUN
-    global TESTS_FAILED
 
     TESTS_RUN += 1
-
-    logging.debug("Running %s %s", cmd, cmd_options)
 
     fixed_drbg_seed = "802" * 32
 
@@ -60,6 +57,8 @@ def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None):
     drbg_options = ['--rng-type=drbg', '--drbg-seed=' + fixed_drbg_seed]
     cmdline = [CLI_PATH, cmd] + drbg_options + opt_list
 
+    logging.debug("Executing '%s'" % (' '.join([CLI_PATH, cmd] + opt_list)))
+
     stdout = None
     stderr = None
 
@@ -71,7 +70,11 @@ def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None):
         (stdout, stderr) = proc.communicate(cmd_input.encode())
 
     if stderr:
-        logging.error("Got output on stderr %s", stderr)
+        if expected_stderr is None:
+            logging.error("Got output on stderr %s (stdout was %s)", stderr, stdout)
+        else:
+            if stderr != expected_stderr:
+                logging.error("Got output on stderr %s which did not match expected value %s", stderr, expected_stderr)
 
     output = stdout.decode('ascii').strip()
 
@@ -131,8 +134,8 @@ def cli_is_prime_tests():
     test_cli("is_prime", "548950623407687320763", "548950623407687320763 is probably prime")
 
 def cli_gen_prime_tests():
-    test_cli("gen_prime", "64", "15568813029901363223")
-    test_cli("gen_prime", "128", "287193909494025008847286845478788769439")
+    test_cli("gen_prime", "64", "15568813029901363163")
+    test_cli("gen_prime", "128", "287193909494025008847286845478788766073")
 
 def cli_factor_tests():
     test_cli("factor", "97", "97: 97")
@@ -158,6 +161,15 @@ def cli_hash_tests():
     test_cli("hash", "--algo=SHA-256",
              "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD -", "abc")
 
+    test_cli("hash", ["--algo=SHA-256", "--format=base64"],
+             "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0= -", "abc")
+
+    test_cli("hash", ["--algo=SHA-224", "--format=base58", "--no-fsname"],
+             "MuGc8HkSVyJjfMjPM5UQikPToBTzNucEghcGLe", "abc")
+
+    test_cli("hash", ["--algo=SHA-224", "--format=base58check", "--no-fsname"],
+             "3MmfMqgrhemdVa9bDAGfooukbviWtKMBx2xauL2RsyAe", "abc")
+
 def cli_hmac_tests():
     tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
 
@@ -181,12 +193,12 @@ def cli_bcrypt_tests():
 def cli_gen_dl_group_tests():
 
     pem = """-----BEGIN X9.42 DH PARAMETERS-----
-MIIBJAKBgwS7QodscwdpuPdbHL7YeFP7yRjdqWovbwD+/zSd2OMswe82XnawKsSq
-FSCVAfsG75CBRZ2krSY8X/7zuIh8yoAPs87ZIQJmKJem/MdII7zndfnec+klKtHo
-FX2mOFzmndWJBXv4fwWLHEGIoeCamveL2+q1M8sakNicI7U2vUkX30CxAoGDArnH
-im+KLvXXL4uR97V/yDVx/Vf0Eu8Bqxkx6jFMiabzc4mhCJ+MHh2nH3U67PLAnTgR
-zCQcHevoOKd/ODychEHWwqP26aKCaRUS1DLq8U/qPL7L2pTMLYu27THt7HvKfA0D
-mMo6OGy9uFpJkaLVypD+LKEY/Bc540iRFQcW63ngpo0CFjgPiPatvmWssQw2AuZ9
+MIIBJAKBgwTw7LQiLkXJsrgMVQxTPlWaQlYz/raZ+5RtIZe4YluQgRQGPFADLZ/t
+TOYzuIzZJFOcdKtEtrVkxZRGSkjZwKFKLUD6fzSjoC2M2EHktK/y5HsvxBxL4tKr
+q1ffbyPQi+iBLYTZAXygvxj2vWyrvA+/w4nbt1fStCHTDhWjLWqFpV9nAoGDAKzA
+HUu/IRl7OiUtW/dz36gzEJnaYtz4ZtJl0FG8RJiOe02lD8myqW2sVzYqMvKD0LGx
+x9fdSKC1G+aZ/NWtqrQjb66Daf7b0ddDx+bfWTWJ2dOtZd8IL2rmQQJm+JogDi9i
+huVYFicDNQGzi+nEKAzrZ1L/VxtiSiw/qw0IyOuVtz8CFjgPiPatvmWssQw2AuZ9
 mFvAZ/8wal0=
 -----END X9.42 DH PARAMETERS-----"""
 
@@ -282,6 +294,26 @@ mlLtJ5JvZ0/p6zP3x+Y9yPIrAR8L/acG5ItSrAKXzzuqQQZMv4aN
              "Certificate did not validate - Certificate issuer not found")
 
     shutil.rmtree(tmp_dir)
+
+def cli_pbkdf_tune_tests():
+    if not check_for_command("pbkdf_tune"):
+        return
+
+    expected = re.compile(r'For (default|[1-9][0-9]*) ms selected Scrypt\([0-9]+,[0-9]+,[0-9]+\) using [0-9]+ MiB')
+
+    output = test_cli("pbkdf_tune", ["--check", "1", "10", "50", "default"], None).split('\n')
+
+    for line in output:
+        if expected.match(line) is None:
+            logging.error("Unexpected line '%s'" % (line))
+
+    expected_pbkdf2 = re.compile(r'For (default|[1-9][0-9]*) ms selected PBKDF2\(HMAC\(SHA-256\),[0-9]+\)')
+
+    output = test_cli("pbkdf_tune", ["--algo=PBKDF2(SHA-256)", "--check", "1", "10", "50", "default"], None).split('\n')
+
+    for line in output:
+        if expected_pbkdf2.match(line) is None:
+            logging.error("Unexpected line '%s'" % (line))
 
 def cli_psk_db_tests():
     if not check_for_command("psk_get"):
@@ -494,7 +526,7 @@ def cli_tls_socket_tests():
 
     (stdout, stderr) = tls_client.communicate()
 
-    if len(stderr) != 0: # pylint: disable=len-as-condition
+    if stderr:
         logging.error("Got unexpected stderr output %s" % (stderr))
 
     if b'Handshake complete' not in stdout:
@@ -504,6 +536,46 @@ def cli_tls_socket_tests():
         logging.error("Missing client message from stdout %s" % (stdout))
 
     tls_server.communicate()
+
+def cli_tss_tests():
+
+    tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
+    data_file = os.path.join(tmp_dir, 'data')
+
+    exp_hash = "53B3C59276AE30EA7FD882268E80FD96AD80CC9FEB15F9FB940E7C4B5CF80B9E"
+
+    test_cli("rng", ["32", "--output=%s" % (data_file)], "")
+    test_cli("hash", ["--no-fsname", data_file], exp_hash)
+
+    m = 3
+    n = 5
+
+    test_cli("tss_split", [str(m), str(n), data_file, "--share-prefix=%s/split" % (tmp_dir)], "")
+
+    share_files = []
+
+    for i in range(1, n+1):
+        share = os.path.join(tmp_dir, "split%d.tss" % (i))
+        if not os.access(share, os.R_OK):
+            logging.error("Failed to create expected split file %s", share)
+        share_files.append(share)
+
+    rec5 = os.path.join(tmp_dir, "recovered_5")
+    test_cli("tss_recover", share_files + ["--output=%s" % (rec5)], "")
+    test_cli("hash", ["--no-fsname", rec5], exp_hash)
+
+    rec4 = os.path.join(tmp_dir, "recovered_4")
+    test_cli("tss_recover", share_files[1:] + ["--output=%s" % (rec4)], "")
+    test_cli("hash", ["--no-fsname", rec4], exp_hash)
+
+    rec3 = os.path.join(tmp_dir, "recovered_3")
+    test_cli("tss_recover", share_files[2:] + ["--output=%s" % (rec3)], "")
+    test_cli("hash", ["--no-fsname", rec3], exp_hash)
+
+    rec2 = os.path.join(tmp_dir, "recovered_2")
+    test_cli("tss_recover", share_files[3:] + ["--output=%s" % (rec2)], "", None,
+             b'Error: Insufficient shares to do TSS reconstruction\n')
+
 
 def cli_pk_encrypt_tests():
     tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
@@ -515,6 +587,10 @@ def cli_pk_encrypt_tests():
     rsa_pub_key = os.path.join(tmp_dir, 'rsa.pub')
 
     test_cli("keygen", ["--algo=RSA", "--provider=base", "--params=2048", "--output=%s" % (rsa_priv_key)], "")
+
+    key_hash = "891A3AA179639796B7A6348D2F1C3A8CC7E0FFED38BAE29143DF9B8A55391F28"
+    test_cli("hash", ["--no-fsname", "--algo=SHA-256", rsa_priv_key], key_hash)
+
     test_cli("pkcs8", ["--pub-out", "%s/rsa.priv" % (tmp_dir), "--output=%s" % (rsa_pub_key)], "")
 
     # Generate a random input file
@@ -522,7 +598,7 @@ def cli_pk_encrypt_tests():
 
     # Because we used a fixed DRBG for each invocation the same ctext is generated each time
     rng_output_hash = "32F5E7B61357DE8397EFDA1E598379DFD5EE21767BDF4E2A435F05117B836AC6"
-    ctext_hash = "BEA478C6D30CF0517AF6FC463D7CFDFB11AE2992ED744FF76E67612137780025"
+    ctext_hash = "5F45F360CF431C3E1BC126B1DB20CFE7A869AE7B67484A64F426A6349245EB51"
 
     test_cli("hash", ["--no-fsname", "--algo=SHA-256", input_file], rng_output_hash)
 
@@ -588,7 +664,9 @@ def cli_speed_tests():
         if format_re.match(line) is None:
             logging.error("Unexpected line %s", line)
 
-    math_ops = ['mp_mul', 'modexp', 'random_prime', 'inverse_mod', 'rfc3394', 'fpe_fe1',
+    # these all have a common output format
+    math_ops = ['mp_mul', 'mp_div', 'mp_div10', 'modexp', 'random_prime', 'inverse_mod',
+                'rfc3394', 'fpe_fe1', 'ecdsa_recovery', 'ecc_init',
                 'bn_redc', 'nistp_redc', 'ecc_mult', 'ecc_ops', 'os2ecp', 'primality_test',
                 'bcrypt', 'passhash9']
 
@@ -601,7 +679,7 @@ def cli_speed_tests():
 
     output = test_cli("speed", ["--msec=%d" % (msec), "scrypt"], None).split('\n')
 
-    format_re = re.compile(r'^scrypt-[0-9]+-[0-9]+-[0-9]+ [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+    format_re = re.compile(r'^scrypt-[0-9]+-[0-9]+-[0-9]+ \([0-9]+ MiB\) [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
 
     for line in output:
         if format_re.match(line) is None:
@@ -661,7 +739,11 @@ def main(args=None):
 
     test_regex = None
     if len(args) == 3:
-        test_regex = re.compile(args[2])
+        try:
+            test_regex = re.compile(args[2])
+        except re.error as e:
+            logging.error("Invalid regex: %s", str(e))
+            return 1
 
     start_time = time.time()
 
@@ -688,12 +770,14 @@ def main(args=None):
         cli_pk_encrypt_tests,
         cli_pk_workfactor_tests,
         cli_psk_db_tests,
+        cli_pbkdf_tune_tests,
         cli_rng_tests,
         cli_speed_tests,
         cli_timing_test_tests,
         cli_tls_ciphersuite_tests,
         cli_tls_client_hello_tests,
         cli_tls_socket_tests,
+        cli_tss_tests,
         cli_version_tests,
         ]
 
@@ -701,7 +785,7 @@ def main(args=None):
         fn_name = fn.__name__
 
         if test_regex is not None:
-            if test_regex.match(fn_name) is None:
+            if test_regex.search(fn_name) is None:
                 continue
 
         start = time.time()

@@ -13,8 +13,12 @@
 #define BOTAN_UTIL_COMPILER_FLAGS_H_
 
 /* Should we use GCC-style inline assembler? */
-#if !defined(BOTAN_USE_GCC_INLINE_ASM) && (defined(__GNUC__) || defined(__xlc__) || defined(__SUNPRO_CC))
-  #define BOTAN_USE_GCC_INLINE_ASM 1
+#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || \
+   defined(BOTAN_BUILD_COMPILER_IS_CLANG) || \
+   defined(BOTAN_BUILD_COMPILER_IS_XLC) || \
+   defined(BOTAN_BUILD_COMPILER_IS_SUN_STUDIO)
+
+  #define BOTAN_USE_GCC_INLINE_ASM
 #endif
 
 /**
@@ -59,14 +63,6 @@
 #endif
 
 /*
-* Define special macro when building under MSVC 2013 since there are
-* many compiler workarounds required for that version.
-*/
-#if defined(_MSC_VER) && (_MSC_VER < 1900)
-  #define BOTAN_BUILD_COMPILER_IS_MSVC_2013
-#endif
-
-/*
 * Define BOTAN_FUNC_ISA
 */
 #if (defined(__GNUG__) && !defined(__clang__)) || (BOTAN_CLANG_VERSION > 38)
@@ -88,7 +84,7 @@
 * Define BOTAN_MALLOC_FN
 */
 #if defined(__GNUG__) || defined(__clang__)
-  #define BOTAN_MALLOC_FN __attribute__ ((malloc))
+  #define BOTAN_MALLOC_FN __attribute__ ((malloc, returns_nonnull, alloc_size(1,2)))
 #elif defined(_MSC_VER)
   #define BOTAN_MALLOC_FN __declspec(restrict)
 #else
@@ -135,41 +131,24 @@
 #endif
 
 /*
-* Define BOTAN_CURRENT_FUNCTION
+* Define BOTAN_THREAD_LOCAL
 */
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC_2013)
-  #define BOTAN_CURRENT_FUNCTION __FUNCTION__
+#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+   #define BOTAN_THREAD_LOCAL thread_local
 #else
-  #define BOTAN_CURRENT_FUNCTION __func__
+   #define BOTAN_THREAD_LOCAL /**/
 #endif
 
 /*
-* Define BOTAN_NOEXCEPT (for MSVC 2013)
+* Define BOTAN_IF_CONSTEXPR
 */
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC_2013)
-  // noexcept is not supported in VS 2013
-  #include <yvals.h>
-  #define BOTAN_NOEXCEPT _NOEXCEPT
-#else
-  #define BOTAN_NOEXCEPT noexcept
-#endif
 
-/*
-* Define BOTAN_CONSTEXPR (for MSVC 2013)
-*/
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC_2013)
-  #define BOTAN_CONSTEXPR /**/
-#else
-  #define BOTAN_CONSTEXPR constexpr
-#endif
-
-/*
-* Define BOTAN_ALIGNAS (for MSVC 2013)
-*/
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC_2013)
-  #define BOTAN_ALIGNAS(n) /**/
-#else
-  #define BOTAN_ALIGNAS(n) alignas(n)
+#if !defined(BOTAN_IF_CONSTEXPR)
+   #if __cplusplus > 201402
+      #define BOTAN_IF_CONSTEXPR if constexpr
+   #else
+      #define BOTAN_IF_CONSTEXPR if
+   #endif
 #endif
 
 /*

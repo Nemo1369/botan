@@ -9,6 +9,7 @@
 #if defined(BOTAN_HAS_NUMBERTHEORY)
    #include <botan/bigint.h>
    #include <botan/numthry.h>
+   #include <botan/divide.h>
    #include <botan/internal/primality.h>
    #include <botan/reducer.h>
    #include <botan/pow_mod.h>
@@ -32,10 +33,10 @@ class BigInt_Unit_Tests final : public Test
          std::vector<Test::Result> results;
 
          results.push_back(test_bigint_sizes());
-         results.push_back(test_random_integer());
          results.push_back(test_random_prime());
          results.push_back(test_encode());
          results.push_back(test_bigint_io());
+         results.push_back(test_get_substring());
 
          return results;
          }
@@ -135,51 +136,6 @@ class BigInt_Unit_Tests final : public Test
          return result;
          }
 
-      Test::Result test_random_integer()
-         {
-         Test::Result result("BigInt::random_integer");
-
-         result.start_timer();
-
-         const size_t SAMPLES = 500000;
-
-         const uint64_t range_min = 0;
-         const uint64_t range_max = 100;
-
-         /*
-         * We have a range of 0...100 thus 100 degrees of freedom.
-         * This bound is 99.9% probability of non-uniform
-         */
-         const double CHI_CRIT = 148.230;
-
-         std::map<uint32_t, size_t> counts;
-
-         for(size_t i = 0; i != SAMPLES; ++i)
-            {
-            uint32_t r = BigInt::random_integer(Test::rng(), range_min, range_max).to_u32bit();
-            counts[r] += 1;
-            }
-
-         // Chi-square test
-         const double expected = static_cast<double>(SAMPLES) / (range_max - range_min);
-         double chi2 = 0;
-
-         for(auto sample : counts)
-            {
-            const double count = sample.second;
-            chi2 += ((count - expected)*(count - expected)) / expected;
-            }
-
-         if(chi2 >= CHI_CRIT)
-            result.test_failure("Failed Chi-square test, value " + std::to_string(chi2));
-         else
-            result.test_success("Passed Chi-square test, value " + std::to_string(chi2));
-
-         result.end_timer();
-
-         return result;
-         }
-
       Test::Result test_encode()
          {
          Test::Result result("BigInt encoding functions");
@@ -200,6 +156,34 @@ class BigInt_Unit_Tests final : public Test
             if(encoded_n1[i] != 0)
                {
                result.test_failure("encode_1363", "no zero byte");
+               }
+            }
+
+         return result;
+         }
+
+      Test::Result test_get_substring()
+         {
+         const size_t trials = 1000;
+
+         Test::Result result("BigInt get_substring");
+
+         const Botan::BigInt r(Test::rng(), 250);
+
+         for(size_t s = 1; s <= 32; ++s)
+            {
+            for(size_t trial = 0; trial != trials; ++trial)
+               {
+               const size_t offset = Test::rng().next_byte();
+
+               const uint32_t val = r.get_substring(offset, s);
+
+               Botan::BigInt t = r >> offset;
+               t.mask_bits(s);
+
+               const uint32_t cmp = t.to_u32bit();
+
+               result.test_eq("Same value", size_t(val), size_t(cmp));
                }
             }
 
@@ -375,6 +359,20 @@ class BigInt_Div_Test final : public Text_Based_Test
          e /= b;
          result.test_eq("a /= b", e, c);
 
+         if(b.bytes() == 1)
+            {
+            const uint8_t b8 = b.byte_at(0);
+
+            Botan::BigInt ct_q;
+            uint8_t ct_r;
+            Botan::ct_divide_u8(a, b8, ct_q, ct_r);
+            result.test_eq("ct_divide_u8 q", ct_q, c);
+            }
+
+         Botan::BigInt ct_q, ct_r;
+         Botan::ct_divide(a, b, ct_q, ct_r);
+         result.test_eq("ct_divide q", ct_q, c);
+
          return result;
          }
    };
@@ -392,25 +390,40 @@ class BigInt_Mod_Test final : public Text_Based_Test
 
          const BigInt a = vars.get_req_bn("In1");
          const BigInt b = vars.get_req_bn("In2");
-         const BigInt c = vars.get_req_bn("Output");
+         const BigInt expected = vars.get_req_bn("Output");
 
-         result.test_eq("a % b", a % b, c);
+         result.test_eq("a % b", a % b, expected);
 
          BigInt e = a;
          e %= b;
-         result.test_eq("a %= b", e, c);
+         result.test_eq("a %= b", e, expected);
 
          const Botan::Modular_Reducer mod_b(b);
-         result.test_eq("Barrett", mod_b.reduce(a), c);
+         result.test_eq("Barrett", mod_b.reduce(a), expected);
 
          // if b fits into a Botan::word test %= operator for words
-         if(b.bytes() <= sizeof(Botan::word))
+         if(b.sig_words() == 1)
             {
-            Botan::word b_word = b.word_at(0);
+            const Botan::word b_word = b.word_at(0);
+
             e = a;
             e %= b_word;
-            result.test_eq("a %= b (as word)", e, c);
+            result.test_eq("a %= b (as word)", e, expected);
+
+            result.test_eq("a % b (as word)", a % b_word, expected);
             }
+
+         if(b.bytes() == 1)
+            {
+            Botan::BigInt ct_q;
+            Botan::uint8_t ct_r;
+            Botan::ct_divide_u8(a, b.byte_at(0), ct_q, ct_r);
+            result.test_eq("ct_divide_u8 r", ct_r, expected);
+            }
+
+         Botan::BigInt ct_q, ct_r;
+         Botan::ct_divide(a, b, ct_q, ct_r);
+         result.test_eq("ct_divide r", ct_r, expected);
 
          return result;
          }

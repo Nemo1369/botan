@@ -23,6 +23,11 @@ Random Number Generators
 
       Creates a buffer with some timestamp values and calls ``randomize_with_input``
 
+      .. note::
+
+         When RDRAND is enabled and available at runtime, instead of timestamps
+         the output of RDRAND is used as the additional data.
+
    .. cpp:function:: uint8_t next_byte()
 
       Generates a single random byte and returns it. Note that calling this
@@ -35,6 +40,12 @@ Random Number Generators
       This works for most RNG types, including the system and TPM RNGs. But if
       the RNG doesn't support this operation, the data is dropped, no error is
       indicated.
+
+   .. cpp:function:: bool accepts_input() const
+
+      This function returns ``false`` if it is known that this RNG object cannot
+      accept external inputs. In this case, any calls to
+      :cpp:func:`RandomNumberGenerator::add_entropy` will be ignored.
 
    .. cpp:function:: void reseed_from_rng(RandomNumberGenerator& rng, \
                      size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS)
@@ -50,14 +61,14 @@ are only available on certain platforms. Others are mostly useful in specific
 situations.
 
 Generally prefer using either the system RNG, or else ``AutoSeeded_RNG`` which is
-intented to provide best possible behavior in a userspace PRNG.
+intended to provide best possible behavior in a userspace PRNG.
 
 System_RNG
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On systems which support it, in ``system_rng.h`` you can access a shared
 reference to a process global instance of the system PRNG (using interfaces such
-as ``/dev/urandom``, ``arc4random``, or ``RtlGenRandom``):
+as ``/dev/urandom``, ``getrandom``, ``arc4random``, or ``RtlGenRandom``):
 
 .. cpp:function:: RandomNumberGenerator& system_rng()
 
@@ -84,7 +95,7 @@ AutoSeeded_RNG
 
 AutoSeeded_RNG is type naming a 'best available' userspace PRNG. The
 exact definition of this has changed over time and may change in the
-future, fortunately there is no compatability concerns when changing
+future, fortunately there is no compatibility concerns when changing
 any RNG since the only expectation is it produces bits
 indistinguishable from random.
 
@@ -127,7 +138,7 @@ HMAC_DRBG's constructors are:
 
          The specification of HMAC DRBG requires that each invocation produce no
          more than 64 kibibytes of data. However, the RNG interface allows
-         producing arbitrary amounts of data in a single request. To accomodate
+         producing arbitrary amounts of data in a single request. To accommodate
          this, ``HMAC_DRBG`` treats requests for more data as if they were
          multiple requests each of (at most) the maximum size. You can specify a
          smaller maximum size with ``max_number_of_bytes_per_request``. There is
@@ -233,14 +244,11 @@ and entropy.
 
 The following entropy sources are currently used:
 
- * System RNG. This is simply however the system RNG is implemented on the
-   current system (arc4random, reading /dev/urandom, or RtlGenRandom).
- * RDRAND: is used if available, but not counted as contributing entropy
- * RDSEED: is used if available, but not counted as contributing entropy
- * Darwin SecRandomCopyBytes. This may be redundant with the system RNG
- * /dev/random and /dev/urandom. This may be redundant with the system RNG
- * getentropy, only used on OpenBSD currently
- * /proc walk: read files in /proc. Last ditch protection against
+ * The system RNG (``arc4random``, ``/dev/urandom``, or ``RtlGenRandom``).
+ * RDRAND and RDSEED are used if available, but not counted as contributing entropy
+ * ``/dev/random`` and ``/dev/urandom``. This may be redundant with the system RNG
+ * ``getentropy``, only used on OpenBSD currently
+ * ``/proc`` walk: read files in ``/proc``. Last ditch protection against
    flawed system RNG.
  * Win32 stats: takes snapshot of current system processes. Last ditch
    protection against flawed system RNG.

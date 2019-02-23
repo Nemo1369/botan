@@ -106,8 +106,11 @@ Response::Response(const uint8_t response_bits[], size_t response_bits_len) :
 
    response_outer.decode(resp_status, ENUMERATED, UNIVERSAL);
 
+   /*
+   * FIXME: properly decode error responses
+   */
    if(resp_status != 0)
-      throw Exception("OCSP response status " + std::to_string(resp_status));
+      throw Decoding_Error("OCSP response status " + std::to_string(resp_status));
 
    if(response_outer.more_items())
       {
@@ -155,7 +158,7 @@ Certificate_Status_Code Response::verify_signature(const X509_Certificate& issue
    {
    if (m_responses.empty())
       return m_dummy_response_status;
-      
+
    try
       {
       std::unique_ptr<Public_Key> pub_key(issuer.subject_public_key());

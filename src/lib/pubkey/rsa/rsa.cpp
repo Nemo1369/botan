@@ -15,6 +15,7 @@
 #include <botan/ber_dec.h>
 #include <botan/pow_mod.h>
 #include <botan/monty.h>
+#include <botan/divide.h>
 #include <botan/internal/monty_exp.h>
 
 #if defined(BOTAN_HAS_OPENSSL)
@@ -125,8 +126,8 @@ RSA_PrivateKey::RSA_PrivateKey(const BigInt& prime1,
       m_d = inverse_mod(m_e, phi_n);
       }
 
-   m_d1 = m_d % (m_p - 1);
-   m_d2 = m_d % (m_q - 1);
+   m_d1 = ct_modulo(m_d, m_p - 1);
+   m_d2 = ct_modulo(m_d, m_q - 1);
    }
 
 /*
@@ -157,8 +158,8 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
    const BigInt phi_n = lcm(m_p - 1, m_q - 1);
    // FIXME: this uses binary ext gcd because phi_n is even
    m_d = inverse_mod(m_e, phi_n);
-   m_d1 = m_d % (m_p - 1);
-   m_d2 = m_d % (m_q - 1);
+   m_d1 = ct_modulo(m_d, m_p - 1);
+   m_d2 = ct_modulo(m_d, m_q - 1);
    m_c = inverse_mod(m_q, m_p);
    }
 
@@ -173,7 +174,7 @@ bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const
    if(m_d < 2 || m_p < 3 || m_q < 3 || m_p*m_q != m_n)
       return false;
 
-   if(m_d1 != m_d % (m_p - 1) || m_d2 != m_d % (m_q - 1) || m_c != inverse_mod(m_q, m_p))
+   if(m_d1 != ct_modulo(m_d, m_p - 1) || m_d2 != ct_modulo(m_d, m_q - 1) || m_c != inverse_mod(m_q, m_p))
       return false;
 
    const size_t prob = (strong) ? 128 : 12;
@@ -183,7 +184,7 @@ bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const
 
    if(strong)
       {
-      if((m_e * m_d) % lcm(m_p - 1, m_q - 1) != 1)
+      if(ct_modulo(m_e * m_d, lcm(m_p - 1, m_q - 1)) != 1)
          return false;
 
       return KeyPair::signature_consistency_check(rng, *this, "EMSA4(SHA-256)");
@@ -233,26 +234,47 @@ class RSA_Private_Operation
 
       BigInt private_op(const BigInt& m) const
          {
+         /*
+         TODO
+           Consider using Montgomery reduction instead of Barrett, using
+           the "Smooth RSA-CRT" method. https://eprint.iacr.org/2007/039.pdf
+         */
+
          const size_t powm_window = 4;
 
          const BigInt d1_mask(m_blinder.rng(), m_blinding_bits);
 
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+#if defined(BOTAN_TARGET_OS_HAS_THREADS) && !defined(BOTAN_HAS_VALGRIND)
+   #define BOTAN_RSA_USE_ASYNC
+#endif
+
+#if defined(BOTAN_RSA_USE_ASYNC)
+         /*
+         * Precompute m.sig_words in the main thread before calling async. Otherwise
+         * the two threads race (during Modular_Reducer::reduce) and while the output
+         * is correct in both threads, helgrind warns.
+         */
+         m.sig_words();
+
          auto future_j1 = std::async(std::launch::async, [this, &m, &d1_mask, powm_window]() {
-               const BigInt masked_d1 = m_key.get_d1() + (d1_mask * (m_key.get_p() - 1));
-               auto powm_d1_p = monty_precompute(m_monty_p, m, powm_window);
-               return monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
-            });
-#else
+#endif
          const BigInt masked_d1 = m_key.get_d1() + (d1_mask * (m_key.get_p() - 1));
-         auto powm_d1_p = monty_precompute(m_monty_p, m, powm_window);
+         auto powm_d1_p = monty_precompute(m_monty_p, m_mod_p.reduce(m), powm_window);
          BigInt j1 = monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
+
+#if defined(BOTAN_RSA_USE_ASYNC)
+         return j1;
+         });
 #endif
 
          const BigInt d2_mask(m_blinder.rng(), m_blinding_bits);
          const BigInt masked_d2 = m_key.get_d2() + (d2_mask * (m_key.get_q() - 1));
-         auto powm_d2_q = monty_precompute(m_monty_q, m, powm_window);
+         auto powm_d2_q = monty_precompute(m_monty_q, m_mod_q.reduce(m), powm_window);
          const BigInt j2 = monty_execute(*powm_d2_q, masked_d2, m_max_d2_bits);
+
+#if defined(BOTAN_RSA_USE_ASYNC)
+         BigInt j1 = future_j1.get();
+#endif
 
          /*
          * To recover the final value from the CRT representation (j1,j2)
@@ -260,17 +282,14 @@ class RSA_Private_Operation
          * c = q^-1 mod p (this is precomputed)
          * h = c*(j1-j2) mod p
          * m = j2 + h*q
+         *
+         * We must avoid leaking if j1 >= j2 or not, as doing so allows deriving
+         * information about the secret prime. Do this by first adding p to j1,
+         * which should ensure the subtraction of j2 does not underflow. But
+         * this may still underflow if p and q are imbalanced in size.
          */
 
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
-         BigInt j1 = future_j1.get();
-#endif
-
-         /*
-         To prevent a side channel that allows detecting case where j1 < j2,
-         add p to j1 before reducing [computing c*(p+j1-j2) mod p]
-         */
-         j1 = m_mod_p.reduce(sub_mul(m_key.get_p() + j1, j2, m_key.get_c()));
+         j1 = m_mod_p.multiply(m_mod_p.reduce((m_key.get_p() + j1) - j2), m_key.get_c());
          return mul_add(j1, m_key.get_q(), j2);
          }
 
@@ -375,7 +394,12 @@ class RSA_Public_Operation
          m_monty_n(std::make_shared<Montgomery_Params>(m_n))
          {}
 
-      size_t get_max_input_bits() const { return (m_n.bits() - 1); }
+      size_t get_max_input_bits() const
+         {
+         const size_t n_bits = m_n.bits();
+         BOTAN_ASSERT_NOMSG(n_bits >= 384);
+         return n_bits - 1;
+         }
 
    protected:
       BigInt public_op(const BigInt& m) const

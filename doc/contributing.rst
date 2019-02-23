@@ -100,7 +100,7 @@ For configure.py (and helper scripts install.py, cleanup.py and build_docs.py)
 the target is stock (no modules outside the standard library) CPython 2.7 plus
 latest CPython 3.x. Support for CPython 2.6, PyPy, etc is great when viable (in
 the sense of not causing problems for 2.7 or 3.x, and not requiring huge blocks
-of version dependent code). As running this program succesfully is required for
+of version dependent code). As running this program successfully is required for
 a working build, making it as portable as possible is considered key.
 
 The python wrapper botan2.py targets CPython 2.7, 3.x, and latest PyPy. Note that
@@ -111,7 +111,7 @@ For random scripts not typically run by an end-user (codegen, visualization, and
 so on) there isn't any need to worry about 2.6 and even just running under
 Python2 xor Python3 is acceptable if needed. Here it's fine to depend on any
 useful modules such as graphviz or matplotlib, regardless if it is available
-from a stock CPython install.
+from a stock CPython install. Prefer Python3 for new scripts of this sort.
 
 Build Tools and Hints
 ========================================
@@ -125,6 +125,12 @@ Supported values including "address" and "undefined" for GCC and
 Clang.  GCC also supports "iterator" (checked iterators), and Clang
 supports "memory" (MSan) and "coverage" (for fuzzing).
 
+On Linux if you have the ``lcov`` and ``gcov`` tools installed, then running
+``./src/scripts/ci_build.py coverage`` will produce a coverage enabled build,
+run the tests, test the fuzzers against a corpus, and produce an HTML report
+of total coverage. This coverage build requires the development headers for
+zlib, bzip2, liblzma, OpenSSL, TrouSerS (libtspi), and Sqlite3.
+
 Copyright Notice
 ========================================
 
@@ -132,15 +138,12 @@ At the top of any new file add a comment with a copyright and a reference to the
 license, for example::
 
   /*
-  * (C) 2015,2016 Copyright Holder
+  * (C) 2018 Copyright Holder
   * Botan is released under the Simplified BSD License (see license.txt)
   */
 
 If you are making a substantial or non-trivial change to an existing file, add
-or update your own copyright statement at the top of the file. If you are making
-a change in a new year not covered by your existing statement, add the
-year. Even if the years you are making the change are consecutive, avoid year
-ranges: specify each year separated by a comma.
+or update your own copyright statement at the top of each file.
 
 Style Conventions
 ========================================
@@ -194,8 +197,7 @@ Compiler Dependencies
 
 The library should always be as functional as possible when compiled with just
 C++11. However, feel free to use the C++11 language. Little mercy is given to
-sub-par C++11 compilers that don't actually implement the language (some
-temporary concessions are made for MSVC 2013).
+sub-par C++11 compilers that don't actually implement the language.
 
 Use of compiler extensions is fine whenever appropriate; this is typically
 restricted to a single file or an internal header. Compiler extensions used
@@ -253,5 +255,5 @@ functionality which seem worth the trouble of maintaining an integration with.
 Examples of other external dependencies that would be appropriate include
 integration with system crypto (/dev/crypto, CommonCrypto, CryptoAPI, ...),
 potentially a parallelism framework such as Cilk (as part of a larger design for
-parallel message processing, say), or hypothentically use of a safe ASN.1 parser
+parallel message processing, say), or hypothetically use of a safe ASN.1 parser
 (that is, one written in a safe language like Rust or OCaml providing a C API).
